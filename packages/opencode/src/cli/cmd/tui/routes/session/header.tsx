@@ -8,6 +8,7 @@ import type { AssistantMessage, Session } from "@opencode-ai/sdk/v2"
 import { useCommandDialog } from "@tui/component/dialog-command"
 import { useKeybind } from "../../context/keybind"
 import { useTerminalDimensions } from "@opentui/solid"
+import { SecurityConfig } from "@/security/config"
 
 const Title = (props: { session: Accessor<Session> }) => {
   const { theme } = useTheme()
@@ -26,6 +27,23 @@ const ContextInfo = (props: { context: Accessor<string | undefined>; cost: Acces
         {props.context()} ({props.cost()})
       </text>
     </Show>
+  )
+}
+
+const SecurityIndicator = () => {
+  const { theme } = useTheme()
+  const config = SecurityConfig.getSecurityConfig()
+  const hasRules = (config.rules ?? []).length > 0 || config.segments?.markers?.length || config.segments?.ast?.length
+  if (!hasRules) return null
+
+  const roles = config.roles ?? []
+  const roleName =
+    roles.length === 0 ? "viewer" : roles.reduce((prev, curr) => (curr.level < prev.level ? curr : prev), roles[0]).name
+
+  return (
+    <text fg={theme.textMuted} wrapMode="none" flexShrink={0}>
+      [secured: {roleName}]
+    </text>
   )
 }
 
@@ -86,7 +104,10 @@ export function Header() {
                 <text fg={theme.text}>
                   <b>Subagent session</b>
                 </text>
-                <ContextInfo context={context} cost={cost} />
+                <box flexDirection="row" gap={1} flexShrink={0}>
+                  <SecurityIndicator />
+                  <ContextInfo context={context} cost={cost} />
+                </box>
               </box>
               <box flexDirection="row" gap={2}>
                 <box
@@ -125,7 +146,10 @@ export function Header() {
           <Match when={true}>
             <box flexDirection={narrow() ? "column" : "row"} justifyContent="space-between" gap={1}>
               <Title session={session} />
-              <ContextInfo context={context} cost={cost} />
+              <box flexDirection="row" gap={1} flexShrink={0}>
+                <SecurityIndicator />
+                <ContextInfo context={context} cost={cost} />
+              </box>
             </box>
           </Match>
         </Switch>
