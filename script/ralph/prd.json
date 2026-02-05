@@ -1,17 +1,23 @@
 {
   "project": "OpenCode",
-  "branchName": "ralph/os-native-sandbox",
-  "description": "OS Native Sandbox - kernel-level file system isolation for bash/MCP tools using macOS Seatbelt (sandbox-exec), preventing LLM from bypassing allowlist via arbitrary scripts",
+  "branchName": "ralph/security-access-control",
+  "description": "Security Access Control - Protect confidential directories, files, and code segments from unauthorized access, editing, and LLM transmission with role-based permissions",
   "userStories": [
     {
       "id": "US-001",
-      "title": "Add sandbox config schema",
-      "description": "As a project manager, I need to declare sandbox mode in the config file. Add `sandbox` field to config schema with `enabled: boolean` and `paths?: string[]`.",
+      "title": "Create security configuration schema",
+      "description": "As a developer, I need a well-defined Zod schema for `.opencode-security.json` so that security rules can be consistently parsed and validated.",
       "acceptanceCriteria": [
-        "In `packages/opencode/src/config/config.ts`, add `sandbox` field to config schema with Zod",
-        "`sandbox.enabled` is boolean, defaults to false",
-        "`sandbox.paths` is optional string array for extra allowed paths",
-        "No `sandbox` field in config = behavior unchanged (backward compatible)",
+        "Create new file `src/security/schema.ts` with Zod schema",
+        "Schema supports `version` string field",
+        "Schema supports `roles` array with objects containing `name` (string) and `level` (number)",
+        "Schema supports `rules` array with objects containing `pattern` (glob string), `type` ('directory' | 'file'), `deniedOperations` (array of 'read' | 'write' | 'llm'), `allowedRoles` (string array)",
+        "Schema supports `segments.markers` array for comment-based protection with `start`, `end`, `deniedOperations`, `allowedRoles`",
+        "Schema supports `segments.ast` array for AST-based protection with `languages`, `nodeTypes`, `namePattern`, `deniedOperations`, `allowedRoles`",
+        "Schema supports `logging` object with `path`, `level`, `maxSizeMB`, `retentionDays`",
+        "Schema supports `authentication` object with `publicKey` and `revokedTokens` array",
+        "Schema supports `mcp` object with `defaultPolicy` and `servers` record",
+        "Export `SecurityConfig` type and `securityConfigSchema` validator",
         "Typecheck passes"
       ],
       "priority": 1,
@@ -20,14 +26,15 @@
     },
     {
       "id": "US-002",
-      "title": "Define Sandbox interface and getSandbox factory",
-      "description": "As a developer, I need a cross-platform Sandbox interface so tool code doesn't need to know the platform-specific implementation.",
+      "title": "Implement configuration loader",
+      "description": "As a developer, I need to load and validate security configuration from project root so that protection rules are available at runtime.",
       "acceptanceCriteria": [
-        "New file `packages/opencode/src/sandbox/index.ts` with `Sandbox` interface",
-        "Interface has: `wrap(command: string[]): string[]`, `isAvailable(): Promise<boolean>`, `generatePolicy(config): Promise<string>`",
-        "`getSandbox()` factory returns platform-specific implementation or `null` if unsupported",
-        "On macOS (`process.platform === 'darwin'`), returns `SeatbeltSandbox` instance (stubbed, implemented in next story)",
-        "On unsupported platforms, returns `null`",
+        "Create new file `src/security/config.ts`",
+        "Function `loadSecurityConfig(projectRoot: string)` loads `.opencode-security.json`",
+        "Validate loaded config against schema from US-001",
+        "If config is malformed, log warning and return empty config (fail-open behavior)",
+        "If file doesn't exist, return default empty config with no rules",
+        "Export `getSecurityConfig()` function to access current config",
         "Typecheck passes"
       ],
       "priority": 2,
@@ -36,18 +43,15 @@
     },
     {
       "id": "US-003",
-      "title": "Implement SBPL profile generation from allowlist/deny config",
-      "description": "As a developer, I need to convert allowlist/deny rules from .opencode-security.json into a Seatbelt SBPL profile string.",
+      "title": "Implement path-based access checker",
+      "description": "As a developer, I need a centralized access checking function so that all tools can verify permissions consistently.",
       "acceptanceCriteria": [
-        "New file `packages/opencode/src/sandbox/profile.ts` with `generateProfile()` function",
-        "Directory glob patterns (e.g. `src/**`) → extract top-level dir → `(allow file-read* file-write* (subpath \"/abs/path/src\"))`",
-        "File patterns (e.g. `package.json`) → `(allow file-read* file-write* (literal \"/abs/path/package.json\"))`",
-        "Deny rule directories → `(deny file-read* file-write* (subpath ...))` written AFTER allow rules (last match wins)",
-        "Deny rule files → `(deny file-read* file-write* (literal ...))`",
-        "All allowlist entries are rw (no read-only distinction)",
-        "All paths resolved via `fs.realpath()` before writing to profile (handles symlinks like /tmp → /private/tmp)",
-        "Profile starts with `(version 1)` and `(deny default)`",
-        "Unit tests cover: directory glob, file pattern, deny directory, deny file, empty allowlist, symlink resolution",
+        "Create new file `src/security/access.ts`",
+        "Function `checkAccess(path: string, operation: 'read' | 'write' | 'llm', role: string)` returns `{ allowed: boolean, reason?: string }`",
+        "Match paths against rules using glob patterns (use micromatch or similar)",
+        "Respect role hierarchy: higher level roles can access content allowed for lower levels",
+        "Return clear denial reason string when access is denied",
+        "Export `checkAccess` function",
         "Typecheck passes"
       ],
       "priority": 3,
@@ -56,20 +60,14 @@
     },
     {
       "id": "US-004",
-      "title": "Add built-in whitelist and process capabilities to SBPL profile",
-      "description": "As a developer, I need the generated SBPL profile to include system paths, dev tool paths, and basic process capabilities so sandboxed commands can actually run.",
+      "title": "Implement rule inheritance for subdirectories",
+      "description": "As a security admin, I want protection rules to be inherited by subdirectories so that I don't need to specify rules for every nested path.",
       "acceptanceCriteria": [
-        "Profile includes process capabilities: `process-exec`, `process-fork`, `signal`, `pseudo-tty`, `sysctl-read`, required `mach-lookup` services",
-        "Profile allows read-only access to system binaries: `/usr/bin`, `/bin`, `/usr/sbin`, `/sbin`",
-        "Profile allows read-only access to system libraries: `/usr/lib`, `/usr/share`, `/System/Library`, `/Library/Frameworks`",
-        "Profile allows read-only access to Homebrew: `/opt/homebrew`, `/usr/local`",
-        "Profile allows read-only access to Xcode: `/Applications/Xcode.app`, `/Library/Developer`",
-        "Profile allows read-only access to /dev devices: `/dev/null`, `/dev/zero`, `/dev/ptmx`, `/dev/ttysN`",
-        "Profile allows rw access to project `node_modules/` and `.git/` directories",
-        "Profile allows rw access to `/private/tmp`",
-        "Profile allows all network: `(allow network*)`",
-        "Auto-detect and allow read-only access to user toolchain paths: `~/.bun`, `~/.nvm`, `~/.cargo`, `~/.pyenv` (only if they exist)",
-        "User-configured `sandbox.paths` added as rw allow rules",
+        "Update `checkAccess` in `src/security/access.ts`",
+        "Child paths automatically inherit parent directory protection rules",
+        "More restrictive child rules take precedence over inherited rules",
+        "Less restrictive child rules do NOT override parent restrictions",
+        "Add `getInheritanceChain(path: string)` function that returns array of applicable rules",
         "Typecheck passes"
       ],
       "priority": 4,
@@ -78,14 +76,14 @@
     },
     {
       "id": "US-005",
-      "title": "Implement SeatbeltSandbox class",
-      "description": "As a developer, I need the macOS Seatbelt implementation of the Sandbox interface that generates profile files and wraps commands with sandbox-exec.",
+      "title": "Implement symbolic link resolution for access checks",
+      "description": "As a security admin, I want symbolic links to protected content to be handled safely so that users cannot bypass protection via symlinks.",
       "acceptanceCriteria": [
-        "New file `packages/opencode/src/sandbox/seatbelt.ts` with `SeatbeltSandbox` class implementing `Sandbox` interface",
-        "`isAvailable()` checks `sandbox-exec` exists via `which sandbox-exec`",
-        "`generatePolicy(config)` calls profile generation from US-003/US-004, writes to temp file, returns path",
-        "`wrap(command)` prepends `['sandbox-exec', '-f', policyPath]` to the command array",
-        "Generated profile file is cached per session (not regenerated on every call)",
+        "Update `checkAccess` in `src/security/access.ts`",
+        "Resolve symbolic link targets using `fs.realpath` before checking access rules",
+        "If symlink target is protected, deny access to the symlink",
+        "Handle chains of symlinks (resolve fully before checking)",
+        "Return specific reason 'symlink target is protected' when symlink points to protected content",
         "Typecheck passes"
       ],
       "priority": 5,
@@ -94,16 +92,15 @@
     },
     {
       "id": "US-006",
-      "title": "Adapt bash tool for sandbox execution",
-      "description": "As a user, I want bash commands to automatically run inside the sandbox when sandbox is enabled.",
+      "title": "Implement marker-based segment detector",
+      "description": "As a developer, I need to detect protected code segments via comment markers so that teams can easily mark sensitive code blocks.",
       "acceptanceCriteria": [
-        "Modify `packages/opencode/src/tool/bash.ts` to check if sandbox is enabled",
-        "When sandbox enabled, wrap bash command with `sandbox.wrap()` before spawning",
-        "stdout/stderr correctly passed through",
-        "Exit code correctly passed through",
-        "Timeout mechanism still works",
-        "Working directory is project root",
-        "Skip bash scanner security checks when sandbox is enabled (sandbox provides stronger OS-level isolation)",
+        "Create new file `src/security/segments.ts`",
+        "Function `findMarkerSegments(content: string, markers: MarkerConfig[])` returns array of `{ start: number, end: number, rule: MarkerConfig }`",
+        "Support common comment styles: `//`, `#`, `<!-- -->`",
+        "Handle nested markers correctly (inner markers inherit outer protection)",
+        "Handle multiple separate marker blocks in same file",
+        "Export `findMarkerSegments` function",
         "Typecheck passes"
       ],
       "priority": 6,
@@ -112,12 +109,16 @@
     },
     {
       "id": "US-007",
-      "title": "Adapt interactive bash tool for sandbox execution",
-      "description": "As a user, I want interactive bash sessions to also run inside the sandbox.",
+      "title": "Implement AST-based segment detector for TypeScript/JavaScript",
+      "description": "As a developer, I need to detect protected code segments via AST analysis so that functions and classes can be protected by name pattern.",
       "acceptanceCriteria": [
-        "Modify `packages/opencode/src/tool/interactive-bash.ts` to check if sandbox is enabled",
-        "When sandbox enabled, wrap interactive bash with `sandbox.wrap()` before spawning",
-        "PTY/interactive session works correctly under sandbox-exec",
+        "Update `src/security/segments.ts`",
+        "Function `findASTSegments(filePath: string, content: string, astRules: ASTConfig[])` returns array of `{ start: number, end: number, rule: ASTConfig, nodeType: string }`",
+        "Use TypeScript compiler API to parse TS/JS files",
+        "Detect function declarations, arrow functions, class declarations, and class methods",
+        "Match function/class names against regex patterns from config",
+        "Graceful fallback: return empty array if parsing fails",
+        "Export `findASTSegments` function",
         "Typecheck passes"
       ],
       "priority": 7,
@@ -126,14 +127,14 @@
     },
     {
       "id": "US-008",
-      "title": "Adapt MCP tool for sandbox execution",
-      "description": "As a user, I want MCP servers to run inside the sandbox to prevent bypassing file restrictions through MCP tools.",
+      "title": "Implement content redaction utility",
+      "description": "As a developer, I need a utility to redact protected segments from file content so that tools can safely return partial content.",
       "acceptanceCriteria": [
-        "Modify MCP server launch in `packages/opencode/src/mcp/index.ts` to wrap with `sandbox.wrap()` when sandbox enabled",
-        "MCP server stdio pipes work correctly under sandbox-exec",
-        "MCP server file access is restricted by sandbox profile",
-        "`enforced` policy MCP servers always run in sandbox",
-        "`trusted` policy MCP servers skip sandbox (user's explicit trust decision)",
+        "Create new file `src/security/redact.ts`",
+        "Function `redactContent(content: string, segments: Segment[])` returns content with protected ranges replaced by `[REDACTED: Security Protected]`",
+        "Preserve line numbers (replace with same number of newlines if multi-line)",
+        "Handle overlapping segments correctly (merge overlapping ranges)",
+        "Export `redactContent` function",
         "Typecheck passes"
       ],
       "priority": 8,
@@ -142,12 +143,14 @@
     },
     {
       "id": "US-009",
-      "title": "Verify file tools use application-layer allowlist (no sandbox)",
-      "description": "As a developer, I need to confirm file tools (read/write/glob/grep) continue using application-layer allowlist checks and do NOT go through sandbox-exec.",
+      "title": "Integrate access control with Read tool",
+      "description": "As a user, I want the Read tool to respect security rules so that protected content cannot be read.",
       "acceptanceCriteria": [
-        "read/write/glob/grep tools in sandbox mode continue using existing allowlist checks",
-        "No sandbox-exec wrapping for file tools — OpenCode controls this code, LLM cannot bypass",
-        "Verify existing allowlist check logic covers all file tool paths",
+        "Locate Read tool implementation in `src/tool/` directory",
+        "Before reading file, call `checkAccess(path, 'read', currentRole)`",
+        "If file is fully protected (directory/file rule), return access denied error",
+        "If file contains protected segments, read file and apply `redactContent()` before returning",
+        "Log access attempt using security logger (create placeholder if not exists)",
         "Typecheck passes"
       ],
       "priority": 9,
@@ -156,14 +159,13 @@
     },
     {
       "id": "US-010",
-      "title": "Implement sandbox initialization flow",
-      "description": "As a user, when sandbox is enabled, I want automatic initialization at session start with clear progress and error messages.",
+      "title": "Integrate access control with Write tool",
+      "description": "As a user, I want the Write tool to respect security rules so that protected content cannot be overwritten.",
       "acceptanceCriteria": [
-        "On session start, detect `sandbox.enabled = true` and trigger init flow",
-        "Init steps: 1) platform detection (sandbox-exec available), 2) environment check (macOS version, SIP), 3) policy generation, 4) validation (run `sandbox-exec -f profile.sb /usr/bin/true`)",
-        "If any step fails, sandbox auto-disables, session continues without sandbox, warning shown",
-        "Init result cached at session level — no re-init unless allowlist config changes",
-        "Clear error messages for each failure type: platform unsupported, profile generation failed, validation failed",
+        "Locate Write tool implementation in `src/tool/` directory",
+        "Before writing file, call `checkAccess(path, 'write', currentRole)`",
+        "If file is protected, return access denied error with clear message",
+        "Log write attempt using security logger",
         "Typecheck passes"
       ],
       "priority": 10,
@@ -172,14 +174,14 @@
     },
     {
       "id": "US-011",
-      "title": "Implement sandbox doctor CLI command",
-      "description": "As a user, I need `opencode sandbox doctor` to diagnose my sandbox environment without starting the TUI.",
+      "title": "Integrate access control with Edit tool",
+      "description": "As a user, I want the Edit tool to respect security rules so that protected segments cannot be modified.",
       "acceptanceCriteria": [
-        "New file `packages/opencode/src/sandbox/doctor.ts` with environment detection logic",
-        "macOS checks: sandbox-exec available, macOS version, SIP status",
-        "Each failed check includes specific fix instructions",
-        "New CLI command `opencode sandbox doctor` registered in CLI commands",
-        "Command runs checks and prints results to stdout (no TUI needed)",
+        "Locate Edit tool implementation in `src/tool/` directory",
+        "Before editing, call `checkAccess(path, 'write', currentRole)` for file-level check",
+        "If file has protected segments, check if edit range overlaps with any protected segment",
+        "If edit would modify protected segment, return access denied error",
+        "Log edit attempt using security logger",
         "Typecheck passes"
       ],
       "priority": 11,
@@ -188,12 +190,12 @@
     },
     {
       "id": "US-012",
-      "title": "Add sandbox status to TUI and CLI",
-      "description": "As a user, I want to see sandbox status in the TUI status bar and via `opencode sandbox status` command.",
+      "title": "Integrate access control with Glob tool",
+      "description": "As a user, I want the Glob tool to respect security rules so that protected files are filtered from results.",
       "acceptanceCriteria": [
-        "TUI status bar shows sandbox state: `[Sandbox: ON]`, `[Sandbox: OFF]`, or `[Sandbox: FAILED]`",
-        "Sandbox errors shown in TUI with repair suggestions",
-        "`opencode sandbox status` CLI command shows: platform, sandbox type, init status, allowlist paths, built-in whitelist paths",
+        "Locate Glob tool implementation in `src/tool/` directory",
+        "After getting glob results, filter out paths where `checkAccess(path, 'read', currentRole).allowed` is false",
+        "Log that protected files were filtered (count only, not paths)",
         "Typecheck passes"
       ],
       "priority": 12,
@@ -202,24 +204,300 @@
     },
     {
       "id": "US-013",
-      "title": "Integration tests for sandbox security",
-      "description": "As a developer, I need integration tests verifying sandbox correctly blocks access to protected files and allows access to permitted files.",
+      "title": "Integrate access control with Grep tool",
+      "description": "As a user, I want the Grep tool to respect security rules so that matches in protected content are hidden.",
       "acceptanceCriteria": [
-        "Tests written against Sandbox interface (shared between macOS and future Linux)",
-        "Test: sandboxed bash cannot read files outside allowlist (Operation not permitted)",
-        "Test: sandboxed `python3 -c \"open('secrets/key.pem').read()\"` fails with permission denied",
-        "Test: sandboxed bash CAN read/write files in allowlist",
-        "Test: deny rule paths blocked even when parent is in allowlist",
-        "Test: built-in whitelist paths (node_modules, .git, /tmp) accessible",
-        "Test: user-configured extra paths accessible",
-        "Test: unsupported platform gracefully degrades (skips sandbox)",
-        "macOS-specific unit tests for SBPL profile generation correctness",
-        "Skip sandbox tests on unsupported platforms via `process.platform` check",
-        "All tests pass via `bun test --cwd packages/opencode`",
+        "Locate Grep tool implementation in `src/tool/` directory",
+        "Filter out matches in fully protected files",
+        "For files with protected segments, redact match content if it falls within protected range (show file:line but not content)",
+        "Log that protected content was redacted from results",
         "Typecheck passes"
       ],
       "priority": 13,
       "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-014",
+      "title": "Implement audit logging system",
+      "description": "As a security admin, I want all access attempts logged so that I can review security events.",
+      "acceptanceCriteria": [
+        "Create new file `src/security/audit.ts`",
+        "Function `logSecurityEvent(event: SecurityEvent)` writes to configured log path",
+        "Log format: JSON with timestamp, role, operation, path, result (allowed/denied), rule triggered",
+        "Support configurable log level: 'verbose' (all access) or 'normal' (denials only)",
+        "Hash or truncate actual content in logs (don't store sensitive data)",
+        "Export `logSecurityEvent` function",
+        "Typecheck passes"
+      ],
+      "priority": 14,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-015",
+      "title": "Implement Bash command security scanner",
+      "description": "As a user, I want the Bash tool to detect commands that would access protected files so that shell commands cannot bypass protection.",
+      "acceptanceCriteria": [
+        "Create new file `src/security/bash-scanner.ts`",
+        "Function `scanBashCommand(command: string)` returns array of file paths the command may access",
+        "Detect file access patterns in: cat, less, head, tail, vim, nano, grep, find, sed, awk",
+        "Parse basic command arguments to extract file paths",
+        "Export `scanBashCommand` function",
+        "Typecheck passes"
+      ],
+      "priority": 15,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-016",
+      "title": "Integrate access control with Bash tool",
+      "description": "As a user, I want the Bash tool to block commands that would access protected files.",
+      "acceptanceCriteria": [
+        "Locate Bash tool implementation in `src/tool/` directory",
+        "Before executing command, call `scanBashCommand()` to get potential file accesses",
+        "Check each detected path with `checkAccess(path, 'read' or 'write', currentRole)`",
+        "If any path is protected, return error explaining which rule was triggered",
+        "Log blocked command attempts",
+        "Typecheck passes"
+      ],
+      "priority": 16,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-017",
+      "title": "Implement LLM request content scanner",
+      "description": "As a security admin, I need to scan outgoing LLM request content for protected patterns.",
+      "acceptanceCriteria": [
+        "Create new file `src/security/llm-scanner.ts`",
+        "Function `scanForProtectedContent(content: string, config: SecurityConfig)` returns array of matches with rule info",
+        "Check content against all configured segment markers and patterns",
+        "Return match locations and which rule was triggered",
+        "Export `scanForProtectedContent` function",
+        "Typecheck passes"
+      ],
+      "priority": 17,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-018",
+      "title": "Implement LLM request interceptor middleware",
+      "description": "As a security admin, I want all LLM requests to be intercepted so that protected content never reaches external providers.",
+      "acceptanceCriteria": [
+        "Locate LLM provider code in `src/provider/` directory",
+        "Create middleware that intercepts outgoing requests before sending",
+        "Scan all message content and tool results using `scanForProtectedContent()`",
+        "If protected content detected and rule says 'block', throw error",
+        "If protected content detected and rule says 'redact', replace with placeholder",
+        "Log all interceptions to audit log",
+        "Typecheck passes"
+      ],
+      "priority": 18,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-019",
+      "title": "Add MCP server security policy support",
+      "description": "As a security admin, I want to configure security policies per MCP server so that external tools follow appropriate rules.",
+      "acceptanceCriteria": [
+        "Update security config loader to read `mcp.defaultPolicy` and `mcp.servers` settings",
+        "Create function `getMcpPolicy(serverName: string)` returning 'enforced' | 'trusted' | 'blocked'",
+        "Locate MCP tool handler in codebase",
+        "Before MCP tool execution, check server policy",
+        "If 'blocked', reject the tool call",
+        "If 'enforced', apply normal security checks to tool inputs/outputs",
+        "If 'trusted', skip security checks",
+        "Log MCP access with server name",
+        "Typecheck passes"
+      ],
+      "priority": 19,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-020",
+      "title": "Implement nested config detection and merging",
+      "description": "As a developer in a monorepo, I want nested security configs to merge with parent configs so each subproject can add restrictions.",
+      "acceptanceCriteria": [
+        "Update `src/security/config.ts`",
+        "Function `findSecurityConfigs(startPath: string)` walks up to git root collecting `.opencode-security.json` files",
+        "Function `mergeSecurityConfigs(configs: SecurityConfig[])` combines configs",
+        "Rules are unioned (more configs = more restrictions)",
+        "Role definitions must be identical across configs (throw error if conflict)",
+        "MCP policies use most restrictive (blocked > enforced > trusted)",
+        "Typecheck passes"
+      ],
+      "priority": 20,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-021",
+      "title": "Add security CLI status command",
+      "description": "As a user, I want a CLI command to see current security status so I understand my access level.",
+      "acceptanceCriteria": [
+        "Create new CLI command file `src/cli/cmd/security/status.ts`",
+        "Command `opencode security status` shows: current role, number of active rules, config file paths",
+        "Register command in CLI command registry",
+        "Format output clearly with sections for role, rules count by type, active config files",
+        "Typecheck passes"
+      ],
+      "priority": 21,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-022",
+      "title": "Add security CLI check command",
+      "description": "As a user, I want to test if a specific path is accessible so I can verify security config.",
+      "acceptanceCriteria": [
+        "Create new CLI command file `src/cli/cmd/security/check.ts`",
+        "Command `opencode security check <path>` tests path accessibility",
+        "Show result for each operation type (read/write/llm)",
+        "Show inheritance chain (which rules apply and from where)",
+        "Show symlink resolution if path is symlink",
+        "Typecheck passes"
+      ],
+      "priority": 22,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-023",
+      "title": "Add security CLI init command",
+      "description": "As a user, I want to generate a template security config so I can quickly set up protection.",
+      "acceptanceCriteria": [
+        "Create new CLI command file `src/cli/cmd/security/init.ts`",
+        "Command `opencode security init` creates template `.opencode-security.json`",
+        "Template includes example roles (admin, developer, viewer)",
+        "Template includes example rules for common sensitive paths (.env, secrets/)",
+        "Template includes example segment markers",
+        "Don't overwrite if file already exists (prompt or error)",
+        "Typecheck passes"
+      ],
+      "priority": 23,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-024",
+      "title": "Add security CLI logs command",
+      "description": "As a security admin, I want to view recent audit logs from the CLI.",
+      "acceptanceCriteria": [
+        "Create new CLI command file `src/cli/cmd/security/logs.ts`",
+        "Command `opencode security logs` shows recent security events",
+        "Support `--tail <n>` flag to show last N entries (default 20)",
+        "Support `--filter denied` to show only denials",
+        "Parse and format JSON log entries for readability",
+        "Handle missing log file gracefully",
+        "Typecheck passes"
+      ],
+      "priority": 24,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-025",
+      "title": "Add security status indicator to TUI header",
+      "description": "As a user, I want to see my security role in the TUI so I understand my current access level.",
+      "acceptanceCriteria": [
+        "Locate TUI header/status bar component in `src/cli/cmd/tui/`",
+        "Add security status indicator showing current role name",
+        "Show indicator only when security config is active (has rules)",
+        "Use subtle styling (not intrusive)",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 25,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-026",
+      "title": "Implement JWT token verification for role authentication",
+      "description": "As a security admin, I want roles verified via signed tokens so users cannot falsely claim privileges.",
+      "acceptanceCriteria": [
+        "Create new file `src/security/token.ts`",
+        "Function `verifyRoleToken(tokenPath: string, publicKey: string)` returns `{ valid: boolean, role?: string, error?: string }`",
+        "Parse JWT token and verify RS256 signature against public key",
+        "Check token expiration (exp claim)",
+        "Check token is not in revokedTokens list (by jti claim)",
+        "Return role from token claims if valid",
+        "Export `verifyRoleToken` function",
+        "Typecheck passes"
+      ],
+      "priority": 26,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-027",
+      "title": "Implement current role detection",
+      "description": "As a user, I want my role to be automatically detected from token file so I get appropriate access.",
+      "acceptanceCriteria": [
+        "Create new file `src/security/role.ts`",
+        "Function `getCurrentRole(projectRoot: string, config: SecurityConfig)` returns role name string",
+        "Look for `.opencode-role.token` in project root first, then `~/.config/opencode/role.token`",
+        "Verify token using `verifyRoleToken()` with public key from config",
+        "If no valid token found, return lowest level role from config",
+        "Cache result for session (don't re-verify on every check)",
+        "Export `getCurrentRole` function",
+        "Typecheck passes"
+      ],
+      "priority": 27,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-028",
+      "title": "Add CLI command to generate admin key pair",
+      "description": "As a security admin, I want to generate a key pair for signing role tokens.",
+      "acceptanceCriteria": [
+        "Create new CLI command file `src/cli/cmd/security/init-keys.ts`",
+        "Command `opencode security init-keys` generates RSA key pair",
+        "Support optional `--passphrase` flag for encrypting private key",
+        "Save private key to `.opencode-security-key.pem` (add to .gitignore warning)",
+        "Output public key in PEM format to add to security config",
+        "Typecheck passes"
+      ],
+      "priority": 28,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-029",
+      "title": "Add CLI command to issue role tokens",
+      "description": "As a security admin, I want to generate signed tokens so team members can authenticate their role.",
+      "acceptanceCriteria": [
+        "Create new CLI command file `src/cli/cmd/security/issue-token.ts`",
+        "Command `opencode security issue-token --role <role> --expires <days>`",
+        "Load private key from `.opencode-security-key.pem`",
+        "Support `--passphrase` flag if key is encrypted",
+        "Generate JWT with claims: role, project (git remote), exp, iat, jti (unique ID)",
+        "Output token to stdout or save to file with `--output` flag",
+        "Typecheck passes"
+      ],
+      "priority": 29,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-030",
+      "title": "Register all security CLI commands",
+      "description": "As a user, I want all security commands available under `opencode security` subcommand.",
+      "acceptanceCriteria": [
+        "Create `src/cli/cmd/security/index.ts` to register subcommands",
+        "Register: status, check, init, logs, init-keys, issue-token",
+        "Add `security` command group to main CLI registry",
+        "Add help text for `opencode security --help`",
+        "Typecheck passes"
+      ],
+      "priority": 30,
+      "passes": false,
       "notes": ""
     }
   ]
