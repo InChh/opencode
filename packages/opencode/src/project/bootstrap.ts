@@ -27,6 +27,7 @@ export async function InstanceBootstrap() {
   Vcs.init()
   Snapshot.init()
   Truncate.init()
+  await SecurityConfig.loadSecurityConfig(Instance.directory)
 
   // Initialize sandbox after security config is loaded (needs allowlist/deny rules)
   const sandboxResult = await initSandbox()
