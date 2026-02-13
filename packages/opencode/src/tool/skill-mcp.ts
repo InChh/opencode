@@ -2,7 +2,6 @@ import { Tool } from "./tool"
 import DESCRIPTION from "./skill-mcp.txt"
 import z from "zod"
 import { MCP } from "../mcp"
-import { BuiltinMcp } from "../mcp/builtin"
 import { SecurityConfig } from "../security/config"
 import { SecurityAudit } from "../security/audit"
 import { Log } from "../util/log"
@@ -73,14 +72,10 @@ export const SkillMcpTool = Tool.define("skill_mcp", async () => {
       const serverStatus = statuses[params.mcp_name]
 
       if (!serverStatus) {
-        const builtinMsg = BuiltinMcp.getDisabledMessage(params.mcp_name)
-        const msg = builtinMsg
-          ? builtinMsg
-          : `Unknown MCP server: '${params.mcp_name}'. Available servers: ${Object.keys(statuses).join(", ") || "none"}`
         return {
           title: "Error",
           metadata: { error: true, server: params.mcp_name },
-          output: msg,
+          output: `Unknown MCP server: '${params.mcp_name}'. Available servers: ${Object.keys(statuses).join(", ") || "none"}`,
         }
       }
 
