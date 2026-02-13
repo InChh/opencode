@@ -1053,6 +1053,15 @@ export namespace Config {
           explore: Agent.optional(),
           "omo-explore": Agent.optional(),
           oracle: Agent.optional(),
+          // optional (opt-in)
+          hephaestus: Agent.optional(),
+          prometheus: Agent.optional(),
+          atlas: Agent.optional(),
+          librarian: Agent.optional(),
+          metis: Agent.optional(),
+          momus: Agent.optional(),
+          "multimodal-looker": Agent.optional(),
+          "sisyphus-junior": Agent.optional(),
           // specialized
           title: Agent.optional(),
           summary: Agent.optional(),
