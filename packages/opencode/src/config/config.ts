@@ -1045,6 +1045,7 @@ export namespace Config {
       agent: z
         .object({
           // primary
+          sisyphus: Agent.optional(),
           plan: Agent.optional(),
           build: Agent.optional(),
           // subagent
