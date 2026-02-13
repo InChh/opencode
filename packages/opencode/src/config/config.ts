@@ -1051,6 +1051,7 @@ export namespace Config {
           // subagent
           general: Agent.optional(),
           explore: Agent.optional(),
+          "omo-explore": Agent.optional(),
           // specialized
           title: Agent.optional(),
           summary: Agent.optional(),
