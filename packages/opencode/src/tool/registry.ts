@@ -30,6 +30,8 @@ import { Truncate } from "./truncation"
 import { ApplyPatchTool } from "./apply_patch"
 import { Glob } from "../util/glob"
 import { pathToFileURL } from "url"
+import { AstGrepSearchTool, AstGrepReplaceTool } from "./ast-grep"
+import { DelegateTaskTool, BackgroundOutputTool, BackgroundCancelTool } from "./delegate-task"
 
 export namespace ToolRegistry {
   const log = Log.create({ service: "tool.registry" })
@@ -110,6 +112,9 @@ export namespace ToolRegistry {
       EditTool,
       WriteTool,
       TaskTool,
+      DelegateTaskTool,
+      BackgroundOutputTool,
+      BackgroundCancelTool,
       WebFetchTool,
       TodoWriteTool,
       // TodoReadTool,

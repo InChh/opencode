@@ -31,6 +31,15 @@ Started: Sat 14 Feb 2026 02:05:22 CST
 - `Ripgrep.files()` supports: cwd, glob, hidden, follow, maxDepth, noIgnore, signal — all mapped to ripgrep CLI flags
 - Grep tool uses `Bun.spawn` directly with ripgrep args (not `Ripgrep.search()`). New ripgrep parameters are mapped in the tool, not the abstraction
 - Ripgrep `--field-match-separator=|` only affects match lines; context lines use `-` separator — parser must handle both formats
+- Tool.define execute with multiple return branches: use explicit return type annotation `Promise<{ title: string; metadata: { [key: string]: unknown }; output: string }>` to avoid union narrowing errors
+- Tool.define execute return type: all branches must include same metadata fields — TypeScript narrows union types and mismatched optional fields cause errors
+- Security rule schema: `deniedOperations: ["read"]` NOT `operations: { read: "deny" }` — use `SecuritySchema.Rule` format with `deniedOperations` array
+- Tool descriptions: one `.txt` file per tool, imported as text via Bun loader: `import DESC from "./tool-name.txt"`
+- LSP result URIs: two formats to handle — `{ uri, range }` (definitions) and `{ location: { uri, range } }` (references/symbols). Use `fileURLToPath()` to convert `file://` URIs for SecurityAccess
+- LSP WorkspaceEdit: two formats — `changes: Record<uri, TextEdit[]>` or `documentChanges: TextDocumentEdit[]` — handle both
+- Tool deprecation pattern: log warning via `Log.warn()`, prepend deprecation message to output, add `deprecated: true` + `replacement` to metadata
+- For optional/peer dependencies, use exported `Loader` object with injectable `.load()` method for test isolation — avoids `mock.module` hoisting issues with dynamic `import()`
+- `SecuritySchema.MarkerConfig` has `deniedOperations` and `allowedRoles` directly (not nested in a `rule` field) — `findMarkerSegments()` returns `MarkerSegment` with `.rule` being the full `MarkerConfig`
 
 ---
 
@@ -476,4 +485,136 @@ Started: Sat 14 Feb 2026 02:05:22 CST
   - The grep tool uses `Bun.spawn` directly with ripgrep args rather than `Ripgrep.search()` — new params are mapped directly in the tool, not the Ripgrep abstraction
   - `maxCount` serves dual purpose: passed to ripgrep as `--max-count` (per-file limit) AND used as the output result truncation limit
   - Return type consistency: all return paths must include the same metadata fields (e.g., `hasPartialResults`) to satisfy TypeScript's type narrowing
+---
+
+## 2026-02-14 - US-019
+- Split LSP tool into 5 focused navigation tools: `lsp_goto_definition`, `lsp_find_references`, `lsp_symbols`, `lsp_hover`, `lsp_implementation`
+  - `lsp_goto_definition`: file, line, character -> definition locations formatted as file:line:col
+  - `lsp_find_references`: file, line, character + includeDeclaration (default true) + limit (default 100) -> reference locations with truncation messages
+  - `lsp_symbols`: file, scope (document|workspace) + query + limit (default 50) -> symbol names with kinds and locations
+  - `lsp_hover`: file, line, character -> hover information (documentation, types)
+  - `lsp_implementation`: file, line, character -> implementation locations
+- All tools use `SecurityAccess.checkAccess(filePath, 'read', 'agent')` to filter results containing protected file paths
+- `filterByAccess` helper handles both `uri` and `location.uri` LSP result formats
+- `formatLocation` helper converts LSP URIs to relative file:line:col format
+- Original `lsp` tool preserved unchanged alongside new focused tools
+- All new tools registered in ToolRegistry behind `OPENCODE_EXPERIMENTAL_LSP_TOOL` flag
+- Each tool description in a separate `.txt` file following existing convention
+- 30 unit tests all passing, 1597 existing tests still pass
+- Typecheck passes
+- Files changed:
+  - `packages/opencode/src/tool/lsp-tools.ts` (new)
+  - `packages/opencode/src/tool/lsp-goto-definition.txt` (new)
+  - `packages/opencode/src/tool/lsp-find-references.txt` (new)
+  - `packages/opencode/src/tool/lsp-symbols.txt` (new)
+  - `packages/opencode/src/tool/lsp-hover.txt` (new)
+  - `packages/opencode/src/tool/lsp-implementation.txt` (new)
+  - `packages/opencode/src/tool/registry.ts` (modified — added new tool imports and registration)
+  - `packages/opencode/test/tool/lsp-tools.test.ts` (new)
+- **Learnings for future iterations:**
+  - TypeScript's type narrowing requires all return branches of a Tool.define execute function to have consistent metadata shapes — include all fields (even with 0/undefined) in all branches
+  - SecurityAccess rule schema uses `deniedOperations: ["read"]` and `allowedRoles: []`, NOT `operations: { read: "deny" }` — use correct SecuritySchema.Rule format
+  - For security test setup, use `setupSecurityConfig()` helper from `test/security/access_control_cases/helpers.ts` which writes `.opencode-security.json` to disk and calls `loadSecurityConfig(dir)`
+  - macOS path canonicalization: use `fs.realpathSync(tmp.path)` when creating absolute rule patterns in tests — `/var/folders/` vs `/private/var/folders/` mismatch causes rules to not match
+  - LSP result filtering needs to handle two URI formats: direct `{ uri, range }` (definitions) and nested `{ location: { uri, range } }` (references/symbols)
+  - `fileURLToPath` from `url` module converts `file://` URIs back to file paths for SecurityAccess checks
+  - Tool descriptions as separate `.txt` files are imported via Bun's text loader — one file per tool
+  - Tools with no LSP server available (file type not supported) throw "No LSP server available for this file type" — test with unusual extensions
+---
+
+## 2026-02-14 - US-020
+- Split LSP tool: created 4 new focused tools and deprecated old unified lsp tool
+  - `lsp_diagnostics`: retrieves LSP diagnostics with severity filter (error/warning/information/hint/all), formats as SEVERITY [line:col] message (file:line:col)
+  - `lsp_prepare_rename`: checks if symbol at position can be renamed, returns range and placeholder
+  - `lsp_rename`: renames symbol across all files via LSP workspace edit, lists affected files with change counts
+  - `lsp_call_hierarchy`: explores call hierarchy with direction param (prepare/incoming/outgoing)
+- Added `prepareRename` and `rename` methods to `LSP` namespace in `packages/opencode/src/lsp/index.ts`
+- Deprecated old unified `lsp` tool: logs deprecation warning, prepends deprecation message to output, includes replacement tool name in metadata
+- All new tools registered in ToolRegistry behind `OPENCODE_EXPERIMENTAL_LSP_TOOL` flag
+- SecurityAccess.checkAccess(filePath, 'read', 'agent') filtering on all result file paths
+- 28 unit tests all passing, 58 total LSP tool tests pass
+- Typecheck passes
+- Files changed:
+  - `packages/opencode/src/tool/lsp-tools-extended.ts` (new)
+  - `packages/opencode/src/tool/lsp-diagnostics.txt` (new)
+  - `packages/opencode/src/tool/lsp-prepare-rename.txt` (new)
+  - `packages/opencode/src/tool/lsp-rename.txt` (new)
+  - `packages/opencode/src/tool/lsp-call-hierarchy.txt` (new)
+  - `packages/opencode/src/lsp/index.ts` (modified — added prepareRename, rename methods)
+  - `packages/opencode/src/tool/lsp.ts` (modified — added deprecation warning and metadata)
+  - `packages/opencode/src/tool/registry.ts` (modified — registered 4 new tools)
+  - `packages/opencode/test/tool/lsp-tools-extended.test.ts` (new)
+- **Learnings for future iterations:**
+  - LSP rename returns a `WorkspaceEdit` object with either `changes` (Record<uri, TextEdit[]>) or `documentChanges` (TextDocumentEdit[]) — handle both formats
+  - `LSP.prepareRename()` can return either `{ range, placeholder }` or just a `Range` — the response format varies by LSP server
+  - Call hierarchy `incomingCalls` returns `{ from: CallHierarchyItem }` and `outgoingCalls` returns `{ to: CallHierarchyItem }` — extract the nested item for formatting/filtering
+  - Deprecation pattern: log warning via `Log.warn()`, prepend deprecation message to output, add `deprecated: true` and `replacement` to metadata — allows downstream processing to detect and handle deprecated tool usage
+  - LSP diagnostics (`LSP.diagnostics()`) returns all diagnostics from all connected clients with no file parameter — the file path is only used to ensure an LSP server is running
+  - `as const` is needed on string arrays used in `for...of` loops when the values are passed to functions expecting specific string literal types (Zod enum parse)
+---
+
+## 2026-02-14 - US-021
+- Implemented AST-Grep search and replace tools in `packages/opencode/src/tool/ast-grep.ts`
+  - `ast_grep_search`: AST-aware code search with pattern, lang (25 languages), paths, globs, context params
+  - `ast_grep_replace`: AST-aware code refactoring with rewrite, dryRun (default true) params
+- @ast-grep/napi as peer dependency: `AstGrepLoader.load()` returns null if not installed, tools return clear "ast-grep not available. Install with: bun add @ast-grep/napi" message
+- SecurityAccess integration:
+  - `checkAccess(path, 'read')` for search files
+  - `checkAccess(path, 'write')` for replace files (only when dryRun=false)
+  - `findWriteProtectedSegments()` for segment-level protection in replace
+  - `SecurityAudit.logSecurityEvent()` for all denied operations
+- Gated behind `OPENCODE_EXPERIMENTAL_AST_GREP` flag (or `OPENCODE_EXPERIMENTAL`)
+- Created tool description files: `ast-grep-search.txt`, `ast-grep-replace.txt`
+- Registered both tools in `registry.ts` behind experimental flag
+- Added `AstGrepApi`, `AstGrepRoot`, `AstGrepNode` interfaces for type-safe API usage
+- 20 unit tests all passing, 1645 existing tests still pass
+- Typecheck passes
+- Files changed:
+  - `packages/opencode/src/tool/ast-grep.ts` (new)
+  - `packages/opencode/src/tool/ast-grep-search.txt` (new)
+  - `packages/opencode/src/tool/ast-grep-replace.txt` (new)
+  - `packages/opencode/src/tool/registry.ts` (modified — registered tools)
+  - `packages/opencode/src/flag/flag.ts` (modified — added OPENCODE_EXPERIMENTAL_AST_GREP)
+  - `packages/opencode/test/tool/ast-grep.test.ts` (new)
+- **Learnings for future iterations:**
+  - `mock.module` in Bun is hoisted and persistent per file — cannot test "module not found" and "module mocked" in the same file
+  - Solution: export an injectable `Loader` object with `.load()` method; tests swap it with `enableMock()`/`disableMock()` + `restoreLoader()` in afterEach
+  - `SecuritySchema.MarkerConfig` has `deniedOperations` and `allowedRoles` directly on the object, not nested in a `rule` field — but `SecuritySegments.findMarkerSegments()` returns `MarkerSegment` where `.rule` IS the `MarkerConfig`
+  - Separate `AstGrepRoot` from `AstGrepNode` interface: root only needs `findAll`, individual nodes need `text/range/replace/findAll`
+  - `SgNode.range()` returns `{ start: Pos, end: Pos }` where `Pos` has `line`, `column`, AND `index` (byte offset) — use `.index` for precise position checking
+  - `SgNode.replace()` returns an `Edit { startPos, endPos, insertedText }` object, NOT a string — must extract `.insertedText` for the replacement text
+  - Protected segment skipping in replace: apply replacements in reverse offset order to preserve positions for earlier replacements
+---
+
+## 2026-02-14 - US-022
+- Implemented 3 new tools for delegate-task with background execution
+  - `delegate_task`: delegates tasks to specialized agents with category routing, background execution, skill injection, session continuation, and sub-agent recursion prevention
+  - `background_output`: retrieves status and output of background tasks (pending/running/completed/failed/cancelled)
+  - `background_cancel`: cancels running or pending background tasks
+- Key features:
+  - `run_in_background=true` returns task_id immediately; `=false` waits for completion (sync mode mirrors existing task tool)
+  - Category resolution via `Categories.resolve()` + `Categories.lookup()` for model routing (e.g., 'quick' -> cheap model)
+  - `subagent_type` for explicit agent selection; cannot be used with `category` (mutual exclusion enforced)
+  - `load_skills` parameter injects skill content into sub-agent prompt via `<skill_content>` XML blocks
+  - `session_id` for session continuation (resume existing sub-session)
+  - Sub-agents denied `delegate_task` permission to prevent recursion (via `ctx.extra.isSubagent` check + permission rule)
+  - SecurityConfig shared by reference via BackgroundManager (frozen, immutable)
+- Tool description files: `delegate-task.txt`, `background-output.txt`, `background-cancel.txt`
+- All 3 tools registered in ToolRegistry alongside existing task tool
+- 29 unit tests all passing, 1674 total tests pass
+- Typecheck passes
+- Files changed:
+  - `packages/opencode/src/tool/delegate-task.ts` (new)
+  - `packages/opencode/src/tool/delegate-task.txt` (new)
+  - `packages/opencode/src/tool/background-output.txt` (new)
+  - `packages/opencode/src/tool/background-cancel.txt` (new)
+  - `packages/opencode/src/tool/registry.ts` (modified — registered 3 new tools)
+  - `packages/opencode/test/tool/delegate-task.test.ts` (new)
+- **Learnings for future iterations:**
+  - Tool.define execute return type must be explicitly annotated with `Promise<{ title: string; metadata: MetadataType; output: string }>` when multiple return branches have different metadata shapes — TypeScript narrows union types and mismatched optional fields cause errors
+  - Use `{ [key: string]: unknown }` as the metadata type for tools with diverse return shapes to avoid union type narrowing issues
+  - The `ctx.extra?.isSubagent` pattern allows callers to mark sub-agent context for recursion prevention — complements the permission-level deny on `delegate_task` tool
+  - Background execution pattern: create BackgroundManager task, resolve prompt parts, then fire-and-forget via `executeInBackground().catch()` — failures handled by `BackgroundManager.fail()`
+  - `delegate_task` disables itself (`delegate_task: false`) in the tools map when calling `SessionPrompt.prompt()` to prevent the sub-agent from calling it, in addition to the permission-level deny
+  - The existing `task` tool remains unchanged — `delegate_task` is an enhanced alternative with category routing and background execution
 ---
