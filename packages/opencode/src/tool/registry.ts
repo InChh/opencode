@@ -48,6 +48,7 @@ import { DelegateTaskTool, BackgroundOutputTool, BackgroundCancelTool } from "./
 import { LookAtTool } from "./look-at"
 import { SkillMcpTool } from "./skill-mcp"
 import { InteractiveBashTool } from "./interactive-bash"
+import { PersistentTaskTool } from "./persistent-task-tool"
 
 export namespace ToolRegistry {
   const log = Log.create({ service: "tool.registry" })
@@ -138,6 +139,7 @@ export namespace ToolRegistry {
       CodeSearchTool,
       SkillTool,
       SkillMcpTool,
+      PersistentTaskTool,
       ApplyPatchTool,
       ...(Flag.OPENCODE_EXPERIMENTAL_LSP_TOOL
         ? [LspTool, LspGotoDefinitionTool, LspFindReferencesTool, LspSymbolsTool, LspHoverTool, LspImplementationTool, LspDiagnosticsTool, LspPrepareRenameTool, LspRenameTool, LspCallHierarchyTool]
