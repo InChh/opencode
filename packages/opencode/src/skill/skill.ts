@@ -13,6 +13,7 @@ import { Bus } from "@/bus"
 import { Session } from "@/session"
 import { Discovery } from "./discovery"
 import { Glob } from "../util/glob"
+import { fileURLToPath } from "url"
 
 export namespace Skill {
   const log = Log.create({ service: "skill" })
@@ -48,6 +49,13 @@ export namespace Skill {
   const EXTERNAL_SKILL_PATTERN = "skills/**/SKILL.md"
   const OPENCODE_SKILL_PATTERN = "{skill,skills}/**/SKILL.md"
   const SKILL_PATTERN = "**/SKILL.md"
+
+  // Built-in skills directory (shipped with opencode)
+  const BUILTIN_DIR = path.resolve(fileURLToPath(import.meta.url), "..", "builtin")
+  const BUILTIN_SKILL_GLOB = new Bun.Glob("*/SKILL.md")
+
+  // Track skills with lazy-loaded content (large templates >50KB)
+  const lazyContent = new Map<string, boolean>()
 
   export const state = Instance.state(async () => {
     const skills: Record<string, Info> = {}
@@ -99,6 +107,18 @@ export namespace Skill {
         .catch((error) => {
           log.error(`failed to scan ${scope} skills`, { dir: root, error })
         })
+    }
+
+    // Scan built-in skills first (shipped with opencode) — user-defined skills override these
+    if (!process.env.OPENCODE_DISABLE_BUILTIN_SKILLS && await Filesystem.isDir(BUILTIN_DIR)) {
+      for await (const match of BUILTIN_SKILL_GLOB.scan({
+        cwd: BUILTIN_DIR,
+        absolute: true,
+        onlyFiles: true,
+        followSymlinks: true,
+      })) {
+        await addSkill(match)
+      }
     }
 
     // Scan external skill directories (.claude/skills/, .agents/skills/, etc.)
@@ -185,5 +205,41 @@ export namespace Skill {
 
   export async function dirs() {
     return state().then((x) => x.dirs)
+  }
+
+  /**
+   * Extract <skill-instruction> block from skill content.
+   * Returns only the instruction block if present, otherwise returns the full content.
+   */
+  export function extractInstruction(content: string): { instruction: string; hasBlock: boolean } {
+    const match = content.match(/<skill-instruction>([\s\S]*?)<\/skill-instruction>/)
+    if (match) {
+      return { instruction: match[1].trim(), hasBlock: true }
+    }
+    return { instruction: content, hasBlock: false }
+  }
+
+  /**
+   * Check if a skill has lazy-loaded content (for testing).
+   */
+  export function isLazy(name: string): boolean {
+    return lazyContent.has(name)
+  }
+
+  /**
+   * Check if a skill is a built-in skill (shipped with opencode).
+   */
+  export async function isBuiltin(name: string): Promise<boolean> {
+    const s = await state()
+    const skill = s.skills[name]
+    if (!skill) return false
+    return skill.location.startsWith(BUILTIN_DIR)
+  }
+
+  /**
+   * Get the built-in skills directory path (for testing).
+   */
+  export function builtinDir(): string {
+    return BUILTIN_DIR
   }
 }
