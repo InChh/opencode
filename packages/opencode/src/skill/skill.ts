@@ -22,6 +22,8 @@ export namespace Skill {
     description: z.string(),
     location: z.string(),
     content: z.string(),
+    mcp: z.array(z.string()).optional(),
+    agent: z.array(z.string()).optional(),
   })
   export type Info = z.infer<typeof Info>
 
@@ -73,7 +75,7 @@ export namespace Skill {
 
       if (!md) return
 
-      const parsed = Info.pick({ name: true, description: true }).safeParse(md.data)
+      const parsed = Info.pick({ name: true, description: true, mcp: true, agent: true }).safeParse(md.data)
       if (!parsed.success) return
 
       // Warn on duplicate skill names
@@ -87,11 +89,21 @@ export namespace Skill {
 
       dirs.add(path.dirname(match))
 
+      // Store content as empty string for lazy loading when content is large (>50KB)
+      const contentSize = Buffer.byteLength(md.content, "utf-8")
+      const isLarge = contentSize > 50_000
+
       skills[parsed.data.name] = {
         name: parsed.data.name,
         description: parsed.data.description,
         location: match,
-        content: md.content,
+        content: isLarge ? "" : md.content,
+        mcp: parsed.data.mcp,
+        agent: parsed.data.agent,
+      }
+
+      if (isLarge) {
+        lazyContent.set(parsed.data.name, true)
       }
     }
 
@@ -196,7 +208,18 @@ export namespace Skill {
   })
 
   export async function get(name: string) {
-    return state().then((x) => x.skills[name])
+    const s = await state()
+    const skill = s.skills[name]
+    if (!skill) return undefined
+    // Lazy load content for large skills
+    if (lazyContent.has(name) && skill.content === "") {
+      const md = await ConfigMarkdown.parse(skill.location).catch(() => undefined)
+      if (md) {
+        skill.content = md.content
+        lazyContent.delete(name)
+      }
+    }
+    return skill
   }
 
   export async function all() {
