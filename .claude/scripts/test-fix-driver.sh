@@ -123,6 +123,57 @@ check_dependencies
 # ── Ensure Log Directory ──────────────────────────────────────────────
 mkdir -p "$LOG_DIR"
 
+# ── Signal Handling ──────────────────────────────────────────────────
+# Trap SIGINT/SIGTERM to exit gracefully after the current round completes.
+# The driver does NOT kill the Agent mid-round — it waits for completion.
+SHUTDOWN_REQUESTED=0
+
+print_ledger_summary() {
+  if [[ -f "$LEDGER_PATH" ]] && jq empty "$LEDGER_PATH" 2>/dev/null; then
+    local total fixed escalated discovered attempted
+    total=$(jq '.entries | length' "$LEDGER_PATH")
+    fixed=$(jq '[.entries[] | select(.status == "fixed")] | length' "$LEDGER_PATH")
+    escalated=$(jq '[.entries[] | select(.status == "escalated")] | length' "$LEDGER_PATH")
+    discovered=$(jq '[.entries[] | select(.status == "discovered")] | length' "$LEDGER_PATH")
+    attempted=$(jq '[.entries[] | select(.status == "attempted")] | length' "$LEDGER_PATH")
+    echo "[STATUS] Ledger: $total total, $fixed fixed, $escalated escalated, $discovered discovered, $attempted attempted"
+  fi
+}
+
+handle_shutdown() {
+  echo ""
+  echo "[SIGNAL] Shutdown requested — will exit after current round completes"
+  SHUTDOWN_REQUESTED=1
+}
+
+trap handle_shutdown SIGINT SIGTERM
+
+# ── Concurrency Safety: File Locking ─────────────────────────────────
+# Acquire an exclusive lock on a lock file derived from the ledger path.
+# If another driver instance holds the lock, exit immediately with an error.
+LOCK_FILE="${LEDGER_PATH}.lock"
+
+# Open the lock file on file descriptor 9
+exec 9>"$LOCK_FILE"
+
+if ! flock -n 9; then
+  echo "ERROR: Another test-fix-driver instance is already running (lock held on $LOCK_FILE)" >&2
+  echo "If you believe this is stale, remove the lock file: rm $LOCK_FILE" >&2
+  exit 2
+fi
+
+# Release lock and print summary on exit (normal or signal)
+cleanup() {
+  flock -u 9 2>/dev/null || true
+  exec 9>&- 2>/dev/null || true
+  rm -f "$LOCK_FILE" 2>/dev/null || true
+  print_ledger_summary
+  echo "[EXIT] Driver stopped."
+}
+
+trap 'handle_shutdown' SIGINT SIGTERM
+trap 'cleanup' EXIT
+
 # ── Print Configuration ───────────────────────────────────────────────
 echo "test-fix-driver.sh"
 echo "  Project root:  $PROJECT_ROOT"
@@ -273,6 +324,11 @@ count_non_terminal() {
   echo $((total - terminal))
 }
 
+# ── Helper: Count Terminal Entries ────────────────────────────────────
+count_terminal() {
+  jq '[.entries[] | select(.status == "fixed" or .status == "escalated")] | length' "$LEDGER_PATH"
+}
+
 # ── Helper: Read Round Counter ───────────────────────────────────────
 read_round() {
   if [[ -f "$COUNTER_FILE" ]]; then
@@ -358,12 +414,15 @@ generate_report() {
 echo ""
 echo "[LOOP] Starting fix loop..."
 
+stale_rounds=0
+MAX_STALE_ROUNDS=3
+
 while true; do
   local_round=$(read_round)
   local_remaining=$(count_non_terminal)
 
   echo ""
-  echo "[LOOP] Round $local_round | $local_remaining non-terminal entries remaining"
+  echo "[LOOP] Round $local_round | $local_remaining non-terminal entries remaining | stale_rounds=$stale_rounds"
 
   # Termination: all entries are terminal
   if [[ "$local_remaining" -eq 0 ]]; then
@@ -396,23 +455,76 @@ while true; do
     fi
   fi
 
+  # Termination: staleness detected (no progress for 3 consecutive rounds)
+  if [[ "$stale_rounds" -ge "$MAX_STALE_ROUNDS" ]]; then
+    echo "[LOOP] $stale_rounds consecutive rounds with no progress — transitioning to FORCE_ESCALATE"
+    force_escalate
+    generate_report
+    # Determine exit code: 0 if all fixed, 1 if any escalated
+    local_escalated=$(jq '[.entries[] | select(.status == "escalated")] | length' "$LEDGER_PATH")
+    if [[ "$local_escalated" -eq 0 ]]; then
+      echo "[DONE] All failures fixed!"
+      exit 0
+    else
+      echo "[DONE] $local_escalated failure(s) escalated for human review."
+      exit 1
+    fi
+  fi
+
+  # Check if shutdown was requested between rounds
+  if [[ "$SHUTDOWN_REQUESTED" -eq 1 ]]; then
+    echo "[SIGNAL] Graceful shutdown — exiting after completing previous round"
+    print_ledger_summary
+    exit 1
+  fi
+
+  # Record terminal count before the round
+  local_terminal_before=$(count_terminal)
+
   # Invoke Agent for one fix round
   local_log_file="$LOG_DIR/test-fix-round-${local_round}.log"
   echo "[LOOP] Invoking Agent: timeout ${ROUND_TIMEOUT}s claude -p '/test-fix-round --ledger $LEDGER_PATH'"
   echo "[LOOP] Log: $local_log_file"
 
-  local_exit_code=0
+  # Protect the Agent from SIGINT/SIGTERM: temporarily set "ignore"
+  # disposition before forking so the child inherits it. Then restore
+  # the handler in the parent. This ensures the Agent is NOT killed
+  # mid-round when the user presses Ctrl+C.
+  trap '' SIGINT SIGTERM
   timeout "$ROUND_TIMEOUT" claude -p "/test-fix-round --ledger $LEDGER_PATH" \
-    > "$local_log_file" 2>&1 || local_exit_code=$?
+    > "$local_log_file" 2>&1 &
+  agent_pid=$!
+  trap 'handle_shutdown' SIGINT SIGTERM
+
+  # Wait for agent completion — re-wait if interrupted by a signal
+  local_exit_code=0
+  while true; do
+    if wait "$agent_pid" 2>/dev/null; then
+      local_exit_code=0
+      break
+    fi
+    local_exit_code=$?
+    # If agent is still running (wait was interrupted by signal), re-wait
+    kill -0 "$agent_pid" 2>/dev/null || break
+  done
 
   if [[ "$local_exit_code" -eq 0 ]]; then
     echo "[LOOP] Agent completed successfully"
-    increment_round
   elif [[ "$local_exit_code" -eq 124 ]]; then
     echo "[WARN] Agent timed out after ${ROUND_TIMEOUT}s — retrying same ledger state"
-    increment_round
   else
     echo "[WARN] Agent exited with code $local_exit_code — retrying same ledger state"
-    increment_round
+  fi
+
+  increment_round
+
+  # Staleness detection: compare terminal count before and after the round
+  local_terminal_after=$(count_terminal)
+  if [[ "$local_terminal_after" -gt "$local_terminal_before" ]]; then
+    echo "[LOOP] Progress detected: terminal entries $local_terminal_before → $local_terminal_after"
+    stale_rounds=0
+  else
+    stale_rounds=$((stale_rounds + 1))
+    echo "[LOOP] No progress: terminal entries unchanged at $local_terminal_after (stale_rounds=$stale_rounds/$MAX_STALE_ROUNDS)"
   fi
 done
