@@ -101,9 +101,13 @@ export const InteractiveBashTool = Tool.define<z.ZodObject<{ tmux_command: z.Zod
         }
       }
 
+<<<<<<< HEAD
       const sandbox = getActiveSandbox()
       const baseArgs = ["tmux", ...params.tmux_command.trim().split(/\s+/)]
       const args = sandbox ? sandbox.wrap(baseArgs) : baseArgs
+=======
+      const args = ["tmux", ...params.tmux_command.trim().split(/\s+/)]
+>>>>>>> 2f633f327 (fix: enforce allowlist on read operations and run security checks before tmux availability)
       const proc = Bun.spawn(args, {
         cwd,
         stdout: "pipe",
