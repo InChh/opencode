@@ -8,7 +8,8 @@ export const printFileResult = (result: WorkerResult, index: number, total: numb
   const icon = result.fail > 0 ? "✗" : "✓"
   const duration = (result.duration / 1000).toFixed(1)
   console.log(`[${index}/${total}] ${icon} ${result.file} (${result.pass} pass, ${result.fail} fail, ${result.skip} skip, ${duration}s)`)
-  // Error details are printed in printSummary to avoid interleaving with concurrent file output.
+
+  if (result.fail > 0 && result.error) console.log(result.error)
 }
 
 export const printSummary = (results: WorkerResult[], wallTime: number, config: RunnerConfig): void => {
@@ -23,7 +24,6 @@ export const printSummary = (results: WorkerResult[], wallTime: number, config: 
 
   console.log("")
   console.log("─".repeat(60))
-  if (config.shard) console.log(`Shard:   ${config.shard.index}/${config.shard.total}`)
   console.log(`Files:   ${results.length}`)
   console.log(`Pass:    ${totalPass}`)
   console.log(`Fail:    ${totalFail}`)
@@ -37,21 +37,6 @@ export const printSummary = (results: WorkerResult[], wallTime: number, config: 
   console.log("")
   console.log("Failed files:")
   failed.forEach((r) => console.log(`  ✗ ${r.file} (${r.fail} fail)`))
-
-  console.log("")
-  console.log("Failure details:")
-  for (const r of failed) {
-    console.log("")
-    console.log(`${"─".repeat(60)}`)
-    console.log(`✗ ${r.file}`)
-    console.log("─".repeat(60))
-    if (r.error?.trim()) {
-      console.log(r.error.trim())
-    } else {
-      const hint = r.error === undefined ? "error field not set" : `error field set but empty (${r.error.length} bytes)`
-      console.log(`(no output captured — ${hint})`)
-    }
-  }
 }
 
 const escapeXml = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
