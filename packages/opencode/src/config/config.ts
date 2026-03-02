@@ -1147,6 +1147,82 @@ export namespace Config {
             .describe("Token buffer for compaction. Leaves enough window to avoid overflow during compaction."),
         })
         .optional(),
+      hooks: z
+        .record(
+          z.string(),
+          z.object({
+            enabled: z.boolean().describe("Enable or disable this hook"),
+          }),
+        )
+        .optional()
+        .describe("Hook configuration: enable or disable individual hooks by name"),
+      background_task: z
+        .object({
+          defaultConcurrency: z
+            .number()
+            .int()
+            .positive()
+            .optional()
+            .describe("Maximum concurrent background tasks (default: 3)"),
+          providerConcurrency: z
+            .record(z.string(), z.number().int().positive())
+            .optional()
+            .describe("Per-provider concurrency limits"),
+          modelConcurrency: z
+            .record(z.string(), z.number().int().positive())
+            .optional()
+            .describe("Per-model concurrency limits"),
+          staleTimeoutMs: z
+            .number()
+            .int()
+            .positive()
+            .optional()
+            .describe("Timeout in ms for stale task detection (default: 180000)"),
+          persist_on_exit: z
+            .boolean()
+            .optional()
+            .describe("Keep background tasks running on session exit (default: false)"),
+        })
+        .optional()
+        .describe("Background task manager configuration"),
+      categories: z
+        .record(
+          z.string(),
+          z.object({
+            description: z.string().describe("Description of when to use this category"),
+            model: z
+              .string()
+              .optional()
+              .describe("Model to use for tasks in this category (provider/model format)"),
+            prompt_append: z
+              .string()
+              .optional()
+              .describe("Additional prompt text appended for tasks in this category"),
+          }),
+        )
+        .optional()
+        .describe("Task categories for delegated work routing — user categories merge with/override defaults"),
+      disabled_mcps: z
+        .array(z.string())
+        .optional()
+        .describe("List of built-in MCP server names to disable even when their API key is available"),
+      sandbox: z
+        .object({
+          enabled: z.boolean().optional().default(false).describe("Enable OS-level sandbox for bash and MCP commands"),
+          paths: z
+            .array(z.string())
+            .optional()
+            .describe("Additional paths to allow read-write access in the sandbox"),
+        })
+        .optional()
+        .describe("OS-native sandbox configuration for kernel-level file system isolation"),
+      notification: z
+        .object({
+          enabled: z.boolean().optional().describe("Enable or disable notifications (default: true)"),
+          sound: z.boolean().optional().describe("Enable or disable notification sounds (default: true)"),
+        })
+        .optional()
+        .describe("Notification settings for task completion events"),
       experimental: z
         .object({
           disable_paste_summary: z.boolean().optional(),
