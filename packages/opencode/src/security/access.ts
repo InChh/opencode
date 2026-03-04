@@ -1,11 +1,8 @@
 import { minimatch } from "minimatch"
+import fs from "fs"
 import { SecuritySchema } from "./schema"
 import { SecurityConfig } from "./config"
-import { SecurityAudit } from "./audit"
-<<<<<<< HEAD
 import { getActiveSandbox } from "../sandbox"
-=======
->>>>>>> 1a0f0d327 (feat: US-004 - Enforce allowlist in checkAccess with evaluation order and audit logging)
 import { Log } from "../util/log"
 import path from "path"
 
@@ -52,59 +49,6 @@ export namespace SecurityAccess {
   /**
    * Get the inheritance chain of applicable rules for a path.
    * Returns rules that apply directly or are inherited from parent directories.
-   */
-  export function getInheritanceChain(filePath: string): InheritedRule[] {
-    const config = SecurityConfig.getSecurityConfig()
-
-    if (!config.rules || config.rules.length === 0) {
-      return []
-    }
-
-    const inheritedRules: InheritedRule[] = []
-    const normalizedPath = filePath.replace(/\\/g, "/")
-
-    // Get all parent paths from root to the file
-    const parentPaths = getParentPaths(normalizedPath)
-
-    // Check each rule against all parent paths and the file itself
-    for (const rule of config.rules) {
-      const normalizedPattern = rule.pattern.replace(/\\/g, "/")
-
-      // Check for direct match on the file path
-      if (matchPath(normalizedPath, normalizedPattern, rule.type)) {
-        inheritedRules.push({
-          rule,
-          matchType: "direct",
-        })
-        continue
-      }
-
-      // Check for inherited match from parent directories (directory rules only)
-      if (rule.type === "directory") {
-        for (const parentPath of parentPaths) {
-          if (matchDirectoryPattern(parentPath, normalizedPattern)) {
-            inheritedRules.push({
-              rule,
-              matchType: "inherited",
-              inheritedFrom: parentPath,
-            })
-            break // Only add once per rule
-          }
-        }
-      }
-    }
-
-    return inheritedRules
-  }
-
-  /**
-   * Check if access is allowed for a given path, operation, and role.
-   * Uses glob pattern matching, respects role hierarchy, and applies rule inheritance.
-   *
-   * Inheritance rules:
-   * - Child paths inherit parent directory protection rules
-   * - More restrictive child rules take precedence over inherited rules
-   * - Less restrictive child rules do NOT override parent restrictions
    */
   export function getInheritanceChain(filePath: string): InheritedRule[] {
     const config = SecurityConfig.getSecurityConfig()
@@ -192,7 +136,6 @@ export namespace SecurityAccess {
   export function checkAccess(filePath: string, operation: SecuritySchema.Operation, role: string): AccessResult {
     const config = SecurityConfig.getSecurityConfig()
 
-<<<<<<< HEAD
     if (!config.rules || config.rules.length === 0) {
       return { allowed: true }
     }
@@ -225,10 +168,6 @@ export namespace SecurityAccess {
       if (!rule.deniedOperations.includes(operation)) {
         continue
       }
-
-    // 4. Check file against every allowlist layer (AND across layers, OR within entries)
-    // Use normalized relative path for allowlist matching
-    const normalizedPath = relativePathToCheck.replace(/\\/g, "/")
 
       const inheritanceInfo = matchType === "inherited" ? ` (inherited from '${inheritedFrom}')` : ""
       log.debug("access denied", { path: filePath, operation, role, rule: rule.pattern, matchType, inheritedFrom })
@@ -265,39 +204,6 @@ export namespace SecurityAccess {
       }
       return { layer, matched: false }
     })
-  }
-
-  /**
-   * Get all parent directory paths from root to the given path
-   */
-  function getParentPaths(filePath: string): string[] {
-    const parts = filePath.split("/").filter(Boolean)
-    const parents: string[] = []
-
-    let current = ""
-    for (let i = 0; i < parts.length - 1; i++) {
-      current = current + "/" + parts[i]
-      parents.push(current)
-    }
-
-    return parents
-  }
-
-  /**
-   * Check if a path matches a directory pattern (for inheritance checking)
-   */
-  function matchDirectoryPattern(dirPath: string, pattern: string): boolean {
-    // Normalize both paths
-    const normalizedDir = dirPath.endsWith("/") ? dirPath.slice(0, -1) : dirPath
-    const normalizedPattern = pattern.endsWith("/") ? pattern.slice(0, -1) : pattern
-
-    // Direct match
-    if (normalizedDir === normalizedPattern) {
-      return true
-    }
-
-    // Glob match
-    return minimatch(normalizedDir, normalizedPattern, { matchBase: true })
   }
 
   /**
