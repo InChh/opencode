@@ -11,6 +11,14 @@ import { Instance } from "../project/instance"
 import { assertExternalDirectory } from "./external-directory"
 import { InstructionPrompt } from "../session/instruction"
 import { Filesystem } from "../util/filesystem"
+import { SecurityAccess } from "../security/access"
+import { SecurityConfig } from "../security/config"
+import { SecuritySchema } from "../security/schema"
+import { SecuritySegments } from "../security/segments"
+import { SecurityRedact } from "../security/redact"
+import { Log } from "../util/log"
+
+const securityLog = Log.create({ service: "security-read" })
 
 const DEFAULT_READ_LIMIT = 2000
 const MAX_LINE_LENGTH = 2000
@@ -71,6 +79,23 @@ export const ReadTool = Tool.define("read", {
       }
 
       throw new Error(`File not found: ${filepath}`)
+    }
+
+    // Security access control check
+    const config = SecurityConfig.getSecurityConfig()
+    const currentRole = getDefaultRole(config)
+
+    // Check file-level access
+    const accessResult = SecurityAccess.checkAccess(filepath, "read", currentRole)
+    securityLog.debug("read access check", {
+      path: filepath,
+      role: currentRole,
+      allowed: accessResult.allowed,
+      reason: accessResult.reason,
+    })
+
+    if (!accessResult.allowed) {
+      throw new Error(`Security: ${accessResult.reason}`)
     }
 
     if (stat.isDirectory()) {
@@ -290,4 +315,79 @@ async function isBinaryFile(filepath: string, fileSize: number): Promise<boolean
   } finally {
     await fh.close()
   }
+}
+
+/**
+ * Get the default role from security config.
+ * Returns the lowest level role, or "viewer" if no roles defined.
+ * Note: This is a placeholder until US-027 implements proper role detection.
+ */
+function getDefaultRole(config: SecuritySchema.SecurityConfig): string {
+  const roles = config.roles ?? []
+  if (roles.length === 0) {
+    return "viewer"
+  }
+  // Find the role with the lowest level (least privileges)
+  const lowestRole = roles.reduce((prev, curr) => (curr.level < prev.level ? curr : prev), roles[0])
+  return lowestRole.name
+}
+
+function getRoleLevel(roleName: string, roles: SecuritySchema.Role[]): number {
+  const role = roles.find((r) => r.name === roleName)
+  return role?.level ?? 0
+}
+
+function isRoleAllowed(
+  roleName: string,
+  roleLevel: number,
+  allowedRoles: string[],
+  allRoles: SecuritySchema.Role[],
+): boolean {
+  if (allowedRoles.includes(roleName)) {
+    return true
+  }
+  for (const allowedRoleName of allowedRoles) {
+    const allowedRoleLevel = getRoleLevel(allowedRoleName, allRoles)
+    if (roleLevel > allowedRoleLevel) {
+      return true
+    }
+  }
+  return false
+}
+
+function findProtectedSegments(
+  filepath: string,
+  content: string,
+  config: SecuritySchema.SecurityConfig,
+  currentRole: string,
+): SecurityRedact.Segment[] {
+  const segments: SecurityRedact.Segment[] = []
+  const segmentsConfig = config.segments
+
+  if (!segmentsConfig) {
+    return segments
+  }
+
+  const roles = config.roles ?? []
+  const roleLevel = getRoleLevel(currentRole, roles)
+
+  if (segmentsConfig.markers && segmentsConfig.markers.length > 0) {
+    const markerSegments = SecuritySegments.findMarkerSegments(content, segmentsConfig.markers)
+    for (const segment of markerSegments) {
+      if (segment.rule.deniedOperations.includes("read") && !isRoleAllowed(currentRole, roleLevel, segment.rule.allowedRoles, roles)) {
+        segments.push({ start: segment.start, end: segment.end })
+      }
+    }
+  }
+
+  if (segmentsConfig.ast && segmentsConfig.ast.length > 0) {
+    const astSegments = SecuritySegments.findASTSegments(filepath, content, segmentsConfig.ast)
+    for (const segment of astSegments) {
+      if (segment.rule.deniedOperations.includes("read") && !isRoleAllowed(currentRole, roleLevel, segment.rule.allowedRoles, roles)) {
+        segments.push({ start: segment.start, end: segment.end })
+      }
+    }
+  }
+
+  return segments
 }

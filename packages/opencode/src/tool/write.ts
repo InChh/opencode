@@ -12,7 +12,12 @@ import { Filesystem } from "../util/filesystem"
 import { Instance } from "../project/instance"
 import { trimDiff } from "./edit"
 import { assertExternalDirectory } from "./external-directory"
+import { SecurityAccess } from "../security/access"
+import { SecurityConfig } from "../security/config"
+import { SecuritySchema } from "../security/schema"
+import { Log } from "../util/log"
 
+const securityLog = Log.create({ service: "security-write" })
 const MAX_DIAGNOSTICS_PER_FILE = 20
 const MAX_PROJECT_DIAGNOSTICS_FILES = 5
 
@@ -25,6 +30,22 @@ export const WriteTool = Tool.define("write", {
   async execute(params, ctx) {
     const filepath = path.isAbsolute(params.filePath) ? params.filePath : path.join(Instance.directory, params.filePath)
     await assertExternalDirectory(ctx, filepath)
+
+    // Security access control check for write operation
+    const config = SecurityConfig.getSecurityConfig()
+    const currentRole = getDefaultRole(config)
+    const accessResult = SecurityAccess.checkAccess(filepath, "write", currentRole)
+
+    securityLog.debug("write access check", {
+      path: filepath,
+      role: currentRole,
+      allowed: accessResult.allowed,
+      reason: accessResult.reason,
+    })
+
+    if (!accessResult.allowed) {
+      throw new Error(`Security: ${accessResult.reason}`)
+    }
 
     const exists = await Filesystem.exists(filepath)
     const contentOld = exists ? await Filesystem.readText(filepath) : ""
@@ -82,3 +103,12 @@ export const WriteTool = Tool.define("write", {
     }
   },
 })
+
+function getDefaultRole(config: SecuritySchema.SecurityConfig): string {
+  const roles = config.roles ?? []
+  if (roles.length === 0) {
+    return "viewer"
+  }
+  const lowestRole = roles.reduce((prev, curr) => (curr.level < prev.level ? curr : prev), roles[0])
+  return lowestRole.name
+}

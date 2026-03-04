@@ -17,8 +17,14 @@ import { Filesystem } from "../util/filesystem"
 import { Instance } from "../project/instance"
 import { Snapshot } from "@/snapshot"
 import { assertExternalDirectory } from "./external-directory"
+import { SecurityAccess } from "../security/access"
+import { SecurityConfig } from "../security/config"
+import { SecuritySchema } from "../security/schema"
+import { SecuritySegments } from "../security/segments"
+import { Log } from "../util/log"
 
 const MAX_DIAGNOSTICS_PER_FILE = 20
+const securityLog = Log.create({ service: "security-edit" })
 
 function normalizeLineEndings(text: string): string {
   return text.replaceAll("\r\n", "\n")
@@ -43,6 +49,23 @@ export const EditTool = Tool.define("edit", {
 
     const filePath = path.isAbsolute(params.filePath) ? params.filePath : path.join(Instance.directory, params.filePath)
     await assertExternalDirectory(ctx, filePath)
+
+    // Security access control check
+    const config = SecurityConfig.getSecurityConfig()
+    const currentRole = getDefaultRole(config)
+
+    // Check file-level access for write operation
+    const accessResult = SecurityAccess.checkAccess(filePath, "write", currentRole)
+    securityLog.debug("edit access check", {
+      path: filePath,
+      role: currentRole,
+      allowed: accessResult.allowed,
+      reason: accessResult.reason,
+    })
+
+    if (!accessResult.allowed) {
+      throw new Error(`Security: ${accessResult.reason}`)
+    }
 
     let diff = ""
     let contentOld = ""
@@ -78,6 +101,27 @@ export const EditTool = Tool.define("edit", {
       if (stats.isDirectory()) throw new Error(`Path is a directory, not a file: ${filePath}`)
       await FileTime.assert(ctx.sessionID, filePath)
       contentOld = await Filesystem.readText(filePath)
+
+      // Check segment-level protection before editing
+      const protectedSegments = findProtectedSegments(filePath, contentOld, config, currentRole)
+      if (protectedSegments.length > 0) {
+        // Find where the edit will occur in the file
+        const editRange = findEditRange(contentOld, params.oldString)
+        if (editRange) {
+          const overlappingSegment = findOverlappingSegment(editRange, protectedSegments)
+          if (overlappingSegment) {
+            securityLog.debug("edit blocked by protected segment", {
+              path: filePath,
+              editRange,
+              protectedSegment: overlappingSegment,
+            })
+            throw new Error(
+              `Security: Cannot edit protected code segment at positions ${overlappingSegment.start}-${overlappingSegment.end}. This region is protected by security rules.`,
+            )
+          }
+        }
+      }
+
       contentNew = replace(contentOld, params.oldString, params.newString, params.replaceAll)
 
       diff = trimDiff(
@@ -651,4 +695,122 @@ export function replace(content: string, oldString: string, newString: string, r
     )
   }
   throw new Error("Found multiple matches for oldString. Provide more surrounding context to make the match unique.")
+}
+
+function getDefaultRole(config: SecuritySchema.SecurityConfig): string {
+  const roles = config.roles ?? []
+  if (roles.length === 0) {
+    return "viewer"
+  }
+  const lowestRole = roles.reduce((prev, curr) => (curr.level < prev.level ? curr : prev), roles[0])
+  return lowestRole.name
+}
+
+function getRoleLevel(roleName: string, roles: SecuritySchema.Role[]): number {
+  const role = roles.find((r) => r.name === roleName)
+  return role?.level ?? 0
+}
+
+function isRoleAllowed(
+  roleName: string,
+  roleLevel: number,
+  allowedRoles: string[],
+  allRoles: SecuritySchema.Role[],
+): boolean {
+  if (allowedRoles.includes(roleName)) {
+    return true
+  }
+  for (const allowedRoleName of allowedRoles) {
+    const allowedRoleLevel = getRoleLevel(allowedRoleName, allRoles)
+    if (roleLevel > allowedRoleLevel) {
+      return true
+    }
+  }
+  return false
+}
+
+interface ProtectedSegment {
+  start: number
+  end: number
+}
+
+function findProtectedSegments(
+  filepath: string,
+  content: string,
+  config: SecuritySchema.SecurityConfig,
+  currentRole: string,
+): ProtectedSegment[] {
+  const segments: ProtectedSegment[] = []
+  const segmentsConfig = config.segments
+
+  if (!segmentsConfig) {
+    return segments
+  }
+
+  const roles = config.roles ?? []
+  const roleLevel = getRoleLevel(currentRole, roles)
+
+  if (segmentsConfig.markers && segmentsConfig.markers.length > 0) {
+    const markerSegments = SecuritySegments.findMarkerSegments(content, segmentsConfig.markers)
+    for (const segment of markerSegments) {
+      if (
+        segment.rule.deniedOperations.includes("write") &&
+        !isRoleAllowed(currentRole, roleLevel, segment.rule.allowedRoles, roles)
+      ) {
+        segments.push({ start: segment.start, end: segment.end })
+      }
+    }
+  }
+
+  if (segmentsConfig.ast && segmentsConfig.ast.length > 0) {
+    const astSegments = SecuritySegments.findASTSegments(filepath, content, segmentsConfig.ast)
+    for (const segment of astSegments) {
+      if (
+        segment.rule.deniedOperations.includes("write") &&
+        !isRoleAllowed(currentRole, roleLevel, segment.rule.allowedRoles, roles)
+      ) {
+        segments.push({ start: segment.start, end: segment.end })
+      }
+    }
+  }
+
+  return segments
+}
+
+interface EditRange {
+  start: number
+  end: number
+}
+
+function findEditRange(content: string, oldString: string): EditRange | null {
+  for (const replacer of [
+    SimpleReplacer,
+    LineTrimmedReplacer,
+    BlockAnchorReplacer,
+    WhitespaceNormalizedReplacer,
+    IndentationFlexibleReplacer,
+    EscapeNormalizedReplacer,
+    TrimmedBoundaryReplacer,
+    ContextAwareReplacer,
+    MultiOccurrenceReplacer,
+  ]) {
+    for (const search of replacer(content, oldString)) {
+      const index = content.indexOf(search)
+      if (index === -1) continue
+      return { start: index, end: index + search.length }
+    }
+  }
+  return null
+}
+
+function findOverlappingSegment(
+  editRange: EditRange,
+  protectedSegments: ProtectedSegment[],
+): ProtectedSegment | null {
+  for (const segment of protectedSegments) {
+    if (editRange.start < segment.end && editRange.end > segment.start) {
+      return segment
+    }
+  }
+  return null
 }

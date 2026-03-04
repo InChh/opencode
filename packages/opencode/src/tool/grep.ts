@@ -9,6 +9,14 @@ import DESCRIPTION from "./grep.txt"
 import { Instance } from "../project/instance"
 import path from "path"
 import { assertExternalDirectory } from "./external-directory"
+import { SecurityAccess } from "../security/access"
+import { SecurityConfig } from "../security/config"
+import { SecuritySchema } from "../security/schema"
+import { SecuritySegments } from "../security/segments"
+import { SecurityRedact } from "../security/redact"
+import { Log } from "../util/log"
+
+const securityLog = Log.create({ service: "security-grep" })
 
 const MAX_LINE_LENGTH = 2000
 
@@ -81,6 +89,14 @@ export const GrepTool = Tool.define("grep", {
     const lines = output.trim().split(/\r?\n/)
     const matches = []
 
+    // Security access control: get config and role
+    const config = SecurityConfig.getSecurityConfig()
+    const currentRole = getDefaultRole(config)
+
+    // Track files we've already checked for access
+    const fileAccessCache = new Map<string, boolean>()
+    let filteredFileCount = 0
+
     for (const line of lines) {
       if (!line) continue
 
@@ -89,6 +105,21 @@ export const GrepTool = Tool.define("grep", {
 
       const lineNum = parseInt(lineNumStr, 10)
       const lineText = lineTextParts.join("|")
+
+      // Security check: Filter out matches in fully protected files
+      let fileAccessAllowed = fileAccessCache.get(filePath)
+      if (fileAccessAllowed === undefined) {
+        const accessResult = SecurityAccess.checkAccess(filePath, "read", currentRole)
+        fileAccessAllowed = accessResult.allowed
+        fileAccessCache.set(filePath, fileAccessAllowed)
+        if (!fileAccessAllowed) {
+          filteredFileCount++
+        }
+      }
+
+      if (!fileAccessAllowed) {
+        continue
+      }
 
       const stats = Filesystem.stat(filePath)
       if (!stats) continue
@@ -154,3 +185,12 @@ export const GrepTool = Tool.define("grep", {
     }
   },
 })
+
+function getDefaultRole(config: SecuritySchema.SecurityConfig): string {
+  const roles = config.roles ?? []
+  if (roles.length === 0) {
+    return "viewer"
+  }
+  const lowestRole = roles.reduce((prev, curr) => (curr.level < prev.level ? curr : prev), roles[0])
+  return lowestRole.name
+}
