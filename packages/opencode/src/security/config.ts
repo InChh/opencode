@@ -2,6 +2,7 @@ import { SecuritySchema } from "./schema"
 import { Log } from "../util/log"
 import { Bus } from "../bus"
 import { FileWatcher } from "../file/watcher"
+import { Global } from "../global"
 import path from "path"
 import fs from "fs"
 import crypto from "crypto"
@@ -10,7 +11,7 @@ export namespace SecurityConfig {
   const log = Log.create({ service: "security-config" })
 
   const SECURITY_CONFIG_FILE = ".opencode-security.json"
-  const DISK_CACHE_FILE = ".opencode/security-cache.json"
+  const DISK_CACHE_DIR = path.join(Global.Path.config, "caches")
   const SKIP_DIRS = new Set(["node_modules", ".git", "dist", "build", ".next", ".turbo", ".cache"])
 
   const emptyConfig: SecuritySchema.ResolvedSecurityConfig = {
@@ -289,8 +290,10 @@ export namespace SecurityConfig {
   // --- Disk cache I/O ---
 
   function diskCachePath(scanRoot: string): string {
-    // Store in the project's .opencode/ directory
-    return path.join(projectRootDir || scanRoot, DISK_CACHE_FILE)
+    // Store in ~/.config/opencode/caches/security-<hash>.json
+    // Hash the scanRoot to create a per-project cache file
+    const hash = crypto.createHash("md5").update(scanRoot).digest("hex").slice(0, 12)
+    return path.join(DISK_CACHE_DIR, `security-${hash}.json`)
   }
 
   function loadDiskCache(scanRoot: string): DiskCache | null {
