@@ -5,6 +5,7 @@ import { SecurityInitCommand } from "./init"
 import { SecurityLogsCommand } from "./logs"
 import { SecurityInitKeysCommand } from "./init-keys"
 import { SecurityIssueTokenCommand } from "./issue-token"
+import { SecurityDoctorCommand } from "./doctor"
 
 export const SecurityCommand = cmd({
   command: "security",
@@ -17,6 +18,7 @@ export const SecurityCommand = cmd({
       .command(SecurityLogsCommand)
       .command(SecurityInitKeysCommand)
       .command(SecurityIssueTokenCommand)
+      .command(SecurityDoctorCommand)
       .demandCommand(),
   async handler() {},
 })
