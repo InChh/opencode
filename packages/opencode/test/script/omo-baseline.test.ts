@@ -36,7 +36,7 @@ describe("omo-baseline.json", () => {
     test("baseline tools have valid status values", () => {
       const raw = JSON.parse(fs.readFileSync(BASELINE_PATH, "utf-8"))
       const baseline = parseBaseline(raw)
-      const validStatuses = ["internalized", "skipped", "partial"]
+      const validStatuses = ["internalized", "skipped", "partial", "deferred"]
 
       for (const [name, status] of Object.entries(baseline.tools)) {
         expect(validStatuses).toContain(status)
@@ -47,7 +47,7 @@ describe("omo-baseline.json", () => {
     test("baseline hooks have valid status values", () => {
       const raw = JSON.parse(fs.readFileSync(BASELINE_PATH, "utf-8"))
       const baseline = parseBaseline(raw)
-      const validStatuses = ["internalized", "skipped", "partial"]
+      const validStatuses = ["internalized", "skipped", "partial", "deferred"]
 
       for (const [name, status] of Object.entries(baseline.hooks)) {
         expect(validStatuses).toContain(status)
@@ -94,8 +94,8 @@ describe("omo-baseline.json", () => {
     test("readBaseline reads the actual baseline file correctly", () => {
       const baseline = readBaseline(BASELINE_PATH)
 
-      expect(baseline.version).toBe("0.0.0")
-      expect(baseline.date).toBe("2026-02-14")
+      expect(baseline.version).toBe("3.10.0")
+      expect(baseline.date).toBe("2026-03-05")
       expect(Object.keys(baseline.tools).length).toBeGreaterThan(5)
       expect(Object.keys(baseline.hooks).length).toBeGreaterThan(10)
       expect(Object.keys(baseline.agents).length).toBeGreaterThan(5)
@@ -137,7 +137,7 @@ describe("omo-baseline.json", () => {
       const tmpBaseline = path.join(dir, ".omo-baseline.json")
 
       const baseline = readBaseline(BASELINE_PATH)
-      expect(baseline.version).toBe("0.0.0")
+      expect(baseline.version).toBe("3.10.0")
 
       baseline.version = "5.0.0"
       baseline.date = "2026-03-01"
