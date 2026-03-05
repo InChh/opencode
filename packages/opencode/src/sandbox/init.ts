@@ -12,6 +12,7 @@ export interface SandboxInitResult {
 }
 
 let initialized = false
+let activeSandboxRef: Sandbox | null = null
 
 export async function initSandbox(): Promise<SandboxInitResult> {
   if (initialized) return { status: "active" }
@@ -22,7 +23,7 @@ export async function initSandbox(): Promise<SandboxInitResult> {
     return { status: "disabled" }
   }
 
-  // Step 1: Platform detection
+  // Step 1: Platform detection (only needed once)
   const sandbox = await getSandbox()
   if (!sandbox) {
     log.warn("sandbox enabled but platform not supported", { platform: process.platform })
@@ -30,7 +31,7 @@ export async function initSandbox(): Promise<SandboxInitResult> {
     return { status: "unsupported", error: `Platform ${process.platform} does not support sandboxing` }
   }
 
-  // Step 2: Environment check (sandbox-exec available)
+  // Step 2: Environment check (only needed once)
   const available = await sandbox.isAvailable()
   if (!available) {
     const error = "sandbox-exec not found. Is SIP (System Integrity Protection) enabled?"
@@ -39,13 +40,37 @@ export async function initSandbox(): Promise<SandboxInitResult> {
     return { status: "failed", error }
   }
 
-  // Step 3: Policy generation
+  // Step 3-4: Generate policy and validate
+  const result = await generateAndValidatePolicy(sandbox)
+  if (result.status !== "active") return result
+
+  activeSandboxRef = sandbox
+  initialized = true
+  return result
+}
+
+/**
+ * Regenerate sandbox policy from current security config.
+ * Call this after security config is reloaded to pick up new rules.
+ * Skips platform detection and availability check (already verified on init).
+ */
+export async function refreshSandboxPolicy(): Promise<SandboxInitResult> {
+  if (!initialized || !activeSandboxRef) {
+    // Sandbox was never initialized or is disabled/unsupported — nothing to refresh
+    return { status: "disabled" }
+  }
+
+  log.info("refreshing sandbox policy after security config change")
+  return generateAndValidatePolicy(activeSandboxRef)
+}
+
+async function generateAndValidatePolicy(sandbox: Sandbox): Promise<SandboxInitResult> {
+  const config = await Config.get()
+
   const securityConfig = SecurityConfig.getSecurityConfig()
   const allowlistPatterns = securityConfig.resolvedAllowlist.flatMap((layer) =>
     layer.entries.map((e) => e.pattern),
   )
-  // Only generate sandbox deny for rules that deny read or llm (llm = read+write).
-  // Rules that only deny write are skipped since sandbox deny blocks both read+write.
   const denyEntries = (securityConfig.rules ?? [])
     .filter((r) => r.deniedOperations.includes("read") || r.deniedOperations.includes("llm"))
     .map((r) => ({ pattern: r.pattern, deniedOperations: r.deniedOperations }))
@@ -69,7 +94,6 @@ export async function initSandbox(): Promise<SandboxInitResult> {
     return { status: "failed", error }
   }
 
-  // Step 4: Validation — run a harmless command inside the sandbox
   const validation = await validateSandbox(sandbox)
   if (!validation.ok) {
     const error = `Sandbox validation failed: ${validation.error}`
@@ -78,10 +102,8 @@ export async function initSandbox(): Promise<SandboxInitResult> {
     return { status: "failed", error }
   }
 
-  // Success
   setActiveSandbox(sandbox, "active")
-  initialized = true
-  log.info("sandbox initialized successfully", { policyPath })
+  log.info("sandbox policy applied successfully", { policyPath })
   return { status: "active" }
 }
 
@@ -96,4 +118,5 @@ async function validateSandbox(sandbox: Sandbox): Promise<{ ok: boolean; error?:
 
 export function resetSandboxInit(): void {
   initialized = false
+  activeSandboxRef = null
 }

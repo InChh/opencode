@@ -14,7 +14,7 @@ import { Snapshot } from "../snapshot"
 import { Truncate } from "../tool/truncation"
 import { SecurityConfig } from "../security/config"
 import { SecurityAccess } from "../security/access"
-import { initSandbox } from "../sandbox/init"
+import { initSandbox, refreshSandboxPolicy } from "../sandbox/init"
 import { TuiEvent } from "@/cli/cmd/tui/event"
 
 export async function InstanceBootstrap() {
@@ -53,6 +53,24 @@ export async function InstanceBootstrap() {
       duration: 5000,
     })
   }
+
+  // Re-generate sandbox policy when security config changes at runtime
+  SecurityConfig.onReload(async () => {
+    const result = await refreshSandboxPolicy()
+    if (result.status === "active") {
+      Bus.publish(TuiEvent.ToastShow, {
+        message: "Security config updated, sandbox policy refreshed",
+        variant: "success",
+        duration: 3000,
+      })
+    } else if (result.status === "failed") {
+      Bus.publish(TuiEvent.ToastShow, {
+        message: `Sandbox policy refresh failed: ${result.error}`,
+        variant: "warning",
+        duration: 5000,
+      })
+    }
+  })
 
   Bus.subscribe(Command.Event.Executed, async (payload) => {
     if (payload.properties.name === Command.Default.INIT) {

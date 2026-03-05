@@ -32,6 +32,29 @@ export namespace SecurityConfig {
   let projectRootDir: string = ""
   let configLoaded = false
 
+  // --- Reload callback ---
+
+  type ReloadCallback = () => void | Promise<void>
+  const reloadCallbacks: ReloadCallback[] = []
+
+  /**
+   * Register a callback to be invoked after security config is reloaded at runtime
+   * (via FileWatcher or background verify). Not called on initial load.
+   */
+  export function onReload(cb: ReloadCallback) {
+    reloadCallbacks.push(cb)
+  }
+
+  async function fireReloadCallbacks() {
+    for (const cb of reloadCallbacks) {
+      try {
+        await cb()
+      } catch (err) {
+        log.error("reload callback failed", { error: (err as Error).message })
+      }
+    }
+  }
+
   // --- In-memory scan cache ---
 
   let scanCache: { root: string; configs: ScopedConfig[] } | null = null
@@ -178,6 +201,7 @@ export namespace SecurityConfig {
         if (needsReload) {
           log.info("background verify: config files changed, reloading")
           await loadSecurityConfig(projectRootDir, { forceWalk: true })
+          await fireReloadCallbacks()
         } else {
           log.debug("background verify: configs unchanged", { count: found.length })
         }
@@ -660,6 +684,7 @@ export namespace SecurityConfig {
         try {
           await loadSecurityConfig(projectRootDir)
           log.info("security config reloaded after file change")
+          await fireReloadCallbacks()
         } catch (err) {
           log.error("failed to reload security config after file change", {
             error: (err as Error).message,
