@@ -15,6 +15,7 @@ import { Truncate } from "../tool/truncation"
 import { SecurityConfig } from "../security/config"
 import { SecurityAccess } from "../security/access"
 import { initSandbox } from "../sandbox/init"
+import { TuiEvent } from "@/cli/cmd/tui/event"
 
 export async function InstanceBootstrap() {
   Log.Default.info("bootstrapping", { directory: Instance.directory })
@@ -31,9 +32,25 @@ export async function InstanceBootstrap() {
   await SecurityConfig.loadSecurityConfig(Instance.directory)
 
   // Initialize sandbox after security config is loaded (needs allowlist/deny rules)
+  Bus.publish(TuiEvent.ToastShow, {
+    message: "Initializing sandbox...",
+    variant: "info",
+    duration: 3000,
+  })
   const sandboxResult = await initSandbox()
-  if (sandboxResult.status === "failed") {
+  if (sandboxResult.status === "active") {
+    Bus.publish(TuiEvent.ToastShow, {
+      message: "Sandbox initialized",
+      variant: "success",
+      duration: 2000,
+    })
+  } else if (sandboxResult.status === "failed") {
     Log.Default.warn("sandbox init failed, continuing without sandbox", { error: sandboxResult.error })
+    Bus.publish(TuiEvent.ToastShow, {
+      message: `Sandbox init failed: ${sandboxResult.error}`,
+      variant: "warning",
+      duration: 5000,
+    })
   }
 
   Bus.subscribe(Command.Event.Executed, async (payload) => {

@@ -2,11 +2,13 @@ import { SecuritySchema } from "./schema"
 import { Log } from "../util/log"
 import path from "path"
 import fs from "fs"
+import crypto from "crypto"
 
 export namespace SecurityConfig {
   const log = Log.create({ service: "security-config" })
 
   const SECURITY_CONFIG_FILE = ".opencode-security.json"
+  const DISK_CACHE_FILE = ".opencode/security-cache.json"
   const SKIP_DIRS = new Set(["node_modules", ".git", "dist", "build", ".next", ".turbo", ".cache"])
 
   const emptyConfig: SecuritySchema.ResolvedSecurityConfig = {
@@ -28,9 +30,29 @@ export namespace SecurityConfig {
   let projectRootDir: string = ""
   let configLoaded = false
 
-  // --- Scan cache ---
+  // --- In-memory scan cache ---
 
   let scanCache: { root: string; configs: ScopedConfig[] } | null = null
+
+  // --- In-memory resolveForPath cache ---
+
+  const resolveCache = new Map<string, SecuritySchema.ResolvedSecurityConfig>()
+
+  // --- Disk cache types ---
+
+  interface DiskCacheEntry {
+    configPath: string
+    scopeDir: string
+    mtimeMs: number
+    contentHash: string
+    config: SecuritySchema.SecurityConfig
+  }
+
+  interface DiskCache {
+    version: 1
+    scanRoot: string
+    entries: DiskCacheEntry[]
+  }
 
   // --- Loading ---
 
@@ -39,9 +61,10 @@ export namespace SecurityConfig {
     const gitRoot = findGitRoot(projectRootDir)
     const scanRoot = gitRoot ?? projectRootDir
 
-    // Invalidate scan cache on explicit reload so new file contents are picked up
+    // Invalidate caches on explicit reload so new file contents are picked up
     scanCache = null
-    // Scan from git root (or project root) downward, with cache
+    resolveCache.clear()
+    // Scan from git root (or project root) downward, with disk + memory cache
     scopedConfigs = await scanAllConfigs(scanRoot)
 
     if (scopedConfigs.length === 0) {
@@ -61,42 +84,138 @@ export namespace SecurityConfig {
 
   /**
    * Scan all `.opencode-security.json` from a root directory downward.
-   * Results are cached by root path.
+   * Uses a two-layer cache:
+   * 1. In-memory cache (scanCache) — survives within the same process
+   * 2. Disk cache (.opencode/security-cache.json) — survives across restarts
+   *
+   * Disk cache stores {path, mtime, contentHash, config} per config file.
+   * On startup, walks the tree to find config file paths + mtimes, then
+   * compares against disk cache. Only re-parses files that changed.
    */
   async function scanAllConfigs(root: string): Promise<ScopedConfig[]> {
     const resolved = path.resolve(root)
     if (scanCache?.root === resolved) return scanCache.configs
 
-    const results: ScopedConfig[] = []
-
-    async function walk(dir: string) {
-      let entries: fs.Dirent[]
-      try {
-        entries = fs.readdirSync(dir, { withFileTypes: true })
-      } catch {
-        return
-      }
-
-      for (const entry of entries) {
-        if (entry.isDirectory() && !SKIP_DIRS.has(entry.name)) {
-          await walk(path.join(dir, entry.name))
-        } else if (entry.name === SECURITY_CONFIG_FILE) {
-          const configPath = path.join(dir, entry.name)
-          const config = await loadConfigFile(configPath)
-          if (config) {
-            results.push({ config, path: configPath, scopeDir: dir })
-          }
-        }
+    const diskCache = loadDiskCache(resolved)
+    const diskMap = new Map<string, DiskCacheEntry>()
+    if (diskCache) {
+      for (const entry of diskCache.entries) {
+        diskMap.set(entry.configPath, entry)
       }
     }
 
-    await walk(resolved)
+    // Phase 1: Walk tree to find config file paths + mtimes (fast — no file reads)
+    const found: { configPath: string; scopeDir: string; mtimeMs: number }[] = []
+    walkForConfigPaths(resolved, found)
+
+    // Phase 2: For each found config, check disk cache; re-parse only if changed
+    const results: ScopedConfig[] = []
+    let cacheHits = 0
+    let cacheMisses = 0
+
+    for (const { configPath, scopeDir, mtimeMs } of found) {
+      const cached = diskMap.get(configPath)
+      if (cached && cached.mtimeMs === mtimeMs) {
+        // mtime matches — trust the cached config
+        results.push({ config: cached.config, path: configPath, scopeDir })
+        cacheHits++
+        continue
+      }
+
+      // Cache miss — read and parse the file
+      const config = await loadConfigFile(configPath)
+      if (config) {
+        results.push({ config, path: configPath, scopeDir })
+      }
+      cacheMisses++
+    }
 
     // Sort by depth: shallowest (root) first, deepest last
     results.sort((a, b) => a.scopeDir.length - b.scopeDir.length)
 
     scanCache = { root: resolved, configs: results }
+
+    // Write disk cache if anything changed
+    if (cacheMisses > 0 || !diskCache || found.length !== diskCache.entries.length) {
+      writeDiskCache(resolved, results)
+    }
+
+    if (cacheHits > 0 || cacheMisses > 0) {
+      log.debug("security config scan complete", { cacheHits, cacheMisses, total: found.length })
+    }
+
     return results
+  }
+
+  /**
+   * Walk the directory tree collecting config file paths and mtimes.
+   * Does NOT read file contents — only stat for mtime.
+   */
+  function walkForConfigPaths(
+    dir: string,
+    out: { configPath: string; scopeDir: string; mtimeMs: number }[],
+  ) {
+    let entries: fs.Dirent[]
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true })
+    } catch {
+      return
+    }
+
+    for (const entry of entries) {
+      if (entry.isDirectory() && !SKIP_DIRS.has(entry.name)) {
+        walkForConfigPaths(path.join(dir, entry.name), out)
+      } else if (entry.name === SECURITY_CONFIG_FILE) {
+        const configPath = path.join(dir, entry.name)
+        const stat = fs.statSync(configPath, { throwIfNoEntry: false })
+        if (stat) {
+          out.push({ configPath, scopeDir: dir, mtimeMs: stat.mtimeMs })
+        }
+      }
+    }
+  }
+
+  // --- Disk cache I/O ---
+
+  function diskCachePath(scanRoot: string): string {
+    // Store in the project's .opencode/ directory
+    return path.join(projectRootDir || scanRoot, DISK_CACHE_FILE)
+  }
+
+  function loadDiskCache(scanRoot: string): DiskCache | null {
+    const cachePath = diskCachePath(scanRoot)
+    try {
+      const text = fs.readFileSync(cachePath, "utf8")
+      const parsed = JSON.parse(text) as DiskCache
+      if (parsed.version !== 1 || parsed.scanRoot !== scanRoot) return null
+      return parsed
+    } catch {
+      return null
+    }
+  }
+
+  function writeDiskCache(scanRoot: string, configs: ScopedConfig[]) {
+    const cachePath = diskCachePath(scanRoot)
+    const entries: DiskCacheEntry[] = configs.map((sc) => {
+      const stat = fs.statSync(sc.path, { throwIfNoEntry: false })
+      const content = fs.readFileSync(sc.path, "utf8")
+      return {
+        configPath: sc.path,
+        scopeDir: sc.scopeDir,
+        mtimeMs: stat?.mtimeMs ?? 0,
+        contentHash: crypto.createHash("md5").update(content).digest("hex"),
+        config: sc.config,
+      }
+    })
+
+    const cache: DiskCache = { version: 1, scanRoot, entries }
+    try {
+      const dir = path.dirname(cachePath)
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
+      fs.writeFileSync(cachePath, JSON.stringify(cache), "utf8")
+    } catch (err) {
+      log.debug("failed to write security disk cache", { error: (err as Error).message })
+    }
   }
 
   /**
@@ -119,6 +238,10 @@ export namespace SecurityConfig {
     const resolved = path.isAbsolute(filePath)
       ? filePath
       : path.resolve(projectRootDir || process.cwd(), filePath)
+
+    // Check in-memory resolve cache
+    const cached = resolveCache.get(resolved)
+    if (cached) return cached
 
     // Find all configs whose scope contains this path (ancestors + exact match)
     const applicable = scopedConfigs.filter((c) => {
@@ -215,7 +338,7 @@ export namespace SecurityConfig {
       log.warn("Empty allowlist configured — all LLM operations will be denied. No files are accessible to the LLM.")
     }
 
-    return {
+    const result: SecuritySchema.ResolvedSecurityConfig = {
       version: applicable[0].config.version,
       roles: mergedRoles.length > 0 ? mergedRoles : undefined,
       rules: mergedRules && mergedRules.length > 0 ? mergedRules : undefined,
@@ -225,6 +348,16 @@ export namespace SecurityConfig {
       mcp: mergedMcp,
       resolvedAllowlist,
     }
+
+    // Cache the resolved config — keyed by the resolved absolute path.
+    // The cache is bounded: evict oldest when it exceeds 1024 entries.
+    if (resolveCache.size >= 1024) {
+      const firstKey = resolveCache.keys().next().value
+      if (firstKey !== undefined) resolveCache.delete(firstKey)
+    }
+    resolveCache.set(resolved, result)
+
+    return result
   }
 
   // --- Scope filtering ---
@@ -399,6 +532,7 @@ export namespace SecurityConfig {
     projectRootDir = ""
     configLoaded = false
     scanCache = null
+    resolveCache.clear()
   }
 
   /**
