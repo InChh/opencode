@@ -26,16 +26,94 @@ export async function runSecurityDoctor(projectRoot: string): Promise<SecurityDi
     checkCrossFileRoleConflicts(configFiles, diagnostics)
   }
 
-  // Phase 3: Analyze the merged resolved config
-  const config = SecurityConfig.getSecurityConfig()
-  checkRoleReferences(config, diagnostics)
-  checkDenyRules(config, diagnostics)
-  checkAllowlistDenyOverlap(config, diagnostics)
-  checkGlobPatterns(config, diagnostics)
-  checkSandboxCompatibility(config, diagnostics)
-  checkRedundantRules(config, diagnostics)
+  // Phase 3: Check scope/override semantics
+  checkScopeOverrides(projectRoot, diagnostics)
+
+  // Phase 4: Analyze each scoped config for issues
+  const scopedConfigs = SecurityConfig.getScopedConfigs()
+  for (const sc of scopedConfigs) {
+    const resolved = SecurityConfig.resolveForPath(sc.scopeDir)
+    const relPath = path.relative(projectRoot, sc.scopeDir) || "."
+    checkRoleReferences(resolved, diagnostics, relPath)
+    checkDenyRules(resolved, diagnostics, relPath)
+    checkAllowlistDenyOverlap(resolved, diagnostics, relPath)
+    checkGlobPatterns(resolved, diagnostics, relPath)
+    checkSandboxCompatibility(resolved, diagnostics, relPath)
+    checkRedundantRules(resolved, diagnostics, relPath)
+  }
+
+  // If no scoped configs, check the global empty config
+  if (scopedConfigs.length === 0) {
+    const config = SecurityConfig.getSecurityConfig()
+    checkRoleReferences(config, diagnostics)
+    checkDenyRules(config, diagnostics)
+    checkGlobPatterns(config, diagnostics)
+  }
 
   return diagnostics
+}
+
+function checkScopeOverrides(projectRoot: string, diagnostics: SecurityDiagnostic[]) {
+  const scopedConfigs = SecurityConfig.getScopedConfigs()
+  if (scopedConfigs.length <= 1) return
+
+  // Check for parent→child override relationships
+  for (let i = 0; i < scopedConfigs.length; i++) {
+    for (let j = i + 1; j < scopedConfigs.length; j++) {
+      const parent = scopedConfigs[i]
+      const child = scopedConfigs[j]
+      if (child.scopeDir.startsWith(parent.scopeDir + "/")) {
+        const parentRel = path.relative(projectRoot, parent.scopeDir) || "."
+        const childRel = path.relative(projectRoot, child.scopeDir)
+
+        if (child.config.rules !== undefined && parent.config.rules !== undefined) {
+          diagnostics.push({
+            level: "info",
+            category: "scope",
+            message: `${childRel}/ overrides rules from ${parentRel}/ for files under ${childRel}/`,
+          })
+        }
+        if (child.config.allowlist !== undefined && parent.config.allowlist !== undefined) {
+          diagnostics.push({
+            level: "info",
+            category: "scope",
+            message: `${childRel}/ overrides allowlist from ${parentRel}/ for files under ${childRel}/`,
+          })
+        }
+      }
+    }
+  }
+
+  // Check for patterns that escape scope (../）
+  for (const sc of scopedConfigs) {
+    const relPath = path.relative(projectRoot, sc.scopeDir) || "."
+    for (const rule of sc.config.rules ?? []) {
+      if (rule.pattern.includes("..")) {
+        const resolved = path.resolve(sc.scopeDir, rule.pattern.replace(/[*?[\]{}]/g, "x"))
+        if (!resolved.startsWith(sc.scopeDir + "/") && resolved !== sc.scopeDir) {
+          diagnostics.push({
+            level: "warn",
+            category: "scope",
+            message: `${relPath}/: rule '${rule.pattern}' escapes scope via '../' — this pattern will be ignored`,
+            fix: "Remove the '../' from the pattern. Each config can only affect its own directory and subdirectories.",
+          })
+        }
+      }
+    }
+    for (const entry of sc.config.allowlist ?? []) {
+      if (entry.pattern.includes("..")) {
+        const resolved = path.resolve(sc.scopeDir, entry.pattern.replace(/[*?[\]{}]/g, "x"))
+        if (!resolved.startsWith(sc.scopeDir + "/") && resolved !== sc.scopeDir) {
+          diagnostics.push({
+            level: "warn",
+            category: "scope",
+            message: `${relPath}/: allowlist '${entry.pattern}' escapes scope via '../' — this pattern will be ignored`,
+            fix: "Remove the '../' from the pattern. Each config can only affect its own directory and subdirectories.",
+          })
+        }
+      }
+    }
+  }
 }
 
 async function findAllSecurityConfigs(projectRoot: string): Promise<string[]> {
@@ -175,7 +253,12 @@ function checkCrossFileRoleConflicts(configFiles: string[], diagnostics: Securit
   // loadSecurityConfig would have thrown. This section checks inactive files too.
 }
 
-function checkRoleReferences(config: SecuritySchema.ResolvedSecurityConfig, diagnostics: SecurityDiagnostic[]) {
+function pfx(scope?: string): string {
+  return scope ? `[${scope}] ` : ""
+}
+
+function checkRoleReferences(config: SecuritySchema.ResolvedSecurityConfig, diagnostics: SecurityDiagnostic[], scope?: string) {
+  const p = pfx(scope)
   const definedRoles = new Set((config.roles ?? []).map((r) => r.name))
 
   for (const rule of config.rules ?? []) {
@@ -184,21 +267,20 @@ function checkRoleReferences(config: SecuritySchema.ResolvedSecurityConfig, diag
         diagnostics.push({
           level: "warn",
           category: "roles",
-          message: `Rule '${rule.pattern}' references undefined role '${roleName}'`,
+          message: `${p}Rule '${rule.pattern}' references undefined role '${roleName}'`,
           fix: `Add role '${roleName}' to the roles array, or remove it from allowedRoles`,
         })
       }
     }
   }
 
-  // Check segments too
   for (const marker of config.segments?.markers ?? []) {
     for (const roleName of marker.allowedRoles) {
       if (!definedRoles.has(roleName)) {
         diagnostics.push({
           level: "warn",
           category: "roles",
-          message: `Marker segment '${marker.start}' references undefined role '${roleName}'`,
+          message: `${p}Marker segment '${marker.start}' references undefined role '${roleName}'`,
           fix: `Add role '${roleName}' to the roles array`,
         })
       }
@@ -211,43 +293,43 @@ function checkRoleReferences(config: SecuritySchema.ResolvedSecurityConfig, diag
         diagnostics.push({
           level: "warn",
           category: "roles",
-          message: `AST segment '${ast.namePattern}' references undefined role '${roleName}'`,
+          message: `${p}AST segment '${ast.namePattern}' references undefined role '${roleName}'`,
           fix: `Add role '${roleName}' to the roles array`,
         })
       }
     }
   }
 
-  // Check for empty allowedRoles (no one can bypass)
   for (const rule of config.rules ?? []) {
     if (rule.allowedRoles.length === 0) {
       diagnostics.push({
         level: "info",
         category: "roles",
-        message: `Rule '${rule.pattern}' has empty allowedRoles — no role can bypass this deny`,
+        message: `${p}Rule '${rule.pattern}' has empty allowedRoles — no role can bypass this deny`,
       })
     }
   }
 }
 
-function checkDenyRules(config: SecuritySchema.ResolvedSecurityConfig, diagnostics: SecurityDiagnostic[]) {
+function checkDenyRules(config: SecuritySchema.ResolvedSecurityConfig, diagnostics: SecurityDiagnostic[], scope?: string) {
+  const p = pfx(scope)
   const rules = config.rules ?? []
   if (rules.length === 0) return
 
-  // Check for rules with no deniedOperations
   for (const rule of rules) {
     if (rule.deniedOperations.length === 0) {
       diagnostics.push({
         level: "warn",
         category: "rules",
-        message: `Rule '${rule.pattern}' has empty deniedOperations — this rule has no effect`,
+        message: `${p}Rule '${rule.pattern}' has empty deniedOperations — this rule has no effect`,
         fix: "Add operations to deny, e.g. [\"read\", \"write\"] or remove the rule",
       })
     }
   }
 }
 
-function checkAllowlistDenyOverlap(config: SecuritySchema.ResolvedSecurityConfig, diagnostics: SecurityDiagnostic[]) {
+function checkAllowlistDenyOverlap(config: SecuritySchema.ResolvedSecurityConfig, diagnostics: SecurityDiagnostic[], scope?: string) {
+  const p = pfx(scope)
   const rules = config.rules ?? []
   const allowEntries = config.resolvedAllowlist.flatMap((l) => l.entries)
 
@@ -261,7 +343,7 @@ function checkAllowlistDenyOverlap(config: SecuritySchema.ResolvedSecurityConfig
         diagnostics.push({
           level: "info",
           category: "overlap",
-          message: `Deny rule '${rule.pattern}' overlaps with allowlist entry '${allow.pattern}' — deny takes precedence for operations: [${rule.deniedOperations.join(", ")}]`,
+          message: `${p}Deny rule '${rule.pattern}' overlaps with allowlist entry '${allow.pattern}' — deny takes precedence for operations: [${rule.deniedOperations.join(", ")}]`,
         })
       }
     }
@@ -291,7 +373,8 @@ function patternsOverlap(a: string, b: string): boolean {
   return a === b || a.startsWith(b + "/") || b.startsWith(a + "/")
 }
 
-function checkGlobPatterns(config: SecuritySchema.ResolvedSecurityConfig, diagnostics: SecurityDiagnostic[]) {
+function checkGlobPatterns(config: SecuritySchema.ResolvedSecurityConfig, diagnostics: SecurityDiagnostic[], scope?: string) {
+  const p = pfx(scope)
   const allPatterns: { pattern: string; source: string }[] = []
 
   for (const rule of config.rules ?? []) {
@@ -309,7 +392,7 @@ function checkGlobPatterns(config: SecuritySchema.ResolvedSecurityConfig, diagno
       diagnostics.push({
         level: "warn",
         category: "glob",
-        message: `${source} matches ALL files — this is likely too broad`,
+        message: `${p}${source} matches ALL files — this is likely too broad`,
         fix: "Use a more specific pattern",
       })
     }
@@ -319,7 +402,7 @@ function checkGlobPatterns(config: SecuritySchema.ResolvedSecurityConfig, diagno
       diagnostics.push({
         level: "warn",
         category: "glob",
-        message: `${source} uses an absolute path — patterns should be relative to project root`,
+        message: `${p}${source} uses an absolute path — patterns should be relative to project root`,
         fix: "Use a relative path instead",
       })
     }
@@ -332,7 +415,7 @@ function checkGlobPatterns(config: SecuritySchema.ResolvedSecurityConfig, diagno
         diagnostics.push({
           level: "error",
           category: "glob",
-          message: `${source} has invalid glob syntax`,
+          message: `${p}${source} has invalid glob syntax`,
           fix: "Fix the glob pattern syntax",
         })
       }
@@ -340,24 +423,25 @@ function checkGlobPatterns(config: SecuritySchema.ResolvedSecurityConfig, diagno
   }
 }
 
-function checkSandboxCompatibility(config: SecuritySchema.ResolvedSecurityConfig, diagnostics: SecurityDiagnostic[]) {
+function checkSandboxCompatibility(config: SecuritySchema.ResolvedSecurityConfig, diagnostics: SecurityDiagnostic[], scope?: string) {
+  const p = pfx(scope)
   const rules = config.rules ?? []
 
   for (const rule of rules) {
     const ops = rule.deniedOperations
-    // write-only rules can't be enforced by sandbox
     if (ops.includes("write") && !ops.includes("read") && !ops.includes("llm")) {
       diagnostics.push({
         level: "warn",
         category: "sandbox",
-        message: `Rule '${rule.pattern}' denies only ['write'] — sandbox cannot enforce write-only deny (it blocks both read+write). This rule is enforced at application layer only, not OS level.`,
+        message: `${p}Rule '${rule.pattern}' denies only ['write'] — sandbox cannot enforce write-only deny (it blocks both read+write). This rule is enforced at application layer only, not OS level.`,
         fix: "If OS-level enforcement is needed, add 'read' to deniedOperations. If app-layer-only is intentional, this warning can be ignored.",
       })
     }
   }
 }
 
-function checkRedundantRules(config: SecuritySchema.ResolvedSecurityConfig, diagnostics: SecurityDiagnostic[]) {
+function checkRedundantRules(config: SecuritySchema.ResolvedSecurityConfig, diagnostics: SecurityDiagnostic[], scope?: string) {
+  const p = pfx(scope)
   const rules = config.rules ?? []
 
   for (let i = 0; i < rules.length; i++) {
@@ -375,14 +459,14 @@ function checkRedundantRules(config: SecuritySchema.ResolvedSecurityConfig, diag
           diagnostics.push({
             level: "warn",
             category: "redundant",
-            message: `Duplicate rules found for pattern '${a.pattern}' with same deniedOperations [${a.deniedOperations.join(", ")}]`,
+            message: `${p}Duplicate rules found for pattern '${a.pattern}' with same deniedOperations [${a.deniedOperations.join(", ")}]`,
             fix: "Remove one of the duplicate rules",
           })
         } else {
           diagnostics.push({
             level: "info",
             category: "redundant",
-            message: `Multiple rules for pattern '${a.pattern}': [${a.deniedOperations.join(", ")}] and [${b.deniedOperations.join(", ")}] — these could be merged`,
+            message: `${p}Multiple rules for pattern '${a.pattern}': [${a.deniedOperations.join(", ")}] and [${b.deniedOperations.join(", ")}] — these could be merged`,
           })
         }
       }

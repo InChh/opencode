@@ -223,7 +223,7 @@ test("valid config with no issues produces only info diagnostics", async () => {
   expect(warnings.length).toBe(0)
 })
 
-test("subdirectory config rules are merged into resolved config", async () => {
+test("subdirectory config rules override parent for paths under subdirectory", async () => {
   await fs.mkdir(path.join(testDir, ".git"), { recursive: true })
   await fs.writeFile(
     path.join(testDir, ".opencode-security.json"),
@@ -241,12 +241,16 @@ test("subdirectory config rules are merged into resolved config", async () => {
     }),
   )
   await SecurityConfig.loadSecurityConfig(testDir)
-  const config = SecurityConfig.getSecurityConfig()
-  // Both root and subdirectory rules should be merged
-  expect(config.rules?.length).toBe(2)
-  const patterns = config.rules?.map((r) => r.pattern) ?? []
-  expect(patterns).toContain(".env")
-  expect(patterns).toContain("**/*.key")
+
+  // At project root level, only root config's rules apply
+  const rootConfig = SecurityConfig.getSecurityConfig()
+  expect(rootConfig.rules?.length).toBe(1)
+  expect(rootConfig.rules?.[0].pattern).toBe(".env")
+
+  // Under packages/core/, the subdirectory config overrides (child wins)
+  const subConfig = SecurityConfig.resolveForPath(path.join(testDir, "packages", "core", "file.key"))
+  expect(subConfig.rules?.length).toBe(1)
+  expect(subConfig.rules?.[0].pattern).toBe("**/*.key")
 })
 
 test("deny/allowlist overlap produces info", async () => {

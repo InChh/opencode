@@ -368,11 +368,10 @@ describe("CASE-AL-011: Two-layer allowlist — AND across layers", () => {
     // We need to load this merged config to test checkAccess
   })
 
-  test("file in child allowlist but not parent allowlist is denied", async () => {
+  test("child allowlist overrides parent — scoped resolution", async () => {
     const rawDir = fs.mkdtempSync(path.join(os.tmpdir(), "sec-al-011-"))
     const dir = fs.realpathSync(rawDir)
 
-    // Manually create a two-layer resolved config via mergeSecurityConfigs
     const parentConfig: SecuritySchema.SecurityConfig = {
       version: "1.0",
       allowlist: [{ pattern: "src/**", type: "directory" }],
@@ -385,44 +384,34 @@ describe("CASE-AL-011: Two-layer allowlist — AND across layers", () => {
       ],
     }
 
+    // mergeSecurityConfigs (backward compat API) still does union merge
     const merged = SecurityConfig.mergeSecurityConfigs([
       { config: parentConfig, path: "parent/.opencode-security.json" },
       { config: childConfig, path: "child/.opencode-security.json" },
     ])
-
-    // Set the merged config by writing parent config and loading it,
-    // then we'll verify via the merged object directly
     expect(merged.resolvedAllowlist.length).toBe(2)
-
-    // Parent layer only has src/**. Child layer has src/** + test/**
-    // test/foo.ts matches child layer but NOT parent layer → denied
-    // We test this by setting up config that creates the two-layer scenario
-    // Use setupSecurityConfig with parent config (single layer) to test the logic
-    // For a true two-layer test, we need to use the config system directly
 
     // Create a two-level directory structure with separate configs
     const parentDir = dir
     const childDir = path.join(dir, "subproject")
     fs.mkdirSync(childDir, { recursive: true })
 
-    // Parent has allowlist: src/**
     fs.writeFileSync(path.join(parentDir, ".opencode-security.json"), JSON.stringify(parentConfig, null, 2))
-    // Child has allowlist: src/** + test/**
     fs.writeFileSync(path.join(childDir, ".opencode-security.json"), JSON.stringify(childConfig, null, 2))
-    // .git at parent level
     fs.mkdirSync(path.join(parentDir, ".git"), { recursive: true })
 
-    // Load from child dir — findSecurityConfigs walks up to git root
+    // Load from child dir — scans from git root downward
     await SecurityConfig.loadSecurityConfig(childDir)
 
+    // In scoped resolution, child allowlist overrides parent → 1 layer
     const loadedConfig = SecurityConfig.getSecurityConfig()
-    expect(loadedConfig.resolvedAllowlist.length).toBe(2)
+    expect(loadedConfig.resolvedAllowlist.length).toBe(1)
 
-    // test/foo.ts matches child layer (test/**) but NOT parent layer (src/**)
+    // Child's allowlist includes both src/** and test/** → test/foo.ts is allowed
     const result = SecurityAccess.checkAccess("test/foo.ts", "llm", "developer")
-    expect(result.allowed).toBe(false)
+    expect(result.allowed).toBe(true)
 
-    // src/foo.ts matches both layers
+    // src/foo.ts also allowed (in child's allowlist)
     const srcResult = SecurityAccess.checkAccess("src/foo.ts", "llm", "developer")
     expect(srcResult.allowed).toBe(true)
 
@@ -433,8 +422,8 @@ describe("CASE-AL-011: Two-layer allowlist — AND across layers", () => {
 // ---------------------------------------------------------------------------
 // CASE-AL-012: Child config cannot expand parent allowlist
 // ---------------------------------------------------------------------------
-describe("CASE-AL-012: Child config cannot expand parent allowlist", () => {
-  test("parent allows src/**, child adds test/** — test/** denied by parent layer", async () => {
+describe("CASE-AL-012: Child config overrides parent allowlist in scoped resolution", () => {
+  test("parent allows src/**, child adds test/** — child overrides parent for its scope", async () => {
     const rawDir = fs.mkdtempSync(path.join(os.tmpdir(), "sec-al-012-"))
     const dir = fs.realpathSync(rawDir)
 
@@ -460,11 +449,16 @@ describe("CASE-AL-012: Child config cannot expand parent allowlist", () => {
 
     await SecurityConfig.loadSecurityConfig(childDir)
 
-    // test/foo.ts NOT in parent's allowlist → denied even though child allows it
+    // In scoped resolution, child overrides parent allowlist.
+    // test/foo.ts is in child's allowlist → allowed
     const result = SecurityAccess.checkAccess("test/foo.ts", "llm", "developer")
-    expect(result.allowed).toBe(false)
-    // Denial message should reference the parent layer's config path
-    expect(result.reason).toContain(".opencode-security.json")
+    expect(result.allowed).toBe(true)
+
+    // At parent scope level (not under subproject), parent's allowlist applies
+    // Only src/** is allowed at the parent level
+    const parentResult = SecurityConfig.resolveForPath(path.join(dir, "test/foo.ts"))
+    expect(parentResult.resolvedAllowlist.length).toBe(1)
+    expect(parentResult.resolvedAllowlist[0].entries[0].pattern).toBe("src/**")
 
     fs.rmSync(dir, { recursive: true, force: true })
   })

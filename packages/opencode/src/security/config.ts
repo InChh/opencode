@@ -7,6 +7,7 @@ export namespace SecurityConfig {
   const log = Log.create({ service: "security-config" })
 
   const SECURITY_CONFIG_FILE = ".opencode-security.json"
+  const SKIP_DIRS = new Set(["node_modules", ".git", "dist", "build", ".next", ".turbo", ".cache"])
 
   const emptyConfig: SecuritySchema.ResolvedSecurityConfig = {
     version: "1.0",
@@ -15,28 +16,245 @@ export namespace SecurityConfig {
     resolvedAllowlist: [],
   }
 
-  let currentConfig: SecuritySchema.ResolvedSecurityConfig = emptyConfig
+  // --- Scoped config storage ---
+
+  export interface ScopedConfig {
+    config: SecuritySchema.SecurityConfig
+    path: string
+    scopeDir: string
+  }
+
+  let scopedConfigs: ScopedConfig[] = []
+  let projectRootDir: string = ""
   let configLoaded = false
 
-  export async function loadSecurityConfig(projectRoot: string): Promise<SecuritySchema.ResolvedSecurityConfig> {
-    const configs = await findSecurityConfigs(projectRoot)
+  // --- Scan cache ---
 
-    if (configs.length === 0) {
+  let scanCache: { root: string; configs: ScopedConfig[] } | null = null
+
+  // --- Loading ---
+
+  export async function loadSecurityConfig(projectRoot: string): Promise<SecuritySchema.ResolvedSecurityConfig> {
+    projectRootDir = path.resolve(projectRoot)
+    const gitRoot = findGitRoot(projectRootDir)
+    const scanRoot = gitRoot ?? projectRootDir
+
+    // Invalidate scan cache on explicit reload so new file contents are picked up
+    scanCache = null
+    // Scan from git root (or project root) downward, with cache
+    scopedConfigs = await scanAllConfigs(scanRoot)
+
+    if (scopedConfigs.length === 0) {
       log.debug("no security configs found, using empty config", { projectRoot })
-      currentConfig = emptyConfig
       configLoaded = true
-      return currentConfig
+      return emptyConfig
     }
 
     log.info("security configs loaded", {
-      count: configs.length,
-      paths: configs.map((c) => c.path),
+      count: scopedConfigs.length,
+      paths: scopedConfigs.map((c) => c.path),
     })
 
-    currentConfig = mergeSecurityConfigs(configs)
     configLoaded = true
-    return currentConfig
+    return resolveForPath(projectRootDir)
   }
+
+  /**
+   * Scan all `.opencode-security.json` from a root directory downward.
+   * Results are cached by root path.
+   */
+  async function scanAllConfigs(root: string): Promise<ScopedConfig[]> {
+    const resolved = path.resolve(root)
+    if (scanCache?.root === resolved) return scanCache.configs
+
+    const results: ScopedConfig[] = []
+
+    async function walk(dir: string) {
+      let entries: fs.Dirent[]
+      try {
+        entries = fs.readdirSync(dir, { withFileTypes: true })
+      } catch {
+        return
+      }
+
+      for (const entry of entries) {
+        if (entry.isDirectory() && !SKIP_DIRS.has(entry.name)) {
+          await walk(path.join(dir, entry.name))
+        } else if (entry.name === SECURITY_CONFIG_FILE) {
+          const configPath = path.join(dir, entry.name)
+          const config = await loadConfigFile(configPath)
+          if (config) {
+            results.push({ config, path: configPath, scopeDir: dir })
+          }
+        }
+      }
+    }
+
+    await walk(resolved)
+
+    // Sort by depth: shallowest (root) first, deepest last
+    results.sort((a, b) => a.scopeDir.length - b.scopeDir.length)
+
+    scanCache = { root: resolved, configs: results }
+    return results
+  }
+
+  /**
+   * Resolve the effective security config for a given file/directory path.
+   *
+   * Finds all configs whose scope is an ancestor of (or equals) the path,
+   * then merges with child-overrides-parent semantics:
+   * - rules: child replaces parent (if child defines rules)
+   * - allowlist: child replaces parent (if child defines allowlist)
+   * - roles: union across all (must be consistent)
+   * - mcp: most restrictive wins
+   * - segments, logging, auth: most specific (deepest) wins
+   *
+   * Patterns with `../` that escape the config's scope are filtered out.
+   */
+  export function resolveForPath(filePath: string): SecuritySchema.ResolvedSecurityConfig {
+    // Resolve relative paths against projectRootDir (not CWD) so that
+    // checkAccess("secrets/key.pem", ...) works correctly when config is
+    // loaded from a different directory than CWD.
+    const resolved = path.isAbsolute(filePath)
+      ? filePath
+      : path.resolve(projectRootDir || process.cwd(), filePath)
+
+    // Find all configs whose scope contains this path (ancestors + exact match)
+    const applicable = scopedConfigs.filter((c) => {
+      return resolved === c.scopeDir || resolved.startsWith(c.scopeDir + "/")
+    })
+
+    if (applicable.length === 0) return emptyConfig
+
+    // Sorted shallowest-first (from scanAllConfigs), so last = most specific
+
+    // --- Roles: union across all (must be consistent) ---
+    const roleMap = new Map<string, number>()
+    for (const { config, path: configPath } of applicable) {
+      for (const role of config.roles ?? []) {
+        const existing = roleMap.get(role.name)
+        if (existing !== undefined && existing !== role.level) {
+          log.error("role conflict across configs", {
+            role: role.name,
+            existingLevel: existing,
+            newLevel: role.level,
+            configPath,
+          })
+        }
+        roleMap.set(role.name, role.level)
+      }
+    }
+    const mergedRoles: SecuritySchema.Role[] = [...roleMap.entries()].map(([name, level]) => ({ name, level }))
+
+    // --- Rules: child overrides parent (last defined wins) ---
+    // Scope-filter: remove patterns that escape their config's scope via ../
+    let mergedRules: SecuritySchema.Rule[] | undefined
+    for (const sc of applicable) {
+      if (sc.config.rules !== undefined) {
+        mergedRules = filterScopedRules(sc.config.rules, sc.scopeDir)
+      }
+    }
+
+    // --- Allowlist: child overrides parent (last defined wins) ---
+    let resolvedAllowlist: SecuritySchema.AllowlistLayer[] = []
+    for (const sc of applicable) {
+      if (sc.config.allowlist !== undefined) {
+        const filtered = filterScopedAllowlist(sc.config.allowlist, sc.scopeDir)
+        resolvedAllowlist = [{ source: sc.path, entries: filtered }]
+      }
+    }
+
+    // --- Segments: most specific wins ---
+    let mergedSegments: SecuritySchema.Segments | undefined
+    for (const sc of applicable) {
+      if (sc.config.segments !== undefined) {
+        mergedSegments = sc.config.segments
+      }
+    }
+
+    // --- Logging: most specific wins ---
+    let mergedLogging: SecuritySchema.Logging | undefined
+    for (const sc of applicable) {
+      if (sc.config.logging !== undefined) {
+        mergedLogging = sc.config.logging
+      }
+    }
+
+    // --- Authentication: most specific wins ---
+    let mergedAuthentication: SecuritySchema.Authentication | undefined
+    for (const sc of applicable) {
+      if (sc.config.authentication !== undefined) {
+        mergedAuthentication = sc.config.authentication
+      }
+    }
+
+    // --- MCP: most restrictive wins ---
+    const mcpConfigs = applicable.filter((c) => c.config.mcp)
+    const mergedMcp =
+      mcpConfigs.length > 0
+        ? (() => {
+            let defaultPolicy: SecuritySchema.McpPolicy = "trusted"
+            const servers: Record<string, SecuritySchema.McpPolicy> = {}
+
+            for (const entry of mcpConfigs) {
+              if (!entry.config.mcp) continue
+              defaultPolicy = mostRestrictiveMcpPolicy(defaultPolicy, entry.config.mcp.defaultPolicy)
+              for (const [serverName, policy] of Object.entries(entry.config.mcp.servers)) {
+                const existing = servers[serverName]
+                servers[serverName] = existing ? mostRestrictiveMcpPolicy(existing, policy) : policy
+              }
+            }
+
+            return { defaultPolicy, servers }
+          })()
+        : undefined
+
+    const hasEmptyAllowlist = resolvedAllowlist.some((l) => l.entries.length === 0)
+    if (hasEmptyAllowlist) {
+      log.warn("Empty allowlist configured — all LLM operations will be denied. No files are accessible to the LLM.")
+    }
+
+    return {
+      version: applicable[0].config.version,
+      roles: mergedRoles.length > 0 ? mergedRoles : undefined,
+      rules: mergedRules && mergedRules.length > 0 ? mergedRules : undefined,
+      segments: mergedSegments,
+      logging: mergedLogging,
+      authentication: mergedAuthentication,
+      mcp: mergedMcp,
+      resolvedAllowlist,
+    }
+  }
+
+  // --- Scope filtering ---
+
+  /**
+   * Filter rules: remove patterns that escape the config's scope via `../`
+   */
+  function filterScopedRules(rules: SecuritySchema.Rule[], scopeDir: string): SecuritySchema.Rule[] {
+    return rules.filter((rule) => !patternEscapesScope(rule.pattern, scopeDir))
+  }
+
+  function filterScopedAllowlist(
+    entries: SecuritySchema.AllowlistEntry[],
+    scopeDir: string,
+  ): SecuritySchema.AllowlistEntry[] {
+    return entries.filter((entry) => !patternEscapesScope(entry.pattern, scopeDir))
+  }
+
+  /**
+   * Check if a pattern would escape its scope directory.
+   * Returns true if the pattern uses `../` to go above scopeDir.
+   */
+  function patternEscapesScope(pattern: string, scopeDir: string): boolean {
+    if (!pattern.includes("..")) return false
+    // Resolve the pattern against scopeDir and check if it escapes
+    const resolved = path.resolve(scopeDir, pattern.replace(/[*?[\]{}]/g, "x"))
+    return !resolved.startsWith(scopeDir + "/") && resolved !== scopeDir
+  }
+
+  // --- Backward-compatible API ---
 
   /**
    * Load a single config file from a given path.
@@ -87,93 +305,18 @@ export namespace SecurityConfig {
     return undefined
   }
 
-  const SKIP_DIRS = new Set(["node_modules", ".git", "dist", "build", ".next", ".turbo", ".cache"])
-
   /**
-   * Recursively scan a directory for `.opencode-security.json` files.
-   * Skips common non-source directories (node_modules, .git, dist, etc.).
-   */
-  async function findConfigsInSubtree(dir: string): Promise<{ config: SecuritySchema.SecurityConfig; path: string }[]> {
-    const results: { config: SecuritySchema.SecurityConfig; path: string }[] = []
-
-    let entries: fs.Dirent[]
-    try {
-      entries = fs.readdirSync(dir, { withFileTypes: true })
-    } catch {
-      return results
-    }
-
-    for (const entry of entries) {
-      if (entry.isDirectory() && !SKIP_DIRS.has(entry.name)) {
-        const subResults = await findConfigsInSubtree(path.join(dir, entry.name))
-        results.push(...subResults)
-      } else if (entry.name === SECURITY_CONFIG_FILE) {
-        const configPath = path.join(dir, entry.name)
-        const config = await loadConfigFile(configPath)
-        if (config) {
-          results.push({ config, path: configPath })
-        }
-      }
-    }
-
-    return results
-  }
-
-  /**
-   * Collect all `.opencode-security.json` files from three scopes:
-   * 1. Walk UP from startPath to git root (ancestor configs)
-   * 2. Walk DOWN from startPath into subdirectories (descendant configs)
-   *
-   * Returns configs ordered: startPath first, then ancestors (up), then descendants (down).
-   * Deduplicates by path so startPath's own config is not counted twice.
+   * Find all security configs. Scans from git root downward.
+   * Used by doctor and CLI commands for discovery.
    */
   export async function findSecurityConfigs(
     startPath: string,
   ): Promise<{ config: SecuritySchema.SecurityConfig; path: string }[]> {
     const resolved = path.resolve(startPath)
-    const seen = new Set<string>()
-    const configs: { config: SecuritySchema.SecurityConfig; path: string }[] = []
-
-    function addIfNew(entry: { config: SecuritySchema.SecurityConfig; path: string }) {
-      if (!seen.has(entry.path)) {
-        seen.add(entry.path)
-        configs.push(entry)
-      }
-    }
-
-    // 1. startPath itself
-    const startConfig = await loadConfigFile(path.join(resolved, SECURITY_CONFIG_FILE))
-    if (startConfig) {
-      addIfNew({ config: startConfig, path: path.join(resolved, SECURITY_CONFIG_FILE) })
-    }
-
-    // 2. Walk UP to git root (ancestors)
     const gitRoot = findGitRoot(resolved)
-    if (gitRoot) {
-      let current = path.dirname(resolved)
-      while (true) {
-        const configPath = path.join(current, SECURITY_CONFIG_FILE)
-        const config = await loadConfigFile(configPath)
-        if (config) {
-          addIfNew({ config, path: configPath })
-        }
-        if (current === gitRoot) break
-        const parent = path.dirname(current)
-        if (parent === current) break
-        current = parent
-      }
-    } else if (!startConfig) {
-      // No git root and no startPath config — nothing to find
-      return []
-    }
-
-    // 3. Walk DOWN into subdirectories
-    const subConfigs = await findConfigsInSubtree(resolved)
-    for (const entry of subConfigs) {
-      addIfNew(entry)
-    }
-
-    return configs
+    const scanRoot = gitRoot ?? resolved
+    const all = await scanAllConfigs(scanRoot)
+    return all.map((c) => ({ config: c.config, path: c.path }))
   }
 
   const MCP_POLICY_PRIORITY: Record<SecuritySchema.McpPolicy, number> = {
@@ -182,10 +325,6 @@ export namespace SecurityConfig {
     trusted: 1,
   }
 
-  /**
-   * Get the most restrictive MCP policy between two policies.
-   * Priority: blocked > enforced > trusted
-   */
   function mostRestrictiveMcpPolicy(
     a: SecuritySchema.McpPolicy,
     b: SecuritySchema.McpPolicy,
@@ -194,13 +333,8 @@ export namespace SecurityConfig {
   }
 
   /**
-   * Merge multiple security configs into a single config.
-   * - Rules are unioned (more configs = more restrictions)
-   * - Role definitions must be identical across configs (throws error if conflict)
-   * - MCP policies use most restrictive (blocked > enforced > trusted)
-   * - Segments (markers and AST) are unioned
-   * - Logging uses the first defined config's logging settings
-   * - Authentication uses the first defined config's authentication settings
+   * @deprecated Use resolveForPath() for scope-aware config resolution.
+   * Returns the resolved config for the project root scope.
    */
   export function mergeSecurityConfigs(
     configs: { config: SecuritySchema.SecurityConfig; path: string }[],
@@ -211,15 +345,10 @@ export namespace SecurityConfig {
       const resolvedAllowlist: SecuritySchema.AllowlistLayer[] = entry.config.allowlist
         ? [{ source: entry.path, entries: entry.config.allowlist }]
         : []
-      if (entry.config.allowlist && entry.config.allowlist.length === 0) {
-        log.warn(
-          "Empty allowlist configured — all LLM operations will be denied. No files are accessible to the LLM.",
-        )
-      }
       return { ...entry.config, resolvedAllowlist }
     }
 
-    // Validate role definitions are identical across configs
+    // For backward compat: union merge (used by tests that call mergeSecurityConfigs directly)
     const roleMap = new Map<string, number>()
     for (const { config } of configs) {
       for (const role of config.roles ?? []) {
@@ -232,93 +361,48 @@ export namespace SecurityConfig {
         roleMap.set(role.name, role.level)
       }
     }
-
-    // Union all roles (deduplicated by name since we verified no conflicts)
     const mergedRoles: SecuritySchema.Role[] = [...roleMap.entries()].map(([name, level]) => ({ name, level }))
-
-    // Union all rules
     const mergedRules: SecuritySchema.Rule[] = configs.flatMap((c) => c.config.rules ?? [])
-
-    // Union segment markers
-    const mergedMarkers: SecuritySchema.MarkerConfig[] = configs.flatMap((c) => c.config.segments?.markers ?? [])
-
-    // Union AST configs
-    const mergedAST: SecuritySchema.ASTConfig[] = configs.flatMap((c) => c.config.segments?.ast ?? [])
-
-    const mergedSegments =
-      mergedMarkers.length > 0 || mergedAST.length > 0
-        ? {
-            ...(mergedMarkers.length > 0 ? { markers: mergedMarkers } : {}),
-            ...(mergedAST.length > 0 ? { ast: mergedAST } : {}),
-          }
-        : undefined
-
-    // First defined logging wins
-    const mergedLogging = configs.find((c) => c.config.logging)?.config.logging
-
-    // First defined authentication wins
-    const mergedAuthentication = configs.find((c) => c.config.authentication)?.config.authentication
-
-    // Merge MCP policies: most restrictive wins
-    const mcpConfigs = configs.filter((c) => c.config.mcp)
-    const mergedMcp =
-      mcpConfigs.length > 0
-        ? (() => {
-            let defaultPolicy: SecuritySchema.McpPolicy = "trusted"
-            const servers: Record<string, SecuritySchema.McpPolicy> = {}
-
-            for (const entry of mcpConfigs) {
-              if (!entry.config.mcp) continue
-              defaultPolicy = mostRestrictiveMcpPolicy(defaultPolicy, entry.config.mcp.defaultPolicy)
-              for (const [serverName, policy] of Object.entries(entry.config.mcp.servers)) {
-                const existing = servers[serverName]
-                servers[serverName] = existing ? mostRestrictiveMcpPolicy(existing, policy) : policy
-              }
-            }
-
-            return { defaultPolicy, servers }
-          })()
-        : undefined
-
-    // Build allowlist layers — one per config that defines an allowlist
     const resolvedAllowlist: SecuritySchema.AllowlistLayer[] = configs
       .filter((c) => c.config.allowlist !== undefined)
       .map((c) => ({ source: c.path, entries: c.config.allowlist! }))
-
-    const hasEmptyAllowlist = configs.some((c) => c.config.allowlist && c.config.allowlist.length === 0)
-    if (hasEmptyAllowlist) {
-      log.warn("Empty allowlist configured — all LLM operations will be denied. No files are accessible to the LLM.")
-    }
 
     return {
       version: configs[0].config.version,
       roles: mergedRoles.length > 0 ? mergedRoles : undefined,
       rules: mergedRules.length > 0 ? mergedRules : undefined,
-      segments: mergedSegments,
-      logging: mergedLogging,
-      authentication: mergedAuthentication,
-      mcp: mergedMcp,
       resolvedAllowlist,
     }
   }
 
+  /**
+   * Get the resolved security config for the project root scope.
+   * For per-path resolution, use resolveForPath() instead.
+   */
   export function getSecurityConfig(): SecuritySchema.ResolvedSecurityConfig {
     if (!configLoaded) {
       log.warn("getSecurityConfig called before config was loaded, returning empty config")
       return emptyConfig
     }
-    return currentConfig
+    return resolveForPath(projectRootDir)
+  }
+
+  /**
+   * Get all loaded scoped configs. Used by doctor and advanced callers.
+   */
+  export function getScopedConfigs(): readonly ScopedConfig[] {
+    return scopedConfigs
   }
 
   export function resetConfig(): void {
-    currentConfig = emptyConfig
+    scopedConfigs = []
+    projectRootDir = ""
     configLoaded = false
+    scanCache = null
   }
 
   /**
    * Get the MCP security policy for a given server name.
-   * Returns the server-specific policy if configured, otherwise the default policy.
-   * If no MCP config exists, returns "trusted" (no restrictions).
    */
   export function getMcpPolicy(serverName: string): "enforced" | "trusted" | "blocked" {
     const config = getSecurityConfig()
