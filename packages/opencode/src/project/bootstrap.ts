@@ -30,6 +30,7 @@ export async function InstanceBootstrap() {
   Truncate.init()
   SecurityAccess.setProjectRoot(Instance.directory)
   await SecurityConfig.loadSecurityConfig(Instance.directory)
+  SecurityConfig.watchForChanges()
 
   // Initialize sandbox after security config is loaded (needs allowlist/deny rules)
   Bus.publish(TuiEvent.ToastShow, {

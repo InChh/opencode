@@ -1,5 +1,7 @@
 import { SecuritySchema } from "./schema"
 import { Log } from "../util/log"
+import { Bus } from "../bus"
+import { FileWatcher } from "../file/watcher"
 import path from "path"
 import fs from "fs"
 import crypto from "crypto"
@@ -533,6 +535,49 @@ export namespace SecurityConfig {
     configLoaded = false
     scanCache = null
     resolveCache.clear()
+    if (reloadTimer) {
+      clearTimeout(reloadTimer)
+      reloadTimer = null
+    }
+    watcherActive = false
+  }
+
+  // --- File watcher for hot-reload ---
+
+  let watcherActive = false
+  let reloadTimer: ReturnType<typeof setTimeout> | null = null
+
+  /**
+   * Subscribe to FileWatcher events and reload security config when any
+   * `.opencode-security.json` is added, changed, or deleted.
+   * Debounces rapid changes (e.g. editor save) with a 300ms window.
+   */
+  export function watchForChanges() {
+    if (watcherActive) return
+    watcherActive = true
+
+    Bus.subscribe(FileWatcher.Event.Updated, async (payload) => {
+      if (path.basename(payload.properties.file) !== SECURITY_CONFIG_FILE) return
+
+      log.info("security config file changed, scheduling reload", {
+        file: payload.properties.file,
+        event: payload.properties.event,
+      })
+
+      // Debounce: if multiple events arrive quickly, only reload once
+      if (reloadTimer) clearTimeout(reloadTimer)
+      reloadTimer = setTimeout(async () => {
+        reloadTimer = null
+        try {
+          await loadSecurityConfig(projectRootDir)
+          log.info("security config reloaded after file change")
+        } catch (err) {
+          log.error("failed to reload security config after file change", {
+            error: (err as Error).message,
+          })
+        }
+      }, 300)
+    })
   }
 
   /**
