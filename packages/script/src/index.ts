@@ -16,6 +16,9 @@ if (!semver.satisfies(process.versions.bun, expectedBunVersionRange)) {
   throw new Error(`This script requires bun@${expectedBunVersionRange}, but you are using bun@${process.versions.bun}`)
 }
 
+const opencodePkgPath = path.resolve(import.meta.dir, "../../opencode/package.json")
+const opencodePkg = await Bun.file(opencodePkgPath).json()
+
 const env = {
   OPENCODE_CHANNEL: process.env["OPENCODE_CHANNEL"],
   OPENCODE_BUMP: process.env["OPENCODE_BUMP"],
@@ -32,18 +35,23 @@ const IS_PREVIEW = CHANNEL !== "latest"
 
 const VERSION = await (async () => {
   if (env.OPENCODE_VERSION) return env.OPENCODE_VERSION
-  if (IS_PREVIEW) return `0.0.0-${CHANNEL}-${new Date().toISOString().slice(0, 16).replace(/[-:T]/g, "")}`
-  const version = await fetch("https://registry.npmjs.org/lark-opencode/latest")
-    .then((res) => {
-      if (!res.ok) return null
-      return res.json()
-    })
-    .then((data: any) => data?.version ?? "0.0.0")
-  const [major, minor, patch] = version.split(".").map((x: string) => Number(x) || 0)
-  const t = env.OPENCODE_BUMP?.toLowerCase()
-  if (t === "major") return `${major + 1}.0.0`
-  if (t === "minor") return `${major}.${minor + 1}.0`
-  return `${major}.${minor}.${patch + 1}`
+  const pkgVersion = opencodePkg.version
+  if (!IS_PREVIEW) {
+    if (pkgVersion && pkgVersion !== "0.0.0") return pkgVersion
+    const version = await fetch("https://registry.npmjs.org/lark-opencode/latest")
+      .then((res) => {
+        if (!res.ok) return null
+        return res.json()
+      })
+      .then((data: any) => data?.version ?? "0.0.0")
+    const [major, minor, patch] = version.split(".").map((x: string) => Number(x) || 0)
+    const t = env.OPENCODE_BUMP?.toLowerCase()
+    if (t === "major") return `${major + 1}.0.0`
+    if (t === "minor") return `${major}.${minor + 1}.0`
+    return `${major}.${minor}.${patch + 1}`
+  }
+  if (pkgVersion && pkgVersion !== "0.0.0") return `${pkgVersion}-${new Date().toISOString().slice(0, 16).replace(/[-:T]/g, "")}`
+  return `0.0.0-${CHANNEL}-${new Date().toISOString().slice(0, 16).replace(/[-:T]/g, "")}`
 })()
 
 const bot = ["actions-user", "opencode", "opencode-agent[bot]"]
