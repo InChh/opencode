@@ -54,6 +54,10 @@ import { SecurityRedact } from "@/security/redact"
 // @ts-ignore
 globalThis.AI_SDK_LOG_WARNINGS = false
 
+function isExtendedThinkingModel(model: Provider.Model): boolean {
+  return model.capabilities.reasoning && model.api.npm === "@ai-sdk/anthropic"
+}
+
 const STRUCTURED_OUTPUT_DESCRIPTION = `Use this tool to return your final response in the requested structured format.
 
 IMPORTANT:
@@ -652,6 +656,45 @@ export namespace SessionPrompt {
       }
 
       await Plugin.trigger("experimental.chat.messages.transform", {}, { messages: msgs })
+
+      // Thinking block validator: Ensure assistant messages start with a reasoning
+      // part when the model supports extended thinking. The Anthropic API requires
+      // assistant messages to begin with a thinking block when extended thinking is
+      // enabled. Without this, replayed messages from non-thinking models or
+      // compacted sessions can cause API errors.
+      if (isExtendedThinkingModel(model)) {
+        for (let i = 0; i < msgs.length; i++) {
+          const msg = msgs[i]
+          if (msg.info.role !== "assistant") continue
+          const hasContent = msg.parts.some(
+            (p) => p.type === "text" || p.type === "tool",
+          )
+          if (!hasContent) continue
+          const startsWithReasoning = msg.parts.length > 0 && msg.parts[0].type === "reasoning"
+          if (startsWithReasoning) continue
+
+          // Find previous reasoning content to use, or fall back to placeholder
+          let previousReasoning = ""
+          for (let j = i - 1; j >= 0; j--) {
+            const prev = msgs[j]
+            if (prev.info.role !== "assistant") continue
+            for (const part of prev.parts) {
+              if (part.type === "reasoning" && "text" in part && part.text?.trim()) {
+                previousReasoning = part.text
+                break
+              }
+            }
+            if (previousReasoning) break
+          }
+
+          msg.parts.unshift({
+            type: "reasoning",
+            text: previousReasoning || "[Continuing from previous reasoning]",
+            time: { start: Date.now() },
+            synthetic: true,
+          } as MessageV2.ReasoningPart & { synthetic: boolean })
+        }
+      }
 
       // Build system prompt, adding structured output instruction if needed
       const system = [...(await SystemPrompt.environment(model)), ...(await InstructionPrompt.system())]

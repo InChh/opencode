@@ -1,0 +1,253 @@
+{
+  "session_id": "omo-sync-20260305-120000",
+  "created_at": "2026-03-05T12:00:00Z",
+  "updated_at": "2026-03-05T12:00:00Z",
+  "baseline_version": "0.0.0",
+  "target_version": "3.10.0",
+  "extracted_path": "/var/folders/3_/_vz8rh0x3mxgw0x58tj6x0q40000gn/T/tmp.AWKroFx3Z4/package",
+  "components": [
+    {
+      "name": "json-error-recovery",
+      "type": "hook",
+      "category": "backport_recommended",
+      "priority": "P0",
+      "status": "applied",
+      "files_modified": ["packages/opencode/src/session/hooks/error-recovery.ts"],
+      "notes": "Added as post-tool hook (priority 150) in ErrorRecoveryHooks. Detects JSON parse errors in tool output and appends corrective guidance."
+    },
+    {
+      "name": "thinking-block-validator",
+      "type": "hook",
+      "category": "backport_recommended",
+      "priority": "P0",
+      "status": "applied",
+      "files_modified": ["packages/opencode/src/session/prompt.ts"],
+      "notes": "Added inline in prompt.ts after Plugin.trigger messages transform. Ensures assistant messages start with reasoning part for Anthropic extended-thinking models. Uses model.capabilities.reasoning + api.npm check."
+    },
+    {
+      "name": "task-resume-info",
+      "type": "hook",
+      "category": "backport_recommended",
+      "priority": "P1",
+      "status": "applied",
+      "files_modified": ["packages/opencode/src/session/hooks/error-recovery.ts"],
+      "notes": "Added as post-tool hook (priority 210) in ErrorRecoveryHooks. Extracts session ID from task output and appends resume hint."
+    },
+    {
+      "name": "read-image-resizer",
+      "type": "hook",
+      "category": "review_needed",
+      "priority": "P1",
+      "status": "pending",
+      "notes": "Resizes images read via Read tool to avoid context bloat. Parses PNG/JPEG/GIF/WebP dimensions from headers."
+    },
+    {
+      "name": "hashline-edit",
+      "type": "tool",
+      "category": "review_needed",
+      "priority": "P2",
+      "status": "pending",
+      "notes": "Alternative edit tool using line hash anchors instead of line numbers. Complex tool with many submodules. Would need significant adaptation."
+    },
+    {
+      "name": "session-manager",
+      "type": "tool",
+      "category": "review_needed",
+      "priority": "P2",
+      "status": "pending",
+      "notes": "Tools for listing/reading/searching/deleting sessions. Useful but needs OpenCode session API integration."
+    },
+    {
+      "name": "model-fallback",
+      "type": "hook",
+      "category": "review_needed",
+      "priority": "P2",
+      "status": "pending",
+      "notes": "Falls back to alternative model when primary model fails. Needs provider infrastructure review."
+    },
+    {
+      "name": "runtime-fallback",
+      "type": "hook",
+      "category": "review_needed",
+      "priority": "P2",
+      "status": "pending",
+      "notes": "Falls back to alternative runtime when primary fails. Related to model-fallback."
+    },
+    {
+      "name": "auto-update-checker",
+      "type": "hook",
+      "category": "review_needed",
+      "priority": "P3",
+      "status": "pending",
+      "notes": "Checks for OMO package updates on session start. OMO-specific, may need adaptation for OpenCode."
+    },
+    {
+      "name": "agent-usage-reminder",
+      "type": "hook",
+      "category": "review_needed",
+      "priority": "P3",
+      "status": "pending",
+      "notes": "Reminds model about available agents. OMO-specific agent ecosystem."
+    },
+    {
+      "name": "category-skill-reminder",
+      "type": "hook",
+      "category": "review_needed",
+      "priority": "P3",
+      "status": "pending",
+      "notes": "Reminds model about available skills/categories for task delegation. OMO-specific."
+    },
+    {
+      "name": "interactive-bash-session",
+      "type": "hook",
+      "category": "review_needed",
+      "priority": "P3",
+      "status": "pending",
+      "notes": "Hook for interactive bash session management."
+    },
+    {
+      "name": "slashcommand",
+      "type": "tool",
+      "category": "skip_diverged",
+      "priority": "P4",
+      "status": "skipped",
+      "notes": "OMO slash command discovery. We have our own skill system."
+    },
+    {
+      "name": "call-omo-agent",
+      "type": "tool",
+      "category": "skip_diverged",
+      "priority": "P4",
+      "status": "skipped",
+      "notes": "OMO-specific agent caller. Not applicable to our architecture."
+    },
+    {
+      "name": "start-work",
+      "type": "hook",
+      "category": "skip_diverged",
+      "priority": "P4",
+      "status": "skipped",
+      "notes": "OMO-specific ultrawork/worktree workflow. Not applicable."
+    },
+    {
+      "name": "ralph-loop",
+      "type": "hook",
+      "category": "skip_diverged",
+      "priority": "P4",
+      "status": "skipped",
+      "notes": "OMO-specific ralph agent loop. Not applicable."
+    },
+    {
+      "name": "no-sisyphus-gpt",
+      "type": "hook",
+      "category": "skip_diverged",
+      "priority": "P4",
+      "status": "skipped",
+      "notes": "OMO-specific model restriction. Not applicable."
+    },
+    {
+      "name": "no-hephaestus-non-gpt",
+      "type": "hook",
+      "category": "skip_diverged",
+      "priority": "P4",
+      "status": "skipped",
+      "notes": "OMO-specific model restriction. Not applicable."
+    },
+    {
+      "name": "prometheus-md-only",
+      "type": "hook",
+      "category": "skip_diverged",
+      "priority": "P4",
+      "status": "skipped",
+      "notes": "OMO-specific agent constraint. Not applicable."
+    },
+    {
+      "name": "sisyphus-junior-notepad",
+      "type": "hook",
+      "category": "skip_diverged",
+      "priority": "P4",
+      "status": "skipped",
+      "notes": "OMO-specific agent notepad. Not applicable."
+    },
+    {
+      "name": "atlas",
+      "type": "hook",
+      "category": "skip_diverged",
+      "priority": "P4",
+      "status": "skipped",
+      "notes": "OMO-specific atlas agent hook. Not applicable."
+    },
+    {
+      "name": "non-interactive-env",
+      "type": "hook",
+      "category": "skip_diverged",
+      "priority": "P4",
+      "status": "skipped",
+      "notes": "OMO-specific non-interactive env detection."
+    },
+    {
+      "name": "auto-slash-command",
+      "type": "hook",
+      "category": "skip_diverged",
+      "priority": "P4",
+      "status": "skipped",
+      "notes": "OMO-specific auto slash command detection."
+    },
+    {
+      "name": "background-notification",
+      "type": "hook",
+      "category": "skip_diverged",
+      "priority": "P4",
+      "status": "skipped",
+      "notes": "OMO-specific background notification."
+    },
+    {
+      "name": "claude-code-hooks",
+      "type": "hook",
+      "category": "skip_diverged",
+      "priority": "P4",
+      "status": "skipped",
+      "notes": "OMO-specific Claude Code hooks integration."
+    },
+    {
+      "name": "hashline-edit-diff-enhancer",
+      "type": "hook",
+      "category": "skip_diverged",
+      "priority": "P4",
+      "status": "skipped",
+      "notes": "Companion hook for hashline-edit tool. Skip unless hashline-edit is adopted."
+    },
+    {
+      "name": "hashline-read-enhancer",
+      "type": "hook",
+      "category": "skip_diverged",
+      "priority": "P4",
+      "status": "skipped",
+      "notes": "Companion hook for hashline-edit tool. Skip unless hashline-edit is adopted."
+    },
+    {
+      "name": "tasks-todowrite-disabler",
+      "type": "hook",
+      "category": "skip_diverged",
+      "priority": "P4",
+      "status": "skipped",
+      "notes": "OMO-specific TodoWrite disabling."
+    },
+    {
+      "name": "task-reminder",
+      "type": "hook",
+      "category": "review_needed",
+      "priority": "P3",
+      "status": "pending",
+      "notes": "Reminds model about pending tasks."
+    }
+  ],
+  "phases": {
+    "fetch": { "status": "done" },
+    "diff": { "status": "done" },
+    "plan": { "status": "done" },
+    "backport": { "status": "done", "applied": 3, "deferred": 9, "skipped": 15 },
+    "verify": { "status": "done", "typecheck": "pass (pre-existing lark-opencode errors only)" },
+    "baseline": { "status": "done" }
+  }
+}

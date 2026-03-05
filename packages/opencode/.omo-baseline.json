@@ -1,6 +1,6 @@
 {
-  "version": "0.0.0",
-  "date": "2026-02-14",
+  "version": "3.10.0",
+  "date": "2026-03-05",
   "tools": {
     "glob": "internalized",
     "grep": "internalized",
@@ -12,7 +12,11 @@
     "skill-mcp": "internalized",
     "interactive-bash": "internalized",
     "task": "internalized",
-    "skill": "internalized"
+    "skill": "internalized",
+    "hashline-edit": "deferred",
+    "session-manager": "deferred",
+    "slashcommand": "skipped",
+    "call-omo-agent": "skipped"
   },
   "hooks": {
     "edit-error-recovery": "internalized",
@@ -40,7 +44,32 @@
     "session-notification": "internalized",
     "unstable-agent-babysitter": "internalized",
     "think-mode": "internalized",
-    "anthropic-effort": "internalized"
+    "anthropic-effort": "internalized",
+    "json-error-recovery": "internalized",
+    "thinking-block-validator": "internalized",
+    "task-resume-info": "internalized",
+    "read-image-resizer": "deferred",
+    "model-fallback": "deferred",
+    "runtime-fallback": "deferred",
+    "auto-update-checker": "skipped",
+    "agent-usage-reminder": "skipped",
+    "category-skill-reminder": "skipped",
+    "interactive-bash-session": "deferred",
+    "task-reminder": "deferred",
+    "start-work": "skipped",
+    "ralph-loop": "skipped",
+    "no-sisyphus-gpt": "skipped",
+    "no-hephaestus-non-gpt": "skipped",
+    "prometheus-md-only": "skipped",
+    "sisyphus-junior-notepad": "skipped",
+    "atlas": "skipped",
+    "non-interactive-env": "skipped",
+    "auto-slash-command": "skipped",
+    "background-notification": "skipped",
+    "claude-code-hooks": "skipped",
+    "hashline-edit-diff-enhancer": "skipped",
+    "hashline-read-enhancer": "skipped",
+    "tasks-todowrite-disabler": "skipped"
   },
   "agents": {
     "sisyphus": "internalized",
@@ -55,5 +84,5 @@
     "multimodal-looker": "optional",
     "sisyphus-junior": "optional"
   },
-  "notes": "Initial OMO internalization into OpenCode core. Version 0.0.0 indicates baseline was created before first upstream comparison. All listed components were ported from oh-my-opencode source."
+  "notes": "Synced to OMO 3.10.0 on 2026-03-05. Backported: json-error-recovery, thinking-block-validator, task-resume-info. Deferred: read-image-resizer, hashline-edit, session-manager, model-fallback, runtime-fallback, interactive-bash-session, task-reminder. Skipped: OMO-specific hooks (ralph-loop, start-work, atlas, etc)."
 }

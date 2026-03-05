@@ -138,6 +138,88 @@ export namespace ErrorRecoveryHooks {
     })
   }
 
+  // --- JSON error recovery (PostToolChain, priority 150) ---
+  // When tool output contains JSON parse errors, appends corrective guidance
+  // to prevent the model from repeating the same invalid JSON call
+
+  const JSON_ERROR_PATTERNS = [
+    /json parse error/i,
+    /failed to parse json/i,
+    /invalid json/i,
+    /malformed json/i,
+    /unexpected end of json input/i,
+    /syntaxerror:\s*unexpected token.*json/i,
+    /json[^\n]*expected '\}'/i,
+    /json[^\n]*unexpected eof/i,
+  ]
+
+  const JSON_ERROR_REMINDER_MARKER = "[JSON PARSE ERROR - IMMEDIATE ACTION REQUIRED]"
+
+  const JSON_ERROR_EXCLUDED_TOOLS = new Set(["bash", "read", "glob", "grep"])
+
+  const JSON_ERROR_REMINDER = `
+${JSON_ERROR_REMINDER_MARKER}
+
+You sent invalid JSON arguments. The system could not parse your tool call.
+STOP and do this NOW:
+
+1. LOOK at the error message above to see what was expected vs what you sent.
+2. CORRECT your JSON syntax (missing braces, unescaped quotes, trailing commas, etc).
+3. RETRY the tool call with valid JSON.
+
+DO NOT repeat the exact same invalid call.
+`
+
+  function registerJsonErrorRecovery(): void {
+    HookChain.register("json-error-recovery", "post-tool", 150, async (ctx) => {
+      if (JSON_ERROR_EXCLUDED_TOOLS.has(ctx.toolName.toLowerCase())) return
+      if (typeof ctx.result.output !== "string") return
+      if (ctx.result.output.includes(JSON_ERROR_REMINDER_MARKER)) return
+
+      const hasJsonError = JSON_ERROR_PATTERNS.some((pattern) => pattern.test(ctx.result.output))
+      if (hasJsonError) {
+        ctx.result.output += "\n" + JSON_ERROR_REMINDER
+        log.info("json error recovery injected", { sessionID: ctx.sessionID, tool: ctx.toolName })
+      }
+    })
+  }
+
+  // --- Task resume info (PostToolChain, priority 210) ---
+  // After successful task/delegate_task, appends session ID hint so the model
+  // knows how to continue the task in a follow-up call
+
+  const TASK_TOOLS = new Set(["delegate_task", "task"])
+
+  const SESSION_ID_PATTERNS = [
+    /Session ID: (ses_[a-zA-Z0-9_-]+)/,
+    /session_id: (ses_[a-zA-Z0-9_-]+)/,
+    /<task_metadata>\s*session_id: (ses_[a-zA-Z0-9_-]+)/,
+    /sessionId: (ses_[a-zA-Z0-9_-]+)/,
+  ]
+
+  function extractSessionId(output: string): string | null {
+    for (const pattern of SESSION_ID_PATTERNS) {
+      const match = output.match(pattern)
+      if (match) return match[1] ?? null
+    }
+    return null
+  }
+
+  function registerTaskResumeInfo(): void {
+    HookChain.register("task-resume-info", "post-tool", 210, async (ctx) => {
+      if (!TASK_TOOLS.has(ctx.toolName)) return
+      const output = ctx.result.output
+      if (output.startsWith("Error:") || output.startsWith("Failed")) return
+      if (output.includes("\nto continue:")) return
+
+      const sessionId = extractSessionId(output)
+      if (!sessionId) return
+
+      ctx.result.output = output.trimEnd() + `\n\nto continue: task(session_id="${sessionId}", prompt="...")`
+      log.info("task resume info injected", { sessionID: ctx.sessionID, taskSessionID: sessionId })
+    })
+  }
+
   // --- Register all error recovery hooks ---
 
   export function register(): void {
@@ -145,5 +227,7 @@ export namespace ErrorRecoveryHooks {
     registerContextWindowLimitRecovery()
     registerDelegateTaskRetry()
     registerIterativeErrorRecovery()
+    registerJsonErrorRecovery()
+    registerTaskResumeInfo()
   }
 }
