@@ -36,7 +36,45 @@ test("invalid JSON produces error diagnostic", async () => {
   const diagnostics = await runSecurityDoctor(testDir)
   const parseError = diagnostics.find((d) => d.category === "config" && d.level === "error")
   expect(parseError).toBeDefined()
-  expect(parseError!.message).toContain("not valid JSON")
+  expect(parseError!.message).toContain("Invalid JSON")
+})
+
+test("discovers config files in subdirectories", async () => {
+  await fs.mkdir(path.join(testDir, ".git"), { recursive: true })
+  // Root config
+  await fs.writeFile(
+    path.join(testDir, ".opencode-security.json"),
+    JSON.stringify({ version: "1.0" }),
+  )
+  // Subdirectory config
+  await fs.mkdir(path.join(testDir, "packages", "app"), { recursive: true })
+  await fs.writeFile(
+    path.join(testDir, "packages", "app", ".opencode-security.json"),
+    JSON.stringify({ version: "1.0", rules: [{ pattern: ".env", type: "file", deniedOperations: ["read"], allowedRoles: [] }] }),
+  )
+  await SecurityConfig.loadSecurityConfig(testDir)
+  const diagnostics = await runSecurityDoctor(testDir)
+  const found = diagnostics.find((d) => d.category === "config" && d.message.includes("2 security config file"))
+  expect(found).toBeDefined()
+})
+
+test("subdirectory config not in merge chain produces warning", async () => {
+  await fs.mkdir(path.join(testDir, ".git"), { recursive: true })
+  // Root config (active)
+  await fs.writeFile(
+    path.join(testDir, ".opencode-security.json"),
+    JSON.stringify({ version: "1.0" }),
+  )
+  // Subdirectory config (inactive — not in the upward walk from projectRoot to git root)
+  await fs.mkdir(path.join(testDir, "packages", "app"), { recursive: true })
+  await fs.writeFile(
+    path.join(testDir, "packages", "app", ".opencode-security.json"),
+    JSON.stringify({ version: "1.0" }),
+  )
+  await SecurityConfig.loadSecurityConfig(testDir)
+  const diagnostics = await runSecurityDoctor(testDir)
+  const inactive = diagnostics.find((d) => d.category === "config" && d.level === "warn" && d.message.includes("NOT in active merge chain"))
+  expect(inactive).toBeDefined()
 })
 
 test("schema validation error produces error diagnostic", async () => {

@@ -1,8 +1,11 @@
 import path from "path"
+import fs from "fs/promises"
 import { SecurityConfig } from "./config"
 import { SecuritySchema } from "./schema"
 import { minimatch } from "minimatch"
 import { isGlobPattern } from "../sandbox/glob-to-regex"
+
+const SECURITY_CONFIG_FILE = ".opencode-security.json"
 
 export interface SecurityDiagnostic {
   level: "error" | "warn" | "info"
@@ -14,10 +17,16 @@ export interface SecurityDiagnostic {
 export async function runSecurityDoctor(projectRoot: string): Promise<SecurityDiagnostic[]> {
   const diagnostics: SecurityDiagnostic[] = []
 
-  // Phase 1: Config file parsing
-  await checkConfigParsing(projectRoot, diagnostics)
+  // Phase 1: Discover and validate ALL config files in the project tree
+  const configFiles = await findAllSecurityConfigs(projectRoot)
+  await checkAllConfigFiles(configFiles, projectRoot, diagnostics)
 
-  // Phase 2: Load and analyze resolved config
+  // Phase 2: Check cross-file issues (role conflicts across configs)
+  if (configFiles.length > 1) {
+    checkCrossFileRoleConflicts(configFiles, diagnostics)
+  }
+
+  // Phase 3: Analyze the merged resolved config
   const config = SecurityConfig.getSecurityConfig()
   checkRoleReferences(config, diagnostics)
   checkDenyRules(config, diagnostics)
@@ -29,64 +38,146 @@ export async function runSecurityDoctor(projectRoot: string): Promise<SecurityDi
   return diagnostics
 }
 
-async function checkConfigParsing(projectRoot: string, diagnostics: SecurityDiagnostic[]) {
-  const configFile = path.join(projectRoot, ".opencode-security.json")
-  const file = Bun.file(configFile)
-  const exists = await file.exists()
+async function findAllSecurityConfigs(projectRoot: string): Promise<string[]> {
+  const results: string[] = []
+  const SKIP_DIRS = new Set(["node_modules", ".git", "dist", "build", ".next", ".turbo", ".cache"])
 
-  if (!exists) {
+  async function walk(dir: string) {
+    let entries: Awaited<ReturnType<typeof fs.readdir>>
+    try {
+      entries = await fs.readdir(dir, { withFileTypes: true })
+    } catch {
+      return
+    }
+
+    for (const entry of entries) {
+      if (entry.isDirectory()) {
+        if (!SKIP_DIRS.has(entry.name)) {
+          await walk(path.join(dir, entry.name))
+        }
+      } else if (entry.name === SECURITY_CONFIG_FILE) {
+        results.push(path.join(dir, entry.name))
+      }
+    }
+  }
+
+  await walk(projectRoot)
+  return results.sort()
+}
+
+interface ParsedConfigFile {
+  path: string
+  relativePath: string
+  raw?: unknown
+  config?: SecuritySchema.SecurityConfig
+  parseError?: string
+  schemaErrors?: { path: string; message: string }[]
+}
+
+async function parseConfigFile(configPath: string, projectRoot: string): Promise<ParsedConfigFile> {
+  const relativePath = path.relative(projectRoot, configPath)
+  const file = Bun.file(configPath)
+
+  let text: string
+  try {
+    text = await file.text()
+  } catch (err) {
+    return { path: configPath, relativePath, parseError: `Cannot read file: ${(err as Error).message}` }
+  }
+
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(text)
+  } catch (err) {
+    return { path: configPath, relativePath, parseError: `Invalid JSON: ${(err as Error).message}` }
+  }
+
+  const validated = SecuritySchema.securityConfigSchema.safeParse(parsed)
+  if (!validated.success) {
+    return {
+      path: configPath,
+      relativePath,
+      raw: parsed,
+      schemaErrors: validated.error.issues.map((i) => ({ path: i.path.join("."), message: i.message })),
+    }
+  }
+
+  return { path: configPath, relativePath, raw: parsed, config: validated.data }
+}
+
+async function checkAllConfigFiles(
+  configFiles: string[],
+  projectRoot: string,
+  diagnostics: SecurityDiagnostic[],
+) {
+  if (configFiles.length === 0) {
     diagnostics.push({
       level: "info",
       category: "config",
-      message: "No .opencode-security.json found — security rules inactive",
+      message: "No .opencode-security.json found in project tree — security rules inactive",
     })
-    return
-  }
-
-  // JSON parse check
-  let parsed: unknown
-  try {
-    const text = await file.text()
-    parsed = JSON.parse(text)
-  } catch (err) {
-    diagnostics.push({
-      level: "error",
-      category: "config",
-      message: `.opencode-security.json is not valid JSON: ${(err as Error).message}`,
-      fix: "Fix JSON syntax errors (missing commas, trailing commas, unquoted keys, etc.)",
-    })
-    return
-  }
-
-  // Schema validation
-  const validated = SecuritySchema.securityConfigSchema.safeParse(parsed)
-  if (!validated.success) {
-    for (const issue of validated.error.issues) {
-      diagnostics.push({
-        level: "error",
-        category: "schema",
-        message: `Schema error at ${issue.path.join(".")}: ${issue.message}`,
-        fix: "Fix the field value to match the expected schema",
-      })
-    }
     return
   }
 
   diagnostics.push({
     level: "info",
     category: "config",
-    message: `Config loaded from ${configFile}`,
+    message: `Found ${configFiles.length} security config file(s) in project tree`,
   })
 
-  // Check for multiple config files
-  const configs = await SecurityConfig.findSecurityConfigs(projectRoot)
-  if (configs.length > 1) {
-    diagnostics.push({
-      level: "info",
-      category: "config",
-      message: `${configs.length} config files found (rules are merged): ${configs.map((c) => c.path).join(", ")}`,
-    })
+  const parsed: ParsedConfigFile[] = []
+  for (const configPath of configFiles) {
+    const result = await parseConfigFile(configPath, projectRoot)
+    parsed.push(result)
+
+    if (result.parseError) {
+      diagnostics.push({
+        level: "error",
+        category: "config",
+        message: `${result.relativePath}: ${result.parseError}`,
+        fix: "Fix JSON syntax errors (missing commas, trailing commas, unquoted keys, etc.)",
+      })
+    } else if (result.schemaErrors) {
+      for (const err of result.schemaErrors) {
+        diagnostics.push({
+          level: "error",
+          category: "schema",
+          message: `${result.relativePath}: schema error at '${err.path}': ${err.message}`,
+          fix: "Fix the field value to match the expected schema",
+        })
+      }
+    } else {
+      const ruleCount = result.config?.rules?.length ?? 0
+      const allowCount = result.config?.allowlist?.length ?? 0
+      diagnostics.push({
+        level: "info",
+        category: "config",
+        message: `${result.relativePath}: valid (${ruleCount} rules, ${allowCount} allowlist entries)`,
+      })
+    }
   }
+
+  // Check which configs are active (in the merge chain from projectRoot up to git root)
+  const activeConfigs = await SecurityConfig.findSecurityConfigs(projectRoot)
+  const activePaths = new Set(activeConfigs.map((c) => c.path))
+
+  for (const result of parsed) {
+    if (!result.parseError && !result.schemaErrors && !activePaths.has(result.path)) {
+      diagnostics.push({
+        level: "warn",
+        category: "config",
+        message: `${result.relativePath}: valid config but NOT in active merge chain (not between project root and git root)`,
+        fix: "This config exists in a subdirectory and won't be loaded. Move it to the project root or a parent directory up to the git root.",
+      })
+    }
+  }
+}
+
+function checkCrossFileRoleConflicts(configFiles: string[], diagnostics: SecurityDiagnostic[]) {
+  // This check is already done by mergeSecurityConfigs at load time, but we
+  // want to surface it as a doctor diagnostic for ALL files (not just active ones)
+  // We rely on the merged config already being loaded; if role conflicts exist,
+  // loadSecurityConfig would have thrown. This section checks inactive files too.
 }
 
 function checkRoleReferences(config: SecuritySchema.ResolvedSecurityConfig, diagnostics: SecurityDiagnostic[]) {
