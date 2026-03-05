@@ -1,0 +1,1012 @@
+{
+  "session_id": "sync-20260304-120000",
+  "created_at": "2026-03-04",
+  "merge_base": "154cbf6996cdc93b574e93bcbe063f6d11170c0c",
+  "upstream_head": "3ebebe0a96de5ec4757de12a21cb9f933e0fbba0",
+  "local_head": "949563056d55cb1670d763f7967ac600e50ed5e6",
+  "backup_branch": "master-backup-20260304",
+  "integration_branch": "feat/upstream-sync-20260304",
+  "feature_groups": [
+    {
+      "id": "omo",
+      "name": "OMO Internalization",
+      "status": "applied",
+      "commits": [
+        {
+          "sha": "09ca5da5499605db03a5c34ab3cea43f9d5e4239",
+          "message": "feat: [US-020] - Implement nested config detection and merging",
+          "status": "skipped"
+        },
+        {
+          "sha": "e4f2482a2683f16e2af9d180c1bc9b09fca373bf",
+          "message": "feat: [US-027] - Implement current role detection",
+          "status": "applied"
+        },
+        {
+          "sha": "28b93a165cbc0ca056112303b8a96971769cf4d4",
+          "message": "feat: [US-013] - Implement segment detection evasion cases (CASE-SEG-001 to 009)",
+          "status": "applied"
+        },
+        {
+          "sha": "f556f178345ec9f82403851f4e7b1f1c1280ad24",
+          "message": "docs: add OMO source code reference section to PRD",
+          "status": "applied"
+        },
+        {
+          "sha": "4d8b9b82256f11f31b85e8312b246f9252f6a498",
+          "message": "docs: translate OMO source reference section to English",
+          "status": "applied"
+        },
+        {
+          "sha": "06f3ef55b12a3d66e9c9df2ec57bb2c3a2e7d212",
+          "message": "feat: US-001 - Create hook middleware infrastructure",
+          "status": "applied"
+        },
+        {
+          "sha": "767775960f1b0d18ba59a588708760c1f9271228",
+          "message": "feat: US-002 - Internalize error recovery hooks",
+          "status": "applied"
+        },
+        {
+          "sha": "60de72a01a4b51296052c7c7c3438240dc1184ad",
+          "message": "feat: US-003 - Internalize output management hooks",
+          "status": "applied"
+        },
+        {
+          "sha": "86d2ed97e16b4968eba09bd29afda4c795a07ef6",
+          "message": "feat: US-004 - Internalize context injection hooks",
+          "status": "applied"
+        },
+        {
+          "sha": "7474396f8b54fbda393a927cdee044b679259256",
+          "message": "feat: US-005 - Internalize agent detection and checking hooks",
+          "status": "applied"
+        },
+        {
+          "sha": "d5da65ad617d522b070dd613e07da387b4beea2a",
+          "message": "feat: US-006 - Internalize agent enforcement hooks",
+          "status": "applied"
+        },
+        {
+          "sha": "7d4a8b075ff2fcc3435fe8340fbf52b3143740f0",
+          "message": "feat: US-007 - Internalize session lifecycle hooks",
+          "status": "applied"
+        },
+        {
+          "sha": "0f8b0a0948d9b27a4f7064f26222a17b2d51eaa5",
+          "message": "feat: US-008 - Internalize LLM parameter hooks",
+          "status": "applied"
+        },
+        {
+          "sha": "a2ff7199b8143429d91e374ad7f0dc77f2eace1c",
+          "message": "feat: US-009 - Internalize Sisyphus agent as default primary agent",
+          "status": "applied"
+        },
+        {
+          "sha": "dbcbe956213bc7ff42f5c8dd47767c9f418d4337",
+          "message": "feat: US-010 - Create omo-explore agent as Sisyphus sub-agent",
+          "status": "applied"
+        },
+        {
+          "sha": "a3548036c6ac243051908ff30239ef4d2fd08a60",
+          "message": "feat: US-011 - Internalize Oracle agent as strategic advisor",
+          "status": "applied"
+        },
+        {
+          "sha": "f4406dd41428f576fc96a4aa886437386ec0c6df",
+          "message": "feat: US-014 - Add opt-in agents: Momus, Multimodal-Looker, Sisyphus-Junior",
+          "status": "applied"
+        },
+        {
+          "sha": "b04668ed2be207f00d8751d7339603b2f4243e1a",
+          "message": "feat: US-015 - Implement background agent manager",
+          "status": "applied"
+        },
+        {
+          "sha": "75b8140ef5fe31a5e24b8db7ff8b9fe9dbc3dcd1",
+          "message": "feat: US-017 - Enhance Glob tool with OMO parameters",
+          "status": "applied"
+        },
+        {
+          "sha": "76b355c3248315a0c224745e0f48a3c90feb9259",
+          "message": "feat: US-018 - Enhance Grep tool with OMO parameters",
+          "status": "applied"
+        },
+        {
+          "sha": "71072e1cacfd852dad7f2c332891780172fecb4c",
+          "message": "feat: US-022 - Add delegate-task tool with background execution",
+          "status": "applied"
+        },
+        {
+          "sha": "4546ded965dbb99ac1a76b25b1a050ccc747ba24",
+          "message": "feat: US-028 - Integrate OMO built-in MCP servers",
+          "status": "applied"
+        },
+        {
+          "sha": "678ed672bcbce85739d3082bc3d2dca95352cea2",
+          "message": "feat: US-029 - Internalize OMO built-in skills and commands",
+          "status": "applied"
+        },
+        {
+          "sha": "b8fc7d950de4c00939df8f5fdf36aaf573b50f17",
+          "message": "feat: US-030 - Extend opencode.jsonc schema for OMO features",
+          "status": "applied"
+        },
+        {
+          "sha": "f08980fbda69662af9fb4a5c1710eb89ed08ef50",
+          "message": "feat: US-032 - Build OMO upstream diff reporting tool",
+          "status": "applied"
+        },
+        {
+          "sha": "5a8414f4d3bcb14b4ecd3639640bcfbdad7b0f5d",
+          "message": "feat: US-033 - Create OMO baseline tracking file",
+          "status": "applied"
+        },
+        {
+          "sha": "aef0bfe90f76e4be1cd8d422ba27cbca1cdcf5ab",
+          "message": "feat: US-035 - Performance benchmarks for hook pipeline",
+          "status": "applied"
+        },
+        {
+          "sha": "b6e5c8872b1939f522087f974573b0532002a664",
+          "message": "feat: US-013 - Add staleness detection to driver",
+          "status": "applied"
+        },
+        {
+          "sha": "2aa2f32c5f743f9bdcc148d8c1124fe5a181842a",
+          "message": "fix(ci): add Feishu webhook signature for sign verification",
+          "status": "applied"
+        }
+      ],
+      "conflict_risk_areas": [
+        "packages/opencode/src/agent/agent.ts",
+        "packages/opencode/src/config/config.ts",
+        "packages/opencode/src/file/ripgrep.ts",
+        "packages/opencode/src/mcp/index.ts",
+        "packages/opencode/src/session/processor.ts",
+        "packages/opencode/src/skill/skill.ts",
+        "packages/opencode/src/tool/glob.ts",
+        "packages/opencode/src/tool/grep.ts",
+        "packages/opencode/src/tool/registry.ts",
+        "packages/opencode/test/agent/agent.test.ts",
+        "packages/opencode/test/skill/skill.test.ts"
+      ],
+      "files_touched_count": 77
+    },
+    {
+      "id": "security",
+      "name": "Security System",
+      "status": "applied",
+      "commits": [
+        {
+          "sha": "374a0f7b30487b2e39e4b177517852737436b1a0",
+          "message": "feat: [US-001] - Create security configuration schema",
+          "status": "applied"
+        },
+        {
+          "sha": "49beef090e3a294e019f25fcd2c4d5867ff63428",
+          "message": "feat: [US-003] - Implement path-based access checker",
+          "status": "applied"
+        },
+        {
+          "sha": "337e9665d5ba446237d0a08a10dde2545c3f5f72",
+          "message": "feat: [US-005] - Implement symbolic link resolution for access checks",
+          "status": "applied"
+        },
+        {
+          "sha": "33a02d099eed199e43f06669d5d105342acc9cc9",
+          "message": "feat: [US-006] - Implement marker-based segment detector",
+          "status": "applied"
+        },
+        {
+          "sha": "1f6696ddb5ea526dfee7320e00f6fc5f440294d9",
+          "message": "feat: [US-007] - Implement AST-based segment detector for TypeScript/JavaScript",
+          "status": "applied"
+        },
+        {
+          "sha": "be9c7af4b5f6dd7ab00530886f5af405be44fd49",
+          "message": "feat: [US-009] - Integrate access control with Read tool",
+          "status": "applied"
+        },
+        {
+          "sha": "ff180c408c778480aa861a4907cdd4a5d80e4f67",
+          "message": "feat: [US-010] - Integrate access control with Write tool",
+          "status": "applied"
+        },
+        {
+          "sha": "3f13dd4efae34cd6772a7fff7a15197540cc8f43",
+          "message": "feat: [US-011] - Integrate access control with Edit tool",
+          "status": "applied"
+        },
+        {
+          "sha": "9f1427529cca5f6b29a9c0e8d5065129a45c5277",
+          "message": "feat: [US-012] - Integrate access control with Glob tool",
+          "status": "applied"
+        },
+        {
+          "sha": "913e87e3220e726c34273b9ce6f04fa6c2ba6bcf",
+          "message": "feat: [US-013] - Integrate access control with Grep tool",
+          "status": "applied"
+        },
+        {
+          "sha": "88bb2e4e8c0296cb66d01b26ed25b1352ee0be7c",
+          "message": "feat: [US-014] - Implement audit logging system",
+          "status": "applied"
+        },
+        {
+          "sha": "1608961ec85bbbb74e67f03d9e15b6ab8f20ace6",
+          "message": "feat: [US-015] - Implement Bash command security scanner",
+          "status": "applied"
+        },
+        {
+          "sha": "7c004a98ef8cfc001aad61c349cbf225ac57fa0d",
+          "message": "feat: [US-016] - Integrate access control with Bash tool",
+          "status": "applied"
+        },
+        {
+          "sha": "7fbf2135cee9c7418484f9d73fecb44cafe0e535",
+          "message": "feat: [US-017] - Implement LLM request content scanner",
+          "status": "applied"
+        },
+        {
+          "sha": "0cbdf686ca6de348ad28c1f283d01f0d8c577bc6",
+          "message": "feat: [US-019] - Add MCP server security policy support",
+          "status": "applied"
+        },
+        {
+          "sha": "0c0f877e0cc72a18bdd1f0b6aca0826291a9ffe6",
+          "message": "feat: [US-021] - Add security CLI status command",
+          "status": "applied"
+        },
+        {
+          "sha": "6fc5a1bad4c5830a3f60fbb3c2c85e11f206874d",
+          "message": "feat: [US-022] - Add security CLI check command",
+          "status": "applied"
+        },
+        {
+          "sha": "a570d6a7040dcddbb1b8e345f9b99c0ede8283ca",
+          "message": "feat: [US-023] - Add security CLI init command",
+          "status": "applied"
+        },
+        {
+          "sha": "b481ca083524a18508cf4f3ddffe6e3b93944b18",
+          "message": "feat: [US-024] - Add security CLI logs command",
+          "status": "applied"
+        },
+        {
+          "sha": "31e6bcd8357a8c8ec412f55fd6f8386eaa78c344",
+          "message": "feat: [US-025] - Add security status indicator to TUI header",
+          "status": "applied"
+        },
+        {
+          "sha": "56174bd4dced78be679bf827f4104ce8b8b68bc9",
+          "message": "feat: [US-026] - Implement JWT token verification for role authentication",
+          "status": "applied"
+        },
+        {
+          "sha": "3b115a1e93206bd7a9938f580622c7788dd48f51",
+          "message": "feat: [US-029] - Add CLI command to issue role tokens",
+          "status": "applied"
+        },
+        {
+          "sha": "a29eaa9d57094e95c46207798cd8c6c4218b6278",
+          "message": "feat: [US-030] - Register all security CLI commands",
+          "status": "applied"
+        },
+        {
+          "sha": "04b59a72c8245198bf6474af60cd476d2847e9af",
+          "message": "feat: add security bypass test PRD and ralph config",
+          "status": "applied"
+        },
+        {
+          "sha": "f8453f0cc2b15c3cb17d342ca2f1a6dd42fb5b92",
+          "message": "feat: [US-002] - Generate test RSA key pairs for token testing",
+          "status": "applied"
+        },
+        {
+          "sha": "c6cd19ecd34fe8d9146b592be4b2aeeb831ae731",
+          "message": "feat: [US-005] - Implement role authentication bypass cases",
+          "status": "applied"
+        },
+        {
+          "sha": "cf4cd53ca319b7637574b3c0332f3d6274b9e4df",
+          "message": "feat: [US-014] - Implement MCP security bypass cases (CASE-MCP-001 to 006)",
+          "status": "applied"
+        },
+        {
+          "sha": "268f123fd9601ac05aece5a882757d9d7ad17c93",
+          "message": "feat: [US-016] - Implement race condition and audit evasion cases (CASE-RACE-001 to 003, CASE-LOG-001 to 006)",
+          "status": "applied"
+        },
+        {
+          "sha": "f32a186d7e72282d5635e3787d9a9e596812ec8b",
+          "message": "feat: [US-017] - Implement plan agent and security interaction cases (CASE-AGENT-001 to 007)",
+          "status": "applied"
+        },
+        {
+          "sha": "c8fc2cb41be77b7698f29a66a4f95991827f7b92",
+          "message": "feat: [US-019] - Build access-guard OS-level filesystem monitor infrastructure",
+          "status": "applied"
+        },
+        {
+          "sha": "685dcf8e45bebdab70dfd3b5a99079899baf04bb",
+          "message": "feat: [US-020] - Integrate access-guard with key bypass test cases (CASE-GUARD-001 to 005)",
+          "status": "applied"
+        },
+        {
+          "sha": "89b42f291d53105c2f805ef9b8de1399ba27452c",
+          "message": "chore: add security test gitignore and load security config on bootstrap",
+          "status": "applied"
+        },
+        {
+          "sha": "35fba0da25fb409041c92c2db936e31b4562e320",
+          "message": "feat: US-031 - Security integration for all new tools and agents",
+          "status": "applied"
+        },
+        {
+          "sha": "2fdb3a27f5795309ca18597ed824ad15d5638eb8",
+          "message": "feat: US-034 - Integration tests for security across all new components",
+          "status": "applied"
+        },
+        {
+          "sha": "56974685cd4b135c94e46be7f69550c26f13d864",
+          "message": "feat: US-001 - Add allowlist schema and ResolvedSecurityConfig type",
+          "status": "applied"
+        },
+        {
+          "sha": "0603ca7621ca227c9d35276a4dfe712f156832d1",
+          "message": "feat: US-002 - Refactor config.ts to use ResolvedSecurityConfig and update merge signature",
+          "status": "applied"
+        },
+        {
+          "sha": "1a0f0d3275fc1b9f14b00c476bf9d30fb8882376",
+          "message": "feat: US-004 - Enforce allowlist in checkAccess with evaluation order and audit logging",
+          "status": "applied"
+        },
+        {
+          "sha": "7477f859eb24f20815e445528d12c58b0a19fc2c",
+          "message": "feat: US-005 - Unit tests for allowlist enforcement",
+          "status": "applied"
+        },
+        {
+          "sha": "ebbee089bedfbe8d1fc7b0c0359d64f70ed2d460",
+          "message": "feat: US-006 - Update security check CLI command for allowlist",
+          "status": "applied"
+        },
+        {
+          "sha": "93ac77df577647d3e7f021d6366340f3ac398408",
+          "message": "feat: prd-security-allowlist.md complete",
+          "status": "applied"
+        },
+        {
+          "sha": "a5be48bf4730aed121eafbfe5f033cada05b1b5c",
+          "message": "chore: merge master into ralph/security-allowlist",
+          "status": "applied"
+        },
+        {
+          "sha": "2f633f3276f95fc404e77fb89d196c863f17a12a",
+          "message": "fix: enforce allowlist on read operations and run security checks before tmux availability",
+          "status": "applied"
+        },
+        {
+          "sha": "b9c89de6af0f7d7e5157e4877c750b6f8eadf69c",
+          "message": "fix(ci): fix Feishu notification JSON building and secrets access",
+          "status": "applied"
+        }
+      ],
+      "conflict_risk_areas": [
+        ".gitignore",
+        "packages/opencode/src/cli/cmd/tui/routes/session/header.tsx",
+        "packages/opencode/src/index.ts",
+        "packages/opencode/src/project/bootstrap.ts",
+        "packages/opencode/src/session/prompt.ts",
+        "packages/opencode/src/tool/bash.ts",
+        "packages/opencode/src/tool/edit.ts",
+        "packages/opencode/src/tool/glob.ts",
+        "packages/opencode/src/tool/grep.ts",
+        "packages/opencode/src/tool/read.ts",
+        "packages/opencode/src/tool/write.ts"
+      ],
+      "files_touched_count": 75
+    },
+    {
+      "id": "sandbox",
+      "name": "OS Native Sandbox",
+      "status": "applied",
+      "commits": [
+        {
+          "sha": "1a0c17d76a3f47eff211ec5de45a7fc38a365d5d",
+          "message": "docs: add OS native sandbox PRD and discussion records",
+          "status": "applied"
+        },
+        {
+          "sha": "10d821d668d3730740513d4348617111753facfb",
+          "message": "feat: US-001 through US-013 - OS Native Sandbox (macOS Seatbelt)",
+          "status": "applied"
+        },
+        {
+          "sha": "949563056d55cb1670d763f7967ac600e50ed5e6",
+          "message": "feat: finish os native sandbox implements.",
+          "status": "applied"
+        }
+      ],
+      "conflict_risk_areas": [
+        "AGENTS.md",
+        "packages/opencode/src/cli/cmd/tui/component/dialog-status.tsx",
+        "packages/opencode/src/cli/cmd/tui/context/sync.tsx",
+        "packages/opencode/src/config/config.ts",
+        "packages/opencode/src/index.ts",
+        "packages/opencode/src/mcp/index.ts",
+        "packages/opencode/src/project/bootstrap.ts",
+        "packages/opencode/src/server/server.ts",
+        "packages/opencode/src/tool/bash.ts"
+      ],
+      "files_touched_count": 30
+    },
+    {
+      "id": "test-infra",
+      "name": "Test Infrastructure",
+      "status": "applied",
+      "commits": [
+        {
+          "sha": "0e82ed106f95e2d46c3ba7d16e8122c110cff4f1",
+          "message": "feat: [US-023] - Create unified test runner with reporting and fix-check mode",
+          "status": "applied"
+        },
+        {
+          "sha": "eb80f5fcb24c3284d094f3861ba717c8580a4d32",
+          "message": "feat: US-001 - Create /test-analyze skill directory and prompt file",
+          "status": "applied"
+        },
+        {
+          "sha": "4a19eebbc6a86afde896612166bdb95e361fecfb",
+          "message": "feat: US-002 - Implement dual verification logic in /test-analyze skill",
+          "status": "applied"
+        },
+        {
+          "sha": "a574e04b781e24a83317cfde6bad584cf4ac1072",
+          "message": "feat: US-003 - Add error classification and priority assignment to /test-analyze",
+          "status": "applied"
+        },
+        {
+          "sha": "a43c7e5974b16d99c97738c1514581a2912534b0",
+          "message": "feat: US-004 - Define /test-analyze Markdown report output format",
+          "status": "applied"
+        },
+        {
+          "sha": "c260b9b0eb2694f14d59cb5d61272f3029a07df2",
+          "message": "feat: US-006 - Create /test-fix-round skill scaffold",
+          "status": "applied"
+        },
+        {
+          "sha": "18c2fd977f266aa21e4a824145ce8d4355472359",
+          "message": "feat: US-007 - Add diagnosis logic to /test-fix-round skill",
+          "status": "applied"
+        },
+        {
+          "sha": "e5787e5af63006b371f06220f7fb469a96405942",
+          "message": "feat: US-008 - Add ledger update logic to /test-fix-round skill",
+          "status": "applied"
+        },
+        {
+          "sha": "1bc6ae168b64088278c025d69af94d75683a428a",
+          "message": "feat: US-009 - Create test-fix-driver.sh shell script scaffold",
+          "status": "applied"
+        },
+        {
+          "sha": "f91348800f02cdec0c555b8ec6cb0a416d0711c7",
+          "message": "feat: US-015 - Create /test-fix-report skill for final report generation",
+          "status": "applied"
+        },
+        {
+          "sha": "5c95273aa44cb65a709771bcade6c32d9e578843",
+          "message": "feat: handle agent timeout in test-fix driver with ledger tracking",
+          "status": "applied"
+        },
+        {
+          "sha": "7bae4d854201b0ac62b22026a95271eee738211a",
+          "message": "chore: merge ralph/test-fix-workflow into master",
+          "status": "skipped"
+        },
+        {
+          "sha": "161b76f0813e6126ec6be79f1410dde2492d9d5c",
+          "message": "fix: fix test-fix-driver.sh cannot find all fail tests.",
+          "status": "applied"
+        },
+        {
+          "sha": "5efb97e497fac05aea9a84214b5fb1648b79d239",
+          "message": "fix: optimize test-fix regression check and add final suite sweep",
+          "status": "applied"
+        },
+        {
+          "sha": "c80429e67e8bb62339eff558580766aa6e399a85",
+          "message": "chore: finalize parallel test runner \u2014 tests, timing, skill & cleanup",
+          "status": "applied"
+        },
+        {
+          "sha": "ee6fcea13ca0e0f3ae8f33b01f1d03ae153f9001",
+          "message": "fix: parallel test runner false positives and oauth unhandled rejection",
+          "status": "applied"
+        }
+      ],
+      "conflict_risk_areas": [
+        ".gitignore",
+        "packages/opencode/bunfig.toml",
+        "packages/opencode/src/mcp/index.ts",
+        "packages/opencode/test/preload.ts"
+      ],
+      "files_touched_count": 33
+    },
+    {
+      "id": "ci",
+      "name": "CI/Infra",
+      "status": "applied",
+      "commits": [
+        {
+          "sha": "a6a3084d4b51f715dc1d305541e22180a2ca5d48",
+          "message": "ci: add daily upstream dev branch check with Feishu notification",
+          "status": "applied"
+        }
+      ],
+      "conflict_risk_areas": [],
+      "files_touched_count": 1
+    },
+    {
+      "id": "keybinding",
+      "name": "Keybinding Customization",
+      "status": "applied",
+      "commits": [
+        {
+          "sha": "1c1756c719d58c80cf0e444247a4a2eef582031f",
+          "message": "feat: US-001 - Diagnose terminal Shift+Enter support",
+          "status": "applied"
+        },
+        {
+          "sha": "00b6216d6e1255e98280dadd370469b3bc07bbcd",
+          "message": "feat: US-002 - Verify config-driven keybindings register correctly in OpenTUI",
+          "status": "applied"
+        },
+        {
+          "sha": "a7038242e54f4870cdb5e00e18e264a56ba9057c",
+          "message": "feat: US-003 - Ensure Shift+Enter inserts newline in supported terminals",
+          "status": "applied"
+        },
+        {
+          "sha": "5de015ad4aa62bcec12f5a694395e1610b337397",
+          "message": "feat: US-004 - Ensure Ctrl+J works as universal newline shortcut",
+          "status": "applied"
+        },
+        {
+          "sha": "dbd41c126d92f77632f5851268c87764277774cd",
+          "message": "feat: US-005 - Verify user-customizable submit and newline keybindings",
+          "status": "applied"
+        },
+        {
+          "sha": "273a9cc1c431538fd0113ca3146d2e620f0e984c",
+          "message": "feat: add ctrl+j newline hint to input footer",
+          "status": "applied"
+        }
+      ],
+      "conflict_risk_areas": [
+        "packages/opencode/src/cli/cmd/tui/component/prompt/index.tsx"
+      ],
+      "files_touched_count": 10
+    },
+    {
+      "id": "misc",
+      "name": "Miscellaneous",
+      "status": "applied",
+      "commits": [
+        {
+          "sha": "e1b9c64656fa71d2a467a0c6e07dba801ab3ef87",
+          "message": "feat: [US-002] - Implement configuration loader",
+          "status": "applied"
+        },
+        {
+          "sha": "f9d578bad19096bbe0fe63128a44dd26fa286477",
+          "message": "feat: [US-004] - Implement rule inheritance for subdirectories",
+          "status": "applied"
+        },
+        {
+          "sha": "3819045d4e80f74e809059b58edb013d6e180438",
+          "message": "feat: [US-008] - Implement content redaction utility",
+          "status": "applied"
+        },
+        {
+          "sha": "641885671ad1dc2f6ac338fc829a8c4e2e0813ac",
+          "message": "chore: update PRD and progress for US-017",
+          "status": "applied"
+        },
+        {
+          "sha": "a3c69454eae0b20ede2cdfba5a54c9c3a45d1b62",
+          "message": "feat: [US-018] - Implement LLM request interceptor middleware",
+          "status": "applied"
+        },
+        {
+          "sha": "d80955908112e7866695992c302191df34917494",
+          "message": "chore: update PRD and progress for US-020",
+          "status": "applied"
+        },
+        {
+          "sha": "16620fe4d11af1de62ea1961b97811f5287522df",
+          "message": "chore: update PRD and progress for US-022",
+          "status": "applied"
+        },
+        {
+          "sha": "40b16fef1789bee09b70a6e1dae08f9d2779e541",
+          "message": "chore: update PRD and progress for US-023",
+          "status": "applied"
+        },
+        {
+          "sha": "1315baa5530b51e1f3c0e53ab545ece376c0fefb",
+          "message": "chore: update PRD and progress for US-024",
+          "status": "applied"
+        },
+        {
+          "sha": "f665cbcbffe3b0e08650b0be4e3a02307c72e857",
+          "message": "chore: update PRD and progress for US-025",
+          "status": "applied"
+        },
+        {
+          "sha": "6992208e3cc6a7ed5caa71b0b409d881ae0c791a",
+          "message": "feat: [US-028] - Add CLI command to generate admin key pair",
+          "status": "applied"
+        },
+        {
+          "sha": "b54f6b0c20a0e48c75d336a3ad357c55d7033283",
+          "message": "feat: [US-001] - Create test directory structure and shared fixtures",
+          "status": "applied"
+        },
+        {
+          "sha": "d347e216e04eed248d903e7f22180977efe5596b",
+          "message": "feat: [US-003] - Create shared test helpers module",
+          "status": "applied"
+        },
+        {
+          "sha": "418876376f79fb6a4bee2b5b82af8e820a3aa7d9",
+          "message": "feat: [US-004] - Implement config manipulation attack cases",
+          "status": "applied"
+        },
+        {
+          "sha": "231a38cb2e836dbfed84ad7afca0b7eca8aedc81",
+          "message": "docs: update PRD and progress for US-005 completion",
+          "status": "applied"
+        },
+        {
+          "sha": "114697d22d39aabff9fbc1282dc45f48be4c49ff",
+          "message": "feat: [US-006] - Implement path traversal and symlink attack cases",
+          "status": "applied"
+        },
+        {
+          "sha": "877660c83130006acb761636114e3e5bb00db93b",
+          "message": "feat: [US-007] - Implement Read tool bypass cases",
+          "status": "applied"
+        },
+        {
+          "sha": "d7fa88713fb3f85f28e1bdce3a02c656bbd138d5",
+          "message": "feat: [US-008] - Implement Write/Edit tool bypass cases",
+          "status": "applied"
+        },
+        {
+          "sha": "eb976fa277bab4d3dd0cb703434760ea983a49f2",
+          "message": "docs: update PRD and progress for US-008 completion",
+          "status": "applied"
+        },
+        {
+          "sha": "34fa053e8cb8238389877425b6d8a4c1c1d96fdf",
+          "message": "feat: [US-009] - Implement Grep/Glob tool bypass cases",
+          "status": "applied"
+        },
+        {
+          "sha": "22a39b3ba070942ef7e78a3250221c0d02fd4b3f",
+          "message": "feat: [US-010] - Implement Bash tool bypass cases \u2014 standard and unscanned commands",
+          "status": "applied"
+        },
+        {
+          "sha": "32782102b908ad32f57d7642186b7516104a3fed",
+          "message": "feat: [US-011] - Implement Bash tool bypass cases \u2014 advanced evasion (CASE-BASH-008 to 015)",
+          "status": "applied"
+        },
+        {
+          "sha": "4fe2d686c2060a80f114ab38d18aada7bb3fd0e8",
+          "message": "feat: [US-012] - Implement LLM request leakage cases (CASE-LLM-001 to 008)",
+          "status": "applied"
+        },
+        {
+          "sha": "1c045c93113c9310b75ff962d1fb9e95881f9d7f",
+          "message": "feat: [US-015] - Implement rule inheritance bypass cases (CASE-INH-001 to 004)",
+          "status": "applied"
+        },
+        {
+          "sha": "16d298fad21b60836b1059ce92e9083bff5fd8af",
+          "message": "chore: update PRD and progress for US-016 completion",
+          "status": "applied"
+        },
+        {
+          "sha": "a4a53e114b84d77a31bfd90a897777cef3ddc479",
+          "message": "feat: [US-018] - Implement skill and subagent read bypass cases (CASE-SKILL-001 to 003, CASE-SUB-001 to 005)",
+          "status": "applied"
+        },
+        {
+          "sha": "0afb282677563119ae8ec004edfb6e9c091d0d9a",
+          "message": "chore: update PRD and progress for US-020 completion",
+          "status": "applied"
+        },
+        {
+          "sha": "8ccdf775f75430384a8dc8eacd6a692117c274f6",
+          "message": "feat: [US-021] - Create integration test scripts for config and symlink attacks",
+          "status": "applied"
+        },
+        {
+          "sha": "f149a7c845b910341229bd372952540c3f6e1602",
+          "message": "feat: [US-022] - Create integration test scripts for bash bypass and CLI commands",
+          "status": "applied"
+        },
+        {
+          "sha": "ba27607b2585ede4a005cdd1b3b6eddd93aa1146",
+          "message": "chore: update PRD and progress for US-023 completion",
+          "status": "applied"
+        },
+        {
+          "sha": "2ebdb271dd11f94a212d23163c2264e1209cb82b",
+          "message": "feat: rename package to lark-opencode for independent npm distribution",
+          "status": "applied"
+        },
+        {
+          "sha": "b10e4fd7ca08a6f546431861ce99c1ec7f1a7e2d",
+          "message": "docs: add PRD for internalizing oh-my-opencode into opencode",
+          "status": "applied"
+        },
+        {
+          "sha": "9ca3c9edf56b570ba3d4c72b948d0dd6c17166c5",
+          "message": "feat: US-012 - Add opt-in agents: Hephaestus and Prometheus",
+          "status": "applied"
+        },
+        {
+          "sha": "16e57c22ce462d7d6ce368950cb71ee2aa27a750",
+          "message": "feat: US-013 - Add opt-in agents: Atlas, Librarian, Metis",
+          "status": "applied"
+        },
+        {
+          "sha": "c3168e672b58dded54b9a2c21f423a77a5b7e49e",
+          "message": "feat: US-016 - Implement task category system",
+          "status": "applied"
+        },
+        {
+          "sha": "59efb82bbbf36c3a6ead573526518dde2f8027b6",
+          "message": "chore: update PRD and progress for US-016",
+          "status": "applied"
+        },
+        {
+          "sha": "2092519425fb0e1d473508231d283bf94ab9dbf5",
+          "message": "feat: US-019 - Split LSP tool into focused navigation tools",
+          "status": "applied"
+        },
+        {
+          "sha": "f830c7dbd0f45f31a11eceb5a9d873afa61b0090",
+          "message": "feat: US-020 - Split LSP tool: diagnostics, rename, and deprecation",
+          "status": "applied"
+        },
+        {
+          "sha": "6c41eda0fb8e388b00fe059b3ce9efdca34a3358",
+          "message": "feat: US-021 - Add AST-Grep search and replace tools",
+          "status": "applied"
+        },
+        {
+          "sha": "d50c302afa669559d2e124547b527eee88fec2a5",
+          "message": "feat: US-023 - Add look-at multimodal analyzer tool",
+          "status": "applied"
+        },
+        {
+          "sha": "1d78b8fc18fffbd61b4f172ef95285350acec10f",
+          "message": "feat: US-024 - Add skill-mcp tool for MCP operations within skills",
+          "status": "applied"
+        },
+        {
+          "sha": "e9e1fd4f7a6866953614cf4ed214a9aecb2c6e8f",
+          "message": "chore: update PRD and progress for US-024",
+          "status": "applied"
+        },
+        {
+          "sha": "866d71456a26f64e349f8b2b5efc6c7e884ec2fb",
+          "message": "feat: US-025 - Add interactive-bash tool for tmux management",
+          "status": "applied"
+        },
+        {
+          "sha": "7331f824a894db509e65f2ce2de5df7b491e764e",
+          "message": "feat: US-026 - Enhance Task tool with persistent storage and dependencies",
+          "status": "applied"
+        },
+        {
+          "sha": "0d9445038c957c92a8ee369ffbf71250e5f0d064",
+          "message": "feat: US-027 - Enhance Skill tool with MCP listing",
+          "status": "applied"
+        },
+        {
+          "sha": "0b6954ab878a4e38ad27f7709312b4e11ded3a51",
+          "message": "chore: update PRD and progress for US-027",
+          "status": "applied"
+        },
+        {
+          "sha": "b5526e8bf2ff1498993d1cc621691b38269c9b1d",
+          "message": "feat: update last-branch",
+          "status": "applied"
+        },
+        {
+          "sha": "c994bad823620c63fe8134c2b1e59ebeb69bc524",
+          "message": "feat: US-003 - Wire up multi-level config loading in bootstrap",
+          "status": "applied"
+        },
+        {
+          "sha": "313cbd5b3be80a6b31da75dabedf6b0f5106061b",
+          "message": "chore: update gitignore",
+          "status": "skipped"
+        },
+        {
+          "sha": "50863263499ebb10d5391809e9e2f83e5e62a9de",
+          "message": "feat: US-005 - Create ledger JSON schema and initialization logic",
+          "status": "applied"
+        },
+        {
+          "sha": "bf2a0d37b9e9d10409a0444b03dadff437deea87",
+          "message": "feat: US-010 - Implement driver INIT state: ledger initialization",
+          "status": "applied"
+        },
+        {
+          "sha": "c94261ffe2c71b38e0168c87d6d9f23266786a07",
+          "message": "feat: US-011 - Implement driver LOOP state: round invocation with timeout",
+          "status": "applied"
+        },
+        {
+          "sha": "403e4e9d40c56298886894faea9345441285548f",
+          "message": "feat: US-012 - Implement driver FORCE_ESCALATE and REPORT states",
+          "status": "applied"
+        },
+        {
+          "sha": "7017e6538d0f76160c23622627e3d324b7059373",
+          "message": "chore: update PRD and progress for US-012",
+          "status": "applied"
+        },
+        {
+          "sha": "2b305c78d550806bdba7a4d484f0572172d8fce3",
+          "message": "feat: US-014 - Add signal handling and concurrency safety to driver",
+          "status": "applied"
+        },
+        {
+          "sha": "818b501d637a1888926ac62ecfff02e7b14271c6",
+          "message": "chore: update PRD and progress for US-014",
+          "status": "applied"
+        },
+        {
+          "sha": "f97e971df50c8d5d21a009cb0a8ff2f9c3ec278a",
+          "message": "fix: fix mock cast type errors in test files (pre-push typecheck)",
+          "status": "applied"
+        },
+        {
+          "sha": "de29c88cbff9782dfc8d686ce60d3316064c0da9",
+          "message": "docs: add comprehensive opencode.json configuration example with all available fields documented",
+          "status": "applied"
+        },
+        {
+          "sha": "82f42bb31526dfe3de4678b56d011f54e4a97189",
+          "message": "feat: [US-001] - Core type definitions and timing data module",
+          "status": "applied"
+        },
+        {
+          "sha": "24840d547a25459f381e7fdddc84fd4dfdc9bac5",
+          "message": "feat: [US-002] - Test file discovery and LPT queue builder",
+          "status": "applied"
+        },
+        {
+          "sha": "22d88a03d89eab2e267d2e36597fb66b55b8ab3b",
+          "message": "feat: [US-003] - Worker process runner with concurrency pool",
+          "status": "applied"
+        },
+        {
+          "sha": "e37162f5d736b5826ce667d240e361b682aee011",
+          "message": "feat: [US-004] - Real-time output formatter and summary reporter",
+          "status": "applied"
+        },
+        {
+          "sha": "bae4212347cd65ec6634e9b4b52483c0875ec405",
+          "message": "feat: [US-005] - CLI entry point and package.json integration",
+          "status": "applied"
+        },
+        {
+          "sha": "060e283461987a06c74c38cc604716cda5252c9d",
+          "message": "feat: [US-006] - Distributed sharding via --shard N/M",
+          "status": "applied"
+        },
+        {
+          "sha": "a56b06209bf9a603a4c467efc40f3817543abb38",
+          "message": "fix(ci): fix secrets context usage in if condition",
+          "status": "applied"
+        },
+        {
+          "sha": "fa9b03418774f71000bf7e2e87ab21a5e9c6fb53",
+          "message": "Merge branch 'ralph/parallel-test-runner'",
+          "status": "skipped"
+        }
+      ],
+      "conflict_risk_areas": [
+        ".gitignore",
+        "bun.lock",
+        "packages/opencode/package.json",
+        "packages/opencode/script/build.ts",
+        "packages/opencode/script/postinstall.mjs",
+        "packages/opencode/script/publish.ts",
+        "packages/opencode/src/agent/agent.ts",
+        "packages/opencode/src/config/config.ts",
+        "packages/opencode/src/flag/flag.ts",
+        "packages/opencode/src/lsp/index.ts",
+        "packages/opencode/src/session/llm.ts",
+        "packages/opencode/src/skill/skill.ts",
+        "packages/opencode/src/tool/lsp.ts",
+        "packages/opencode/src/tool/registry.ts",
+        "packages/opencode/src/tool/task.ts",
+        "packages/script/src/index.ts",
+        "packages/web/package.json"
+      ],
+      "files_touched_count": 113
+    }
+  ],
+  "phases": {
+    "init": {
+      "status": "done"
+    },
+    "analyze": {
+      "status": "done",
+      "total_commits": 164,
+      "total_groups": 7,
+      "groups_summary": {
+        "omo": {
+          "commits": 29,
+          "conflict_risk_files": 11
+        },
+        "security": {
+          "commits": 43,
+          "conflict_risk_files": 11
+        },
+        "sandbox": {
+          "commits": 3,
+          "conflict_risk_files": 9
+        },
+        "test-infra": {
+          "commits": 16,
+          "conflict_risk_files": 4
+        },
+        "ci": {
+          "commits": 1,
+          "conflict_risk_files": 0
+        },
+        "keybinding": {
+          "commits": 6,
+          "conflict_risk_files": 1
+        },
+        "misc": {
+          "commits": 66,
+          "conflict_risk_files": 17
+        }
+      }
+    },
+    "integrate": {
+      "status": "done",
+      "strategy": "reset_and_cherry_pick"
+    },
+    "cherry_pick": {
+      "status": "done"
+    },
+    "verify": {
+      "status": "done",
+      "typecheck_pass": true,
+      "test_pass": true,
+      "notes": "All 147 files pass (2274 pass, 0 fail, 5 skip). Fixed: access.ts, interactive-bash.ts, optional agents, agent-enforcement tests, role-authentication tests, interactive-bash-security tests."
+    },
+    "finalize": {
+      "status": "done",
+      "strategy": "reset_hard",
+      "notes": "master reset to integration branch, then additional fix commits applied."
+    }
+  },
+  "notes": "Custom commits: 164, Upstream new commits: 1062, Merge base: 154cbf69"
+}
