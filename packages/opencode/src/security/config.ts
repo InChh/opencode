@@ -58,19 +58,53 @@ export namespace SecurityConfig {
 
   // --- Loading ---
 
-  export async function loadSecurityConfig(projectRoot: string): Promise<SecuritySchema.ResolvedSecurityConfig> {
+  /**
+   * Load security config. On first call does a full directory walk.
+   * On subsequent startups, trusts the disk cache for instant load and
+   * schedules a background verification walk.
+   *
+   * @param forceWalk  If true, always do a full walk (used by background verify and explicit reloads).
+   */
+  export async function loadSecurityConfig(
+    projectRoot: string,
+    opts?: { forceWalk?: boolean },
+  ): Promise<SecuritySchema.ResolvedSecurityConfig> {
     projectRootDir = path.resolve(projectRoot)
     const gitRoot = findGitRoot(projectRootDir)
     const scanRoot = gitRoot ?? projectRootDir
 
-    // Invalidate caches on explicit reload so new file contents are picked up
+    // Invalidate in-memory caches
     scanCache = null
     resolveCache.clear()
-    // Scan from git root (or project root) downward, with disk + memory cache
-    scopedConfigs = await scanAllConfigs(scanRoot)
+
+    const forceWalk = opts?.forceWalk ?? false
+
+    // Try disk cache first (instant startup path)
+    if (!forceWalk) {
+      const diskCache = loadDiskCache(scanRoot)
+      if (diskCache && diskCache.entries.length > 0) {
+        // Validate that cached config files still exist with same mtime
+        const fastResults = validateDiskCache(diskCache)
+        if (fastResults) {
+          scopedConfigs = fastResults
+          scanCache = { root: scanRoot, configs: fastResults }
+          configLoaded = true
+          log.debug("security config loaded from disk cache", { count: fastResults.length })
+
+          // Schedule background walk to catch new/deleted config files
+          scheduleBackgroundVerify(scanRoot)
+          return resolveForPath(projectRootDir)
+        }
+        // Cache invalid — fall through to full walk
+        log.debug("disk cache invalid, falling back to full walk")
+      }
+    }
+
+    // Full walk (first startup or forced reload)
+    scopedConfigs = await fullScan(scanRoot)
 
     if (scopedConfigs.length === 0) {
-      log.debug("no security configs found, using empty config", { projectRoot })
+      log.debug("no security configs found, using empty config", { projectRoot: projectRootDir })
       configLoaded = true
       return emptyConfig
     }
@@ -85,16 +119,78 @@ export namespace SecurityConfig {
   }
 
   /**
-   * Scan all `.opencode-security.json` from a root directory downward.
-   * Uses a two-layer cache:
-   * 1. In-memory cache (scanCache) — survives within the same process
-   * 2. Disk cache (.opencode/security-cache.json) — survives across restarts
-   *
-   * Disk cache stores {path, mtime, contentHash, config} per config file.
-   * On startup, walks the tree to find config file paths + mtimes, then
-   * compares against disk cache. Only re-parses files that changed.
+   * Validate disk cache entries by stat-checking each file's mtime.
+   * Returns the restored ScopedConfig[] if all entries match, or null if stale.
+   * This is O(N) where N = number of cached config files (typically 1–3),
+   * NOT O(dirs) like a full tree walk.
    */
-  async function scanAllConfigs(root: string): Promise<ScopedConfig[]> {
+  function validateDiskCache(cache: DiskCache): ScopedConfig[] | null {
+    const results: ScopedConfig[] = []
+    for (const entry of cache.entries) {
+      const stat = fs.statSync(entry.configPath, { throwIfNoEntry: false })
+      if (!stat || stat.mtimeMs !== entry.mtimeMs) {
+        return null // file changed or deleted → cache is stale
+      }
+      results.push({ config: entry.config, path: entry.configPath, scopeDir: entry.scopeDir })
+    }
+    // Sort by depth (shallowest first) — same order as fullScan
+    results.sort((a, b) => a.scopeDir.length - b.scopeDir.length)
+    return results
+  }
+
+  /**
+   * Schedule a background directory walk to catch new config files that
+   * the disk cache wouldn't know about. If mismatch found, triggers reload.
+   */
+  let backgroundVerifyTimer: ReturnType<typeof setTimeout> | null = null
+
+  function scheduleBackgroundVerify(scanRoot: string) {
+    if (backgroundVerifyTimer) return // already scheduled
+    backgroundVerifyTimer = setTimeout(async () => {
+      backgroundVerifyTimer = null
+      try {
+        const found: { configPath: string; scopeDir: string; mtimeMs: number }[] = []
+        walkForConfigPaths(scanRoot, found)
+
+        // Compare found paths with current scopedConfigs
+        const currentPaths = new Set(scopedConfigs.map((c) => c.path))
+        const foundPaths = new Set(found.map((f) => f.configPath))
+
+        // Check for new or deleted files
+        let needsReload = false
+        for (const f of found) {
+          if (!currentPaths.has(f.configPath)) {
+            log.info("background verify: new security config detected", { path: f.configPath })
+            needsReload = true
+            break
+          }
+        }
+        if (!needsReload) {
+          for (const p of currentPaths) {
+            if (!foundPaths.has(p)) {
+              log.info("background verify: security config deleted", { path: p })
+              needsReload = true
+              break
+            }
+          }
+        }
+
+        if (needsReload) {
+          log.info("background verify: config files changed, reloading")
+          await loadSecurityConfig(projectRootDir, { forceWalk: true })
+        } else {
+          log.debug("background verify: configs unchanged", { count: found.length })
+        }
+      } catch (err) {
+        log.debug("background verify failed", { error: (err as Error).message })
+      }
+    }, 500) // 500ms delay — let the UI render first
+  }
+
+  /**
+   * Full directory walk + parse. Used on first startup and forced reloads.
+   */
+  async function fullScan(root: string): Promise<ScopedConfig[]> {
     const resolved = path.resolve(root)
     if (scanCache?.root === resolved) return scanCache.configs
 
@@ -106,25 +202,20 @@ export namespace SecurityConfig {
       }
     }
 
-    // Phase 1: Walk tree to find config file paths + mtimes (fast — no file reads)
+    // Walk tree to find config file paths + mtimes
     const found: { configPath: string; scopeDir: string; mtimeMs: number }[] = []
     walkForConfigPaths(resolved, found)
 
-    // Phase 2: For each found config, check disk cache; re-parse only if changed
+    // For each found config, check disk cache; re-parse only if changed
     const results: ScopedConfig[] = []
-    let cacheHits = 0
     let cacheMisses = 0
 
     for (const { configPath, scopeDir, mtimeMs } of found) {
       const cached = diskMap.get(configPath)
       if (cached && cached.mtimeMs === mtimeMs) {
-        // mtime matches — trust the cached config
         results.push({ config: cached.config, path: configPath, scopeDir })
-        cacheHits++
         continue
       }
-
-      // Cache miss — read and parse the file
       const config = await loadConfigFile(configPath)
       if (config) {
         results.push({ config, path: configPath, scopeDir })
@@ -132,18 +223,12 @@ export namespace SecurityConfig {
       cacheMisses++
     }
 
-    // Sort by depth: shallowest (root) first, deepest last
     results.sort((a, b) => a.scopeDir.length - b.scopeDir.length)
-
     scanCache = { root: resolved, configs: results }
 
     // Write disk cache if anything changed
     if (cacheMisses > 0 || !diskCache || found.length !== diskCache.entries.length) {
       writeDiskCache(resolved, results)
-    }
-
-    if (cacheHits > 0 || cacheMisses > 0) {
-      log.debug("security config scan complete", { cacheHits, cacheMisses, total: found.length })
     }
 
     return results
@@ -450,7 +535,7 @@ export namespace SecurityConfig {
     const resolved = path.resolve(startPath)
     const gitRoot = findGitRoot(resolved)
     const scanRoot = gitRoot ?? resolved
-    const all = await scanAllConfigs(scanRoot)
+    const all = await fullScan(scanRoot)
     return all.map((c) => ({ config: c.config, path: c.path }))
   }
 
@@ -538,6 +623,10 @@ export namespace SecurityConfig {
     if (reloadTimer) {
       clearTimeout(reloadTimer)
       reloadTimer = null
+    }
+    if (backgroundVerifyTimer) {
+      clearTimeout(backgroundVerifyTimer)
+      backgroundVerifyTimer = null
     }
     watcherActive = false
   }
