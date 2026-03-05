@@ -9,11 +9,24 @@ process.chdir(dir)
 
 const binaries: Record<string, string> = {}
 for (const filepath of new Bun.Glob("*/package.json").scanSync({ cwd: "./dist" })) {
-  const pkg = await Bun.file(`./dist/${filepath}`).json()
-  binaries[pkg.name] = pkg.version
+  const p = await Bun.file(`./dist/${filepath}`).json()
+  // Skip the main package itself to avoid self-referencing optionalDependency
+  if (p.name === pkg.name) continue
+  binaries[p.name] = p.version
 }
 console.log("binaries", binaries)
+if (Object.keys(binaries).length === 0) {
+  throw new Error("No binary packages found in dist/. Did the build step complete?")
+}
 const version = Object.values(binaries)[0]
+
+// Verify expected platform packages are present
+const expectedPlatforms = ["darwin-arm64", "darwin-x64", "linux-x64", "linux-arm64", "windows-x64"]
+const missing = expectedPlatforms.filter((p) => !Object.keys(binaries).some((name) => name.includes(p)))
+if (missing.length > 0) {
+  console.warn(`WARNING: Missing expected platform packages: ${missing.join(", ")}`)
+  console.warn("Available binaries:", Object.keys(binaries).join(", "))
+}
 
 await $`mkdir -p ./dist/${pkg.name}`
 await $`cp -r ./bin ./dist/${pkg.name}/bin`

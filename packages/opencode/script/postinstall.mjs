@@ -52,20 +52,32 @@ function findBinary() {
   const packageName = `lark-opencode-${platform}-${arch}`
   const binaryName = platform === "windows" ? "lark-opencode.exe" : "lark-opencode"
 
+  // Try multiple resolution strategies
+  const candidates = []
+
+  // 1. require.resolve (works for local/project installs)
   try {
-    // Use require.resolve to find the package
     const packageJsonPath = require.resolve(`${packageName}/package.json`)
-    const packageDir = path.dirname(packageJsonPath)
-    const binaryPath = path.join(packageDir, "bin", binaryName)
+    candidates.push(path.join(path.dirname(packageJsonPath), "bin", binaryName))
+  } catch {}
 
-    if (!fs.existsSync(binaryPath)) {
-      throw new Error(`Binary not found at ${binaryPath}`)
+  // 2. Sibling directory (works for npm global installs where deps are hoisted)
+  const siblingPath = path.join(__dirname, "..", packageName, "bin", binaryName)
+  candidates.push(siblingPath)
+
+  // 3. node_modules within package directory
+  const nestedPath = path.join(__dirname, "node_modules", packageName, "bin", binaryName)
+  candidates.push(nestedPath)
+
+  for (const binaryPath of candidates) {
+    if (fs.existsSync(binaryPath)) {
+      return { binaryPath, binaryName }
     }
-
-    return { binaryPath, binaryName }
-  } catch (error) {
-    throw new Error(`Could not find package ${packageName}: ${error.message}`)
   }
+
+  throw new Error(
+    `Could not find package ${packageName}. Searched:\n${candidates.map((c) => `  - ${c}`).join("\n")}`,
+  )
 }
 
 function prepareBinDirectory(binaryName) {
