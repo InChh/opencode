@@ -12,6 +12,7 @@ import { Log } from "@/util/log"
 import { ShareNext } from "@/share/share-next"
 import { Snapshot } from "../snapshot"
 import { Truncate } from "../tool/truncation"
+import { LlmLogScheduler } from "../log/scheduler"
 import { SecurityConfig } from "../security/config"
 import { SecurityAccess } from "../security/access"
 import { initSandbox, refreshSandboxPolicy } from "../sandbox/init"
@@ -28,6 +29,7 @@ export async function InstanceBootstrap() {
   Vcs.init()
   Snapshot.init()
   Truncate.init()
+  await LlmLogScheduler.init()
   SecurityAccess.setProjectRoot(Instance.directory)
   await SecurityConfig.loadSecurityConfig(Instance.directory)
   SecurityConfig.watchForChanges()
