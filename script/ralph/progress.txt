@@ -292,3 +292,19 @@ Started: Sat Mar  7 21:18:34 CST 2026
   - `NavLink`'s `end` prop needed on `/` route to prevent it from matching all paths
   - Vite proxy config in `vite.config.ts` avoids CORS issues during dev
 ---
+
+## 2026-03-07 - US-019
+- Implemented LogListPage with paginated table of log entries and filter panel
+- Enhanced `LlmLog.list()` query to LEFT JOIN `llm_log_tokens` to include input_tokens, output_tokens, cost in list results
+- Table columns: time, agent, model, status, input tokens, output tokens, cost, duration
+- Filter panel with text inputs for session_id, agent, model, provider, status with Apply/Clear buttons
+- Pagination with Prev/Next buttons, URL search params sync for shareable URLs
+- Click row navigates to `/logs/:id` detail page
+- Files changed: `packages/log-viewer/src/pages/LogListPage.tsx`, `packages/opencode/src/log/query.ts`
+- **Learnings for future iterations:**
+  - List API originally didn't include token data — added LEFT JOIN to llm_log_tokens to get input_tokens, output_tokens, cost without loading blob columns
+  - Cost is stored as microdollars (integer) in DB — divide by 1_000_000 for display as dollars
+  - `useSearchParams` from react-router v7 for URL query state sync — use `{ replace: true }` to avoid polluting browser history
+  - Tailwind `tabular-nums` class aligns numeric columns nicely
+  - Manual browser verification needed (no browser testing tools configured)
+---
