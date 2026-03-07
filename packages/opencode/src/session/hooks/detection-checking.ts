@@ -8,10 +8,11 @@ export namespace DetectionCheckingHooks {
   // Detect mode keywords in messages and set variant accordingly
 
   const KEYWORD_MAP: Array<{ keywords: string[]; variant: string }> = [
-    { keywords: ["[ultrawork]", "ulw"], variant: "max" },
     { keywords: ["[analyze-mode]"], variant: "analyze" },
     { keywords: ["[review-mode]"], variant: "review" },
   ]
+
+  const ULW_PREFIX_RE = /^\s*\/ulw\b/i
 
   function getLastUserMessage(messages: unknown[]): string {
     for (let i = messages.length - 1; i >= 0; i--) {
@@ -28,11 +29,52 @@ export namespace DetectionCheckingHooks {
     return ""
   }
 
+  function getLastUserMessageRef(messages: unknown[]): { msg: Record<string, unknown>; partIndex?: number } | null {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const msg = messages[i] as { role?: string; content?: unknown }
+      if (msg.role !== "user") continue
+      if (typeof msg.content === "string") return { msg: msg as unknown as Record<string, unknown> }
+      if (Array.isArray(msg.content)) {
+        for (let j = 0; j < msg.content.length; j++) {
+          const p = msg.content[j] as { type?: string; text?: string }
+          if (p.type === "text" && typeof p.text === "string") return { msg: msg as unknown as Record<string, unknown>, partIndex: j }
+        }
+      }
+      return null
+    }
+    return null
+  }
+
+  function stripUlwPrefix(text: string): string {
+    return text.replace(ULW_PREFIX_RE, "").replace(/^\s+/, "")
+  }
+
   function registerKeywordDetector(): void {
     HookChain.register("keyword-detector", "pre-llm", 200, async (ctx) => {
       const text = getLastUserMessage(ctx.messages)
       if (!text) return
 
+      // Check /ulw prefix first
+      if (ULW_PREFIX_RE.test(text)) {
+        ctx.variant = "max"
+        const ref = getLastUserMessageRef(ctx.messages)
+        if (ref) {
+          if (ref.partIndex !== undefined) {
+            const parts = (ref.msg.content as Array<{ type: string; text: string }>)
+            parts[ref.partIndex].text = stripUlwPrefix(parts[ref.partIndex].text)
+          } else {
+            ref.msg.content = stripUlwPrefix(ref.msg.content as string)
+          }
+        }
+        log.info("keyword detected", {
+          sessionID: ctx.sessionID,
+          keyword: "/ulw",
+          variant: "max",
+        })
+        return
+      }
+
+      // Check other keyword triggers
       const lower = text.toLowerCase()
       for (const entry of KEYWORD_MAP) {
         for (const kw of entry.keywords) {

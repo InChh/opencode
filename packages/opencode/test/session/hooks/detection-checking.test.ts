@@ -26,7 +26,7 @@ describe("DetectionCheckingHooks", () => {
   // --- keyword-detector ---
 
   describe("keyword-detector", () => {
-    test("message with '[ultrawork]' -> variant set to 'max'", async () => {
+    test("message with '[ultrawork]' -> no variant set (removed)", async () => {
       await withInstance(async () => {
         const ctx: HookChain.PreLLMContext = {
           sessionID: "s1",
@@ -38,11 +38,11 @@ describe("DetectionCheckingHooks", () => {
 
         await HookChain.execute("pre-llm", ctx)
 
-        expect(ctx.variant).toBe("max")
+        expect(ctx.variant).toBeUndefined()
       })
     })
 
-    test("message with 'ulw' -> variant set to 'max'", async () => {
+    test("bare 'ulw' in message -> no variant set (removed)", async () => {
       await withInstance(async () => {
         const ctx: HookChain.PreLLMContext = {
           sessionID: "s1",
@@ -54,7 +54,75 @@ describe("DetectionCheckingHooks", () => {
 
         await HookChain.execute("pre-llm", ctx)
 
+        expect(ctx.variant).toBeUndefined()
+      })
+    })
+
+    test("'/ulw fix the bug' at start -> variant = max, message stripped", async () => {
+      await withInstance(async () => {
+        const ctx: HookChain.PreLLMContext = {
+          sessionID: "s1",
+          system: ["You are an assistant."],
+          agent: "build",
+          model: "claude-opus-4-20250514",
+          messages: [{ role: "user", content: "/ulw fix the bug" }],
+        }
+
+        await HookChain.execute("pre-llm", ctx)
+
         expect(ctx.variant).toBe("max")
+        expect((ctx.messages[0] as { content: string }).content).toBe("fix the bug")
+      })
+    })
+
+    test("'  /ulw fix the bug' (leading whitespace) -> variant = max, message stripped", async () => {
+      await withInstance(async () => {
+        const ctx: HookChain.PreLLMContext = {
+          sessionID: "s1",
+          system: ["You are an assistant."],
+          agent: "build",
+          model: "claude-opus-4-20250514",
+          messages: [{ role: "user", content: "  /ulw fix the bug" }],
+        }
+
+        await HookChain.execute("pre-llm", ctx)
+
+        expect(ctx.variant).toBe("max")
+        expect((ctx.messages[0] as { content: string }).content).toBe("fix the bug")
+      })
+    })
+
+    test("'please /ulw fix' (not at start) -> no variant set", async () => {
+      await withInstance(async () => {
+        const ctx: HookChain.PreLLMContext = {
+          sessionID: "s1",
+          system: ["You are an assistant."],
+          agent: "build",
+          model: "claude-opus-4-20250514",
+          messages: [{ role: "user", content: "please /ulw fix" }],
+        }
+
+        await HookChain.execute("pre-llm", ctx)
+
+        expect(ctx.variant).toBeUndefined()
+        expect((ctx.messages[0] as { content: string }).content).toBe("please /ulw fix")
+      })
+    })
+
+    test("'/ulw' alone -> variant = max, message becomes empty", async () => {
+      await withInstance(async () => {
+        const ctx: HookChain.PreLLMContext = {
+          sessionID: "s1",
+          system: ["You are an assistant."],
+          agent: "build",
+          model: "claude-opus-4-20250514",
+          messages: [{ role: "user", content: "/ulw" }],
+        }
+
+        await HookChain.execute("pre-llm", ctx)
+
+        expect(ctx.variant).toBe("max")
+        expect((ctx.messages[0] as { content: string }).content).toBe("")
       })
     })
 
@@ -98,7 +166,7 @@ describe("DetectionCheckingHooks", () => {
           agent: "build",
           model: "claude-opus-4-20250514",
           messages: [
-            { role: "user", content: "[ultrawork] do something" },
+            { role: "user", content: "/ulw do something" },
             { role: "assistant", content: "Done" },
             { role: "user", content: "now fix the other thing" },
           ],
@@ -484,7 +552,7 @@ describe("DetectionCheckingHooks", () => {
           system: ["You are an assistant."],
           agent: "build",
           model: "claude-opus-4-20250514",
-          messages: [{ role: "user", content: "[ultrawork] do the thing" }],
+          messages: [{ role: "user", content: "/ulw do the thing" }],
         }
 
         await HookChain.execute("pre-llm", ctx)
