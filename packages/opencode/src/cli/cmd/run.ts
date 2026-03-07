@@ -339,6 +339,20 @@ export const RunCommand = cmd({
 
     if (!process.stdin.isTTY) message += "\n" + (await Bun.stdin.text())
 
+    // Detect /ulw prefix and strip it from the message
+    const ulwPrefixMatch = message.match(/^\s*\/ulw(\s+|$)/i)
+    if (ulwPrefixMatch) {
+      const stripped = message.replace(/^\s*\/ulw\s*/i, "")
+      if (stripped.trim().length === 0) {
+        UI.error("/ulw requires a message")
+        process.exit(1)
+      }
+      message = stripped
+      if (!args.variant) {
+        args.variant = "max"
+      }
+    }
+
     if (message.trim().length === 0 && !args.command) {
       UI.error("You must provide a message or a command")
       process.exit(1)
