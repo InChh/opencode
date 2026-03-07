@@ -1,4 +1,5 @@
 import { Log } from "../../util/log"
+import { Truncate } from "../../tool/truncation"
 import { HookChain } from "./index"
 
 export namespace OutputManagementHooks {
@@ -62,15 +63,18 @@ export namespace OutputManagementHooks {
   function registerToolOutputTruncator(): void {
     HookChain.register("tool-output-truncator", "post-tool", 50, async (ctx) => {
       const output = ctx.result.output
-      const maxSize = DEFAULT_MAX_OUTPUT_SIZE
-      const result = truncateOutput(output, maxSize)
-      if (result.wasTruncated) {
-        ctx.result.output = result.text
+      const result = await Truncate.output(output)
+      if (result.truncated) {
+        ctx.result.output = result.content
+        ctx.result.metadata = {
+          ...ctx.result.metadata,
+          truncated: true,
+          outputPath: result.outputPath,
+        }
         log.info("tool output truncated", {
           toolName: ctx.toolName,
           sessionID: ctx.sessionID,
           originalSize: output.length,
-          maxSize,
         })
       }
     })

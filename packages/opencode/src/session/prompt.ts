@@ -44,7 +44,6 @@ import { SessionStatus } from "./status"
 import { LLM } from "./llm"
 import { iife } from "@/util/iife"
 import { Shell } from "@/shell/shell"
-import { Truncate } from "@/tool/truncation"
 import { SecurityConfig } from "@/security/config"
 import { SecurityAccess } from "@/security/access"
 import { SecurityAudit } from "@/security/audit"
@@ -1003,30 +1002,6 @@ export namespace SessionPrompt {
           }
         }
 
-        await HookChain.executePostTool(
-          {
-            tool: key,
-            sessionID: ctx.sessionID,
-            callID: opts.toolCallId,
-            args,
-          },
-          result,
-          {
-            sessionID: ctx.sessionID,
-            toolName: key,
-            args: args as Record<string, unknown>,
-            result: {
-              output: result.content
-                ?.filter((c: any) => c.type === "text")
-                .map((c: any) => c.text)
-                .join("\n") ?? "",
-              title: "",
-              metadata: result.metadata,
-            },
-            agent: input.agent.name,
-          },
-        )
-
         const textParts: string[] = []
         const attachments: Omit<MessageV2.FilePart, "id" | "sessionID" | "messageID">[] = []
 
@@ -1055,17 +1030,40 @@ export namespace SessionPrompt {
           }
         }
 
-        const truncated = await Truncate.output(textParts.join("\n\n"), {}, input.agent)
+        const mcpOutput = {
+          output: textParts.join("\n\n"),
+          title: "",
+          metadata: result.metadata,
+        }
+        await HookChain.executePostTool(
+          {
+            tool: key,
+            sessionID: ctx.sessionID,
+            callID: opts.toolCallId,
+            args,
+          },
+          mcpOutput,
+          {
+            sessionID: ctx.sessionID,
+            toolName: key,
+            args: args as Record<string, unknown>,
+            result: {
+              output: mcpOutput.output,
+              title: mcpOutput.title,
+              metadata: mcpOutput.metadata,
+            },
+            agent: input.agent.name,
+          },
+        )
+
         const metadata = {
-          ...(result.metadata ?? {}),
-          truncated: truncated.truncated,
-          ...(truncated.truncated && { outputPath: truncated.outputPath }),
+          ...(mcpOutput.metadata ?? {}),
         }
 
         return {
           title: "",
           metadata,
-          output: truncated.content,
+          output: mcpOutput.output,
           attachments: attachments.map((attachment) => ({
             ...attachment,
             id: Identifier.ascending("part"),
