@@ -567,6 +567,23 @@ export function Prompt(props: PromptProps) {
     // Filter out text parts (pasted content) since they're now expanded inline
     const nonTextParts = store.prompt.parts.filter((part) => part.type !== "text")
 
+    // Detect /ulw prefix in message text
+    const ulwMatch = inputText.match(/^\s*\/ulw\b\s*/i)
+    if (ulwMatch) {
+      const stripped = inputText.slice(ulwMatch[0].length)
+      if (!stripped.trim()) {
+        // /ulw alone — set one-shot variant but don't send
+        local.model.variant.setOneShot("max")
+        input.extmarks.clear()
+        input.clear()
+        setStore("prompt", { input: "", parts: [] })
+        setStore("extmarkToPartIndex", new Map())
+        return
+      }
+      inputText = stripped
+      local.model.variant.setOneShot("max")
+    }
+
     // Capture mode before it gets reset
     const currentMode = store.mode
     const variant = local.model.variant.current()
@@ -635,6 +652,9 @@ export function Prompt(props: PromptProps) {
         })
         .catch(() => {})
     }
+    // Revert one-shot variant after sending (no-op if not one-shot)
+    local.model.variant.revertOneShot()
+
     history.append({
       ...store.prompt,
       mode: currentMode,
