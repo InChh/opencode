@@ -69,7 +69,7 @@ interface LogDetail {
   annotations: Annotation[]
 }
 
-type Tab = "overview" | "request" | "response" | "tools" | "hooks" | "annotations"
+type Tab = "overview" | "request" | "response" | "tools" | "hooks" | "annotations" | "diff"
 
 const tabs: Array<{ id: Tab; label: string }> = [
   { id: "overview", label: "Overview" },
@@ -78,6 +78,7 @@ const tabs: Array<{ id: Tab; label: string }> = [
   { id: "tools", label: "Tools" },
   { id: "hooks", label: "Hooks" },
   { id: "annotations", label: "Annotations" },
+  { id: "diff", label: "Diff" },
 ]
 
 const statusColors: Record<string, string> = {
@@ -822,6 +823,179 @@ function AnnotationsTab({
   )
 }
 
+// --- Diff Tab ---
+
+interface DiffPair {
+  toolCall: ToolCall
+  completionSegment: string | null
+  potentialHallucination: boolean
+}
+
+function buildDiffPairs(data: LogDetail): DiffPair[] {
+  const completionText = data.response?.completion_text ?? ""
+  const toolCalls = data.tool_calls.filter(
+    (tc) => tc.tool_name && (tc.input != null || tc.output != null),
+  )
+
+  if (toolCalls.length === 0) return []
+
+  // Try to find completion text segments that reference each tool call by position.
+  // Strategy: look for tool_name mentions in the completion text and extract surrounding context.
+  const pairs: DiffPair[] = []
+
+  for (const tc of toolCalls) {
+    let segment: string | null = null
+
+    if (completionText) {
+      // Search for tool name in completion text
+      const nameVariants = [tc.tool_name, tc.tool_name.replace(/_/g, " "), tc.tool_name.replace(/-/g, " ")]
+      let bestIdx = -1
+      for (const variant of nameVariants) {
+        const idx = completionText.toLowerCase().indexOf(variant.toLowerCase())
+        if (idx !== -1 && (bestIdx === -1 || idx < bestIdx)) {
+          bestIdx = idx
+        }
+      }
+
+      if (bestIdx !== -1) {
+        // Extract context: up to 200 chars before, until next tool mention or 500 chars after
+        const start = Math.max(0, completionText.lastIndexOf("\n", Math.max(0, bestIdx - 200)) + 1)
+        const end = Math.min(completionText.length, bestIdx + 500)
+        // Try to end at a newline boundary
+        const newlineAfter = completionText.indexOf("\n\n", bestIdx + tc.tool_name.length)
+        const segEnd = newlineAfter !== -1 && newlineAfter < end ? newlineAfter : end
+        segment = completionText.slice(start, segEnd).trim()
+      }
+    }
+
+    // Check for potential hallucination: tool call failed but completion doesn't mention failure/error
+    const isFailed = tc.status === "error"
+    const completionMentionsFailure = completionText
+      ? /\b(fail|error|issue|problem|couldn't|unable|sorry)\b/i.test(
+          segment ?? completionText,
+        )
+      : false
+    const potentialHallucination = isFailed && !completionMentionsFailure
+
+    pairs.push({ toolCall: tc, completionSegment: segment, potentialHallucination })
+  }
+
+  return pairs
+}
+
+function DiffTab({ data }: { data: LogDetail }) {
+  const pairs = buildDiffPairs(data)
+
+  if (pairs.length === 0) {
+    return <p className="text-zinc-500 text-sm">No tool calls to compare with completion text.</p>
+  }
+
+  const hallucinationCount = pairs.filter((p) => p.potentialHallucination).length
+
+  return (
+    <div className="space-y-4">
+      {hallucinationCount > 0 && (
+        <div className="bg-red-950 border border-red-800 rounded-lg p-3 flex items-center gap-2">
+          <span className="text-red-400 text-sm font-medium">
+            {hallucinationCount} potential hallucination{hallucinationCount > 1 ? "s" : ""} detected
+          </span>
+          <span className="text-red-500/70 text-xs">
+            Tool call failed but LLM response doesn&apos;t mention the failure.
+          </span>
+        </div>
+      )}
+
+      {pairs.map((pair, i) => (
+        <DiffPairCard key={pair.toolCall.id ?? i} pair={pair} index={i} />
+      ))}
+    </div>
+  )
+}
+
+function DiffPairCard({ pair, index }: { pair: DiffPair; index: number }) {
+  const { toolCall, completionSegment, potentialHallucination } = pair
+  const statusColor =
+    toolCall.status === "success"
+      ? "text-green-400"
+      : toolCall.status === "error"
+        ? "text-red-400"
+        : "text-zinc-400"
+
+  return (
+    <div
+      className={`border rounded-lg overflow-hidden ${
+        potentialHallucination ? "border-red-700 bg-red-950/20" : "border-zinc-800 bg-zinc-900"
+      }`}
+    >
+      {/* Header */}
+      <div className="px-4 py-2.5 border-b border-zinc-800 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-zinc-600">#{index + 1}</span>
+          <span className="text-sm font-medium text-zinc-200">{toolCall.tool_name}</span>
+          {toolCall.title && <span className="text-xs text-zinc-500">{toolCall.title}</span>}
+          <span className={`text-xs ${statusColor}`}>{toolCall.status ?? "-"}</span>
+          <span className="text-xs text-zinc-600">{formatDuration(toolCall.duration_ms)}</span>
+        </div>
+        {potentialHallucination && (
+          <span className="px-2 py-0.5 bg-red-900 border border-red-700 rounded text-xs text-red-300 font-medium">
+            Potential Hallucination
+          </span>
+        )}
+      </div>
+
+      {/* Side by side panels */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-zinc-800">
+        {/* Left: Completion text segment */}
+        <div className="p-4">
+          <h4 className="text-xs font-medium text-zinc-500 mb-2">LLM Completion Text</h4>
+          {completionSegment ? (
+            <pre className="text-zinc-300 text-xs whitespace-pre-wrap break-words font-mono leading-relaxed max-h-[400px] overflow-y-auto bg-zinc-950 rounded p-3">
+              {completionSegment}
+            </pre>
+          ) : (
+            <p className="text-zinc-600 text-xs italic">
+              No matching segment found in completion text for this tool call.
+            </p>
+          )}
+        </div>
+
+        {/* Right: Tool call actual input/output */}
+        <div className="p-4 space-y-3">
+          <div>
+            <h4 className="text-xs font-medium text-zinc-500 mb-2">Actual Tool Input</h4>
+            <div className="bg-zinc-950 rounded p-3 font-mono text-xs max-h-[180px] overflow-y-auto">
+              <JsonTree data={toolCall.input} />
+            </div>
+          </div>
+          <div>
+            <h4 className="text-xs font-medium text-zinc-500 mb-2">
+              Actual Tool Output
+              {toolCall.status === "error" && (
+                <span className="ml-2 text-red-400 font-normal">(failed)</span>
+              )}
+            </h4>
+            <div
+              className={`rounded p-3 max-h-[180px] overflow-y-auto ${
+                toolCall.status === "error" ? "bg-red-950/50" : "bg-zinc-950"
+              }`}
+            >
+              {typeof toolCall.output === "string" ? (
+                <pre className="text-zinc-200 text-xs whitespace-pre-wrap break-words font-mono">
+                  {toolCall.output}
+                </pre>
+              ) : (
+                <div className="font-mono text-xs">
+                  <JsonTree data={toolCall.output} />
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function KeyValueTable({ entries }: { entries: [string, string][] }) {
   return (
     <table className="w-full text-sm">
@@ -947,6 +1121,7 @@ export function LogDetailPage() {
         {activeTab === "annotations" && (
           <AnnotationsTab data={data} onAnnotationCreated={refreshData} onAnnotationDeleted={refreshData} />
         )}
+        {activeTab === "diff" && <DiffTab data={data} />}
       </div>
     </div>
   )
