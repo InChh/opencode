@@ -43,6 +43,9 @@ export namespace LlmLog {
     time_start: number
     time_end: number | null
     duration_ms: number | null
+    input_tokens: number | null
+    output_tokens: number | null
+    cost: number | null
     time_created: number
     time_updated: number
   }
@@ -74,10 +77,14 @@ export namespace LlmLog {
           time_start: LlmLogTable.time_start,
           time_end: LlmLogTable.time_end,
           duration_ms: LlmLogTable.duration_ms,
+          input_tokens: LlmLogTokensTable.input_tokens,
+          output_tokens: LlmLogTokensTable.output_tokens,
+          cost: LlmLogTokensTable.cost,
           time_created: LlmLogTable.time_created,
           time_updated: LlmLogTable.time_updated,
         })
         .from(LlmLogTable)
+        .leftJoin(LlmLogTokensTable, eq(LlmLogTable.id, LlmLogTokensTable.llm_log_id))
         .where(where)
         .orderBy(desc(LlmLogTable.time_start))
         .limit(parsed.limit)
