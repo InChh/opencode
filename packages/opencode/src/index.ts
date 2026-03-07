@@ -35,6 +35,7 @@ import { JsonMigration } from "./storage/json-migration"
 import { Database } from "./storage/db"
 import { SecurityCommand } from "./cli/cmd/security"
 import { SandboxCommand } from "./cli/cmd/sandbox"
+import { LogViewerCommand } from "./cli/cmd/log-viewer"
 import { registerAllHooks } from "./session/hooks/register"
 
 process.on("unhandledRejection", (e) => {
@@ -150,6 +151,7 @@ let cli = yargs(hideBin(process.argv))
   .command(DbCommand)
   .command(SecurityCommand)
   .command(SandboxCommand)
+  .command(LogViewerCommand)
 
 if (Installation.isLocal()) {
   cli = cli.command(WorkspaceServeCommand)

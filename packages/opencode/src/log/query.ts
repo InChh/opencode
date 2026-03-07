@@ -795,4 +795,13 @@ export namespace LlmLog {
       }
     })
   }
+
+  export function reset(): { deleted: number } {
+    return Database.use((db) => {
+      const result = db.select({ count: sql<number>`count(*)` }).from(LlmLogTable).get()
+      const count = result?.count ?? 0
+      db.delete(LlmLogTable).run()
+      return { deleted: count }
+    })
+  }
 }
