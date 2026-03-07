@@ -2,11 +2,33 @@ import { LlmLog } from "./query"
 import { Log } from "../util/log"
 import { NotFoundError } from "../storage/db"
 
+declare const OPENCODE_LOG_VIEWER_ASSETS:
+  | Record<string, { content: string; contentType: string }>
+  | undefined
+
 export namespace LogServer {
   const log = Log.create({ service: "log-server" })
 
   const DEFAULT_PORT = 19836
   const MAX_PORT_ATTEMPTS = 10
+
+  // Cache decoded embedded assets
+  let embeddedAssets: Map<string, { data: Uint8Array; contentType: string }> | undefined
+
+  function getEmbeddedAssets(): Map<string, { data: Uint8Array; contentType: string }> | undefined {
+    if (embeddedAssets !== undefined) return embeddedAssets.size > 0 ? embeddedAssets : undefined
+    if (typeof OPENCODE_LOG_VIEWER_ASSETS === "undefined" || !OPENCODE_LOG_VIEWER_ASSETS) {
+      embeddedAssets = new Map()
+      return undefined
+    }
+    embeddedAssets = new Map()
+    for (const [path, asset] of Object.entries(OPENCODE_LOG_VIEWER_ASSETS)) {
+      const data = Buffer.from(asset.content, "base64")
+      embeddedAssets.set(path, { data, contentType: asset.contentType })
+    }
+    log.info("loaded embedded log-viewer assets", { count: embeddedAssets.size })
+    return embeddedAssets.size > 0 ? embeddedAssets : undefined
+  }
 
   const CORS_HEADERS: Record<string, string> = {
     "Access-Control-Allow-Origin": "*",
@@ -83,7 +105,13 @@ export namespace LogServer {
       return handleApiRoute(req, url, pathname)
     }
 
-    // Static file serving
+    // Try embedded assets first (production binary)
+    const assets = getEmbeddedAssets()
+    if (assets) {
+      return serveEmbeddedAsset(assets, pathname)
+    }
+
+    // Filesystem fallback (dev mode)
     if (staticDir) {
       return serveStaticFile(staticDir, pathname)
     }
@@ -166,6 +194,32 @@ export namespace LogServer {
       log.error("api error", { error: e })
       return errorResponse(e instanceof Error ? e.message : "Internal server error", 500)
     }
+  }
+
+  function serveEmbeddedAsset(
+    assets: Map<string, { data: Uint8Array; contentType: string }>,
+    pathname: string,
+  ): Response {
+    const filePath = pathname === "/" ? "/index.html" : pathname
+    const asset = assets.get(filePath)
+    if (asset) {
+      return new Response(asset.data.buffer as ArrayBuffer, {
+        headers: { "Content-Type": asset.contentType, ...CORS_HEADERS },
+      })
+    }
+
+    // SPA fallback: serve index.html for non-file paths
+    const indexAsset = assets.get("/index.html")
+    if (indexAsset) {
+      return new Response(indexAsset.data.buffer as ArrayBuffer, {
+        headers: { "Content-Type": "text/html", ...CORS_HEADERS },
+      })
+    }
+
+    return new Response(
+      `<!DOCTYPE html><html><head><title>OpenCode Log Viewer</title></head><body><h1>OpenCode Log Viewer</h1><p>Log viewer assets not found. API available at /api/</p></body></html>`,
+      { status: 200, headers: { "Content-Type": "text/html", ...CORS_HEADERS } },
+    )
   }
 
   async function serveStaticFile(staticDir: string, pathname: string): Promise<Response> {

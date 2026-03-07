@@ -36,6 +36,54 @@ const migrationDirs = (
   .map((entry) => entry.name)
   .sort()
 
+// Build log-viewer and collect assets for embedding
+const logViewerDir = path.resolve(dir, "../log-viewer")
+const logViewerDistDir = path.join(logViewerDir, "dist")
+let logViewerAssets: Record<string, { content: string; contentType: string }> = {}
+
+try {
+  await $`bun run build`.cwd(logViewerDir)
+  console.log("Built log-viewer")
+
+  async function collectAssets(baseDir: string, currentDir: string) {
+    const entries = await fs.promises.readdir(currentDir, { withFileTypes: true })
+    for (const entry of entries) {
+      const fullPath = path.join(currentDir, entry.name)
+      if (entry.isDirectory()) {
+        await collectAssets(baseDir, fullPath)
+      } else {
+        const relativePath = "/" + path.relative(baseDir, fullPath).replaceAll("\\", "/")
+        const content = Buffer.from(await Bun.file(fullPath).arrayBuffer()).toString("base64")
+        const ext = path.extname(entry.name).toLowerCase()
+        const contentType =
+          ext === ".html"
+            ? "text/html"
+            : ext === ".js"
+              ? "application/javascript"
+              : ext === ".css"
+                ? "text/css"
+                : ext === ".json"
+                  ? "application/json"
+                  : ext === ".svg"
+                    ? "image/svg+xml"
+                    : ext === ".png"
+                      ? "image/png"
+                      : ext === ".ico"
+                        ? "image/x-icon"
+                        : "application/octet-stream"
+        logViewerAssets[relativePath] = { content, contentType }
+      }
+    }
+  }
+
+  if (fs.existsSync(logViewerDistDir)) {
+    await collectAssets(logViewerDistDir, logViewerDistDir)
+    console.log(`Collected ${Object.keys(logViewerAssets).length} log-viewer assets for embedding`)
+  }
+} catch (e) {
+  console.warn("Failed to build log-viewer, skipping asset embedding:", e)
+}
+
 const migrations = await Promise.all(
   migrationDirs.map(async (name) => {
     const file = path.join(dir, "migration", name, "migration.sql")
@@ -191,6 +239,7 @@ for (const item of targets) {
       OPENCODE_WORKER_PATH: workerPath,
       OPENCODE_CHANNEL: `'${Script.channel}'`,
       OPENCODE_LIBC: item.os === "linux" ? `'${item.abi ?? "glibc"}'` : "",
+      OPENCODE_LOG_VIEWER_ASSETS: JSON.stringify(logViewerAssets),
     },
   })
 
