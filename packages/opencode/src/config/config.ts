@@ -1235,6 +1235,33 @@ export namespace Config {
         })
         .optional()
         .describe("Notification settings for task completion events"),
+      llmLog: z
+        .object({
+          enabled: z.boolean().optional().default(true).describe("Enable or disable LLM communication logging (default: true)"),
+          max_records: z
+            .number()
+            .int()
+            .positive()
+            .optional()
+            .default(10000)
+            .describe("Maximum number of log records to keep (default: 10000)"),
+          max_age_days: z
+            .number()
+            .int()
+            .positive()
+            .optional()
+            .default(30)
+            .describe("Maximum age in days for log records (default: 30)"),
+          cleanup_interval_hours: z
+            .number()
+            .int()
+            .positive()
+            .optional()
+            .default(24)
+            .describe("Interval in hours between automatic cleanup runs (default: 24)"),
+        })
+        .optional()
+        .describe("LLM communication log settings for request/response tracing"),
       experimental: z
         .object({
           disable_paste_summary: z.boolean().optional(),
