@@ -56,7 +56,7 @@
       "title": "HookChain: Migrate truncation logic to hook chain",
       "description": "As a developer, I want tool output truncation handled exclusively by HookChain post-tool hooks to eliminate duplicate truncation logic.",
       "acceptanceCriteria": [
-        "Remove direct Truncate.output() call in prompt.ts (around line 1026) — post-tool hook tool-output-truncator handles this",
+        "Remove direct Truncate.output() call in prompt.ts (around line 1026) \u2014 post-tool hook tool-output-truncator handles this",
         "Verify tool-output-truncator hook in output-management.ts works correctly with the new HookChain integration",
         "Verify grep-output-truncator hook does not conflict with grep.ts built-in truncation (grep internal truncation is more precise, hook may need adjustment)",
         "Typecheck passes"
@@ -143,7 +143,7 @@
         "Typecheck passes"
       ],
       "priority": 9,
-      "passes": false,
+      "passes": true,
       "notes": "Depends on US-007 (step.finished event) and US-008 (llm_log_id in Instance.state). Cost calculation follows Session.getUsage() pattern including >200K pricing tier."
     },
     {
@@ -158,7 +158,7 @@
         "Typecheck passes"
       ],
       "priority": 10,
-      "passes": false,
+      "passes": true,
       "notes": "Depends on US-008 for llm_log_id access via Instance.state. call_id field stores AI SDK toolCallId for disambiguation."
     },
     {
@@ -169,57 +169,57 @@
         "Modify HookChain.execute() in hooks/index.ts to track per-hook execution: measure duration_ms, shallow-compare context keys before/after to detect modified_fields",
         "When llmLog.enabled is true, write hook execution records to llm_log_hook table: hook_name, chain_type, priority, modified_fields JSON array, duration_ms",
         "Associate records with current llm_log_id from Instance.state",
-        "No JSON diff, no content snapshots — only field names that changed",
+        "No JSON diff, no content snapshots \u2014 only field names that changed",
         "Skip instrumentation when llmLog.enabled is false",
         "Typecheck passes"
       ],
       "priority": 11,
-      "passes": false,
+      "passes": true,
       "notes": "Shallow compare: snapshot Object.keys() of context before hook, compare after. If any key's value reference changed, include in modified_fields."
     },
     {
       "id": "US-012",
-      "title": "LlmLog query API — list and get",
+      "title": "LlmLog query API \u2014 list and get",
       "description": "As a developer, I want to query log data for the web viewer to display.",
       "acceptanceCriteria": [
         "Create src/log/query.ts with LlmLog namespace",
-        "LlmLog.list(filters) — paginated list with filters: session_id, agent, model, provider, time_range, status. Only returns main table fields, does NOT load gzip blob columns",
-        "LlmLog.get(id) — returns full detail including decompressed system_prompt, messages, raw_response (using Bun.gunzipSync), plus joined tool_calls, hooks, annotations",
+        "LlmLog.list(filters) \u2014 paginated list with filters: session_id, agent, model, provider, time_range, status. Only returns main table fields, does NOT load gzip blob columns",
+        "LlmLog.get(id) \u2014 returns full detail including decompressed system_prompt, messages, raw_response (using Bun.gunzipSync), plus joined tool_calls, hooks, annotations",
         "Filters validated with Zod schemas",
         "Uses Drizzle query builder",
         "Typecheck passes"
       ],
       "priority": 12,
-      "passes": false,
+      "passes": true,
       "notes": "list() must exclude blob columns for performance. get() decompresses with Bun.gunzipSync(). Follow namespace pattern."
     },
     {
       "id": "US-013",
-      "title": "LlmLog query API — stats and analyze",
+      "title": "LlmLog query API \u2014 stats and analyze",
       "description": "As a developer, I want aggregation and optimization analysis queries.",
       "acceptanceCriteria": [
-        "LlmLog.stats(filters) — aggregated token totals, cost totals, avg response time, grouped by model/agent/session/time dimensions",
-        "LlmLog.analyze(filters) — optimization suggestions: top-10 largest tool outputs, cache hit rate, repeated context ratio, high-cost model usage detection, reasoning token ratio",
+        "LlmLog.stats(filters) \u2014 aggregated token totals, cost totals, avg response time, grouped by model/agent/session/time dimensions",
+        "LlmLog.analyze(filters) \u2014 optimization suggestions: top-10 largest tool outputs, cache hit rate, repeated context ratio, high-cost model usage detection, reasoning token ratio",
         "Each suggestion includes: description, impact estimate (tokens/cost), recommended action",
         "Filters validated with Zod schemas",
         "Typecheck passes"
       ],
       "priority": 13,
-      "passes": false,
+      "passes": true,
       "notes": "Stats uses SQL aggregations (SUM, AVG, GROUP BY). Analyze performs multiple queries and computes ratios."
     },
     {
       "id": "US-014",
-      "title": "LlmLog query API — annotate and cleanup",
+      "title": "LlmLog query API \u2014 annotate and cleanup",
       "description": "As a developer, I want annotation CRUD and cleanup with annotation protection.",
       "acceptanceCriteria": [
-        "LlmLog.annotate(llm_log_id, annotation) — create annotation with type (hallucination/quality/note), content, marked_text",
-        "LlmLog.deleteAnnotation(annotation_id) — delete single annotation",
-        "LlmLog.cleanup(options) — delete records by max_age_days first, then by max_records. Records with annotations protected unless force:true. Cascade deletes child records",
+        "LlmLog.annotate(llm_log_id, annotation) \u2014 create annotation with type (hallucination/quality/note), content, marked_text",
+        "LlmLog.deleteAnnotation(annotation_id) \u2014 delete single annotation",
+        "LlmLog.cleanup(options) \u2014 delete records by max_age_days first, then by max_records. Records with annotations protected unless force:true. Cascade deletes child records",
         "Typecheck passes"
       ],
       "priority": 14,
-      "passes": false,
+      "passes": true,
       "notes": "Annotation protection: skip records with annotations during cleanup, unless force:true or age > 2x max_age_days."
     },
     {
@@ -234,7 +234,7 @@
         "Typecheck passes"
       ],
       "priority": 15,
-      "passes": false,
+      "passes": true,
       "notes": "Use setInterval or similar. Consider using Bus events for decoupling."
     },
     {
@@ -243,7 +243,7 @@
       "description": "As a developer, I need an HTTP API server that bridges the web viewer and the log query module.",
       "acceptanceCriteria": [
         "Create src/log/server.ts using Bun.serve()",
-        "Routes: GET /api/logs (list), GET /api/logs/stats, GET /api/logs/analyze, GET /api/logs/:id (detail) — static paths matched before :id param",
+        "Routes: GET /api/logs (list), GET /api/logs/stats, GET /api/logs/analyze, GET /api/logs/:id (detail) \u2014 static paths matched before :id param",
         "Routes: POST /api/logs/:id/annotations, DELETE /api/logs/annotations/:id, POST /api/logs/cleanup, GET /api/health",
         "CORS headers for localhost in dev mode",
         "Default port 19836, configurable via --port",
@@ -252,7 +252,7 @@
         "Typecheck passes"
       ],
       "priority": 16,
-      "passes": false,
+      "passes": true,
       "notes": "Route matching: check /api/logs/stats and /api/logs/analyze BEFORE /api/logs/:id to avoid conflicts."
     },
     {
@@ -270,7 +270,7 @@
         "Typecheck passes"
       ],
       "priority": 17,
-      "passes": false,
+      "passes": true,
       "notes": "Follow existing CLI command patterns (e.g., SecurityCommand in src/cli/cmd/security/index.ts)."
     },
     {
@@ -287,7 +287,7 @@
         "Typecheck passes"
       ],
       "priority": 18,
-      "passes": false,
+      "passes": true,
       "notes": "Lightweight package. Use packages/ui components if available (Button, Input etc)."
     },
     {
@@ -309,7 +309,7 @@
     },
     {
       "id": "US-020",
-      "title": "Log Viewer: Log detail page — request and response panels",
+      "title": "Log Viewer: Log detail page \u2014 request and response panels",
       "description": "As a developer, I want to inspect the full request and response of each LLM call.",
       "acceptanceCriteria": [
         "Detail page at /logs/:id with left-right split layout",
@@ -389,7 +389,7 @@
         "Right panel: corresponding tool call input args and execution output",
         "Diff highlighting for visual comparison",
         "If tool call failed but LLM didn't mention failure, auto-flag as potential hallucination",
-        "No natural language intent extraction — show raw completion text",
+        "No natural language intent extraction \u2014 show raw completion text",
         "Typecheck passes",
         "Verify in browser using dev-browser skill"
       ],
