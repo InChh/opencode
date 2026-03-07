@@ -1,5 +1,5 @@
 import { z } from "zod"
-import { Database, NotFoundError, eq, and, gte, lte, desc, sum, avg, count, sql } from "../storage/db"
+import { Database, NotFoundError, eq, and, gte, lte, desc, sql, inArray } from "../storage/db"
 import {
   LlmLogTable,
   LlmLogRequestTable,
@@ -9,6 +9,7 @@ import {
   LlmLogHookTable,
   LlmLogAnnotationTable,
 } from "./log.sql"
+import { Identifier } from "../id/id"
 import { Log } from "../util/log"
 import type { SQL } from "../storage/db"
 
@@ -620,6 +621,177 @@ export namespace LlmLog {
         })),
         cache_hit_rate: Math.round(cacheHitRate * 10000) / 10000,
         reasoning_token_ratio: Math.round(reasoningRatio * 10000) / 10000,
+      }
+    })
+  }
+
+  // --- Annotate ---
+
+  export const AnnotationInput = z.object({
+    type: z.enum(["hallucination", "quality", "note"]),
+    content: z.string().min(1),
+    marked_text: z.string().optional(),
+  })
+
+  export type AnnotationInput = z.infer<typeof AnnotationInput>
+
+  export function annotate(llmLogId: string, input: AnnotationInput): { id: string } {
+    const parsed = AnnotationInput.parse(input)
+
+    return Database.use((db) => {
+      const row = db.select({ id: LlmLogTable.id }).from(LlmLogTable).where(eq(LlmLogTable.id, llmLogId)).get()
+      if (!row) throw new NotFoundError({ message: `LLM log not found: ${llmLogId}` })
+
+      const id = Identifier.ascending("log")
+      const now = Date.now()
+      db.insert(LlmLogAnnotationTable)
+        .values({
+          id,
+          llm_log_id: llmLogId,
+          type: parsed.type,
+          content: parsed.content,
+          marked_text: parsed.marked_text ?? null,
+          time_created: now,
+          time_updated: now,
+        })
+        .run()
+
+      return { id }
+    })
+  }
+
+  export function deleteAnnotation(annotationId: string): void {
+    Database.use((db) => {
+      const row = db
+        .select({ id: LlmLogAnnotationTable.id })
+        .from(LlmLogAnnotationTable)
+        .where(eq(LlmLogAnnotationTable.id, annotationId))
+        .get()
+      if (!row) throw new NotFoundError({ message: `Annotation not found: ${annotationId}` })
+
+      db.delete(LlmLogAnnotationTable).where(eq(LlmLogAnnotationTable.id, annotationId)).run()
+    })
+  }
+
+  // --- Cleanup ---
+
+  export const CleanupOptions = z
+    .object({
+      max_age_days: z.number().min(1).optional(),
+      max_records: z.number().min(1).optional(),
+      force: z.boolean().default(false),
+    })
+    .optional()
+
+  export type CleanupOptions = z.infer<typeof CleanupOptions>
+
+  export interface CleanupResult {
+    deleted_by_age: number
+    deleted_by_count: number
+    total_deleted: number
+    protected_count: number
+  }
+
+  export function cleanup(options?: z.input<typeof CleanupOptions>): CleanupResult {
+    const parsed = CleanupOptions.parse(options)
+    const maxAgeDays = parsed?.max_age_days
+    const maxRecords = parsed?.max_records
+    const force = parsed?.force ?? false
+
+    let deletedByAge = 0
+    let deletedByCount = 0
+    let protectedCount = 0
+
+    return Database.use((db) => {
+      const countWhere = (where: SQL | undefined): number => {
+        const result = db.select({ count: sql<number>`count(*)` }).from(LlmLogTable).where(where).get()
+        return result?.count ?? 0
+      }
+
+      // 1. Delete by age
+      if (maxAgeDays) {
+        const cutoff = Date.now() - maxAgeDays * 24 * 60 * 60 * 1000
+        const forceAgeCutoff = Date.now() - maxAgeDays * 2 * 24 * 60 * 60 * 1000
+
+        if (force) {
+          deletedByAge = countWhere(lte(LlmLogTable.time_start, cutoff))
+          db.delete(LlmLogTable).where(lte(LlmLogTable.time_start, cutoff)).run()
+        } else {
+          const annotatedIds = [...new Set(
+            db.select({ llm_log_id: LlmLogAnnotationTable.llm_log_id }).from(LlmLogAnnotationTable).all().map((r) => r.llm_log_id),
+          )]
+
+          if (annotatedIds.length > 0) {
+            // Delete annotated records older than 2x max_age
+            const veryOldAnnotatedWhere = and(lte(LlmLogTable.time_start, forceAgeCutoff), inArray(LlmLogTable.id, annotatedIds))
+            deletedByAge += countWhere(veryOldAnnotatedWhere)
+            db.delete(LlmLogTable).where(veryOldAnnotatedWhere).run()
+
+            // Re-fetch remaining annotated IDs
+            const remainingAnnotatedIds = [...new Set(
+              db.select({ llm_log_id: LlmLogAnnotationTable.llm_log_id }).from(LlmLogAnnotationTable).all().map((r) => r.llm_log_id),
+            )]
+
+            // Count protected (annotated + old but within 2x)
+            if (remainingAnnotatedIds.length > 0) {
+              protectedCount += countWhere(and(lte(LlmLogTable.time_start, cutoff), inArray(LlmLogTable.id, remainingAnnotatedIds)))
+            }
+
+            // Delete non-annotated old records
+            const nonAnnotatedOldWhere = remainingAnnotatedIds.length > 0
+              ? and(
+                  lte(LlmLogTable.time_start, cutoff),
+                  sql`${LlmLogTable.id} NOT IN (${sql.join(remainingAnnotatedIds.map((id) => sql`${id}`), sql`,`)})`,
+                )
+              : lte(LlmLogTable.time_start, cutoff)
+            deletedByAge += countWhere(nonAnnotatedOldWhere)
+            db.delete(LlmLogTable).where(nonAnnotatedOldWhere).run()
+          } else {
+            deletedByAge = countWhere(lte(LlmLogTable.time_start, cutoff))
+            db.delete(LlmLogTable).where(lte(LlmLogTable.time_start, cutoff)).run()
+          }
+        }
+      }
+
+      // 2. Delete by max_records (keep newest N records)
+      if (maxRecords) {
+        const total = countWhere(undefined)
+
+        if (total > maxRecords) {
+          const excess = total - maxRecords
+
+          let candidates = db
+            .select({ id: LlmLogTable.id })
+            .from(LlmLogTable)
+            .orderBy(LlmLogTable.time_start)
+            .limit(excess)
+            .all()
+            .map((r) => r.id)
+
+          if (!force && candidates.length > 0) {
+            const annotatedIds = db
+              .select({ llm_log_id: LlmLogAnnotationTable.llm_log_id })
+              .from(LlmLogAnnotationTable)
+              .where(inArray(LlmLogAnnotationTable.llm_log_id, candidates))
+              .all()
+              .map((r) => r.llm_log_id)
+            const annotatedSet = new Set(annotatedIds)
+            protectedCount += candidates.filter((id) => annotatedSet.has(id)).length
+            candidates = candidates.filter((id) => !annotatedSet.has(id))
+          }
+
+          if (candidates.length > 0) {
+            deletedByCount = candidates.length
+            db.delete(LlmLogTable).where(inArray(LlmLogTable.id, candidates)).run()
+          }
+        }
+      }
+
+      return {
+        deleted_by_age: deletedByAge,
+        deleted_by_count: deletedByCount,
+        total_deleted: deletedByAge + deletedByCount,
+        protected_count: protectedCount,
       }
     })
   }
