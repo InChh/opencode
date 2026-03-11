@@ -8,6 +8,8 @@ import {
   writeBaseline,
   generateDiff,
   type Baseline,
+  type ScanResult,
+  type ScannedComponent,
 } from "../../../../script/omo-diff"
 
 const BASELINE_PATH = path.resolve(import.meta.dir, "../../../../packages/opencode/.omo-baseline.json")
@@ -94,8 +96,9 @@ describe("omo-baseline.json", () => {
     test("readBaseline reads the actual baseline file correctly", () => {
       const baseline = readBaseline(BASELINE_PATH)
 
-      expect(baseline.version).toBe("3.10.0")
-      expect(baseline.date).toBe("2026-03-05")
+      // Fixed: version/date change with each OMO sync; assert format instead of hardcoded values
+      expect(baseline.version).toMatch(/^\d+\.\d+\.\d+$/)
+      expect(baseline.date).toMatch(/^\d{4}-\d{2}-\d{2}$/)
       expect(Object.keys(baseline.tools).length).toBeGreaterThan(5)
       expect(Object.keys(baseline.hooks).length).toBeGreaterThan(10)
       expect(Object.keys(baseline.agents).length).toBeGreaterThan(5)
@@ -104,28 +107,33 @@ describe("omo-baseline.json", () => {
 
     test("generateDiff uses baseline data for categorization", () => {
       const baseline = readBaseline(BASELINE_PATH)
-      const scanned = {
-        tools: ["glob", "brand-new-tool"],
-        hooks: ["edit-error-recovery", "brand-new-hook"],
-        agents: ["sisyphus", "brand-new-agent"],
-        configFiles: [],
-        dependencies: {},
-      }
+      // Fixed: generateDiff now expects ScanResult with components array, sections keyed by ComponentType
+      const components: ScannedComponent[] = [
+        { name: "glob", type: "tool", isDirectory: true, files: [] },
+        { name: "brand-new-tool", type: "tool", isDirectory: true, files: [] },
+        { name: "edit-error-recovery", type: "hook", isDirectory: true, files: [] },
+        { name: "brand-new-hook", type: "hook", isDirectory: true, files: [] },
+        { name: "sisyphus", type: "agent", isDirectory: false, files: [] },
+        { name: "brand-new-agent", type: "agent", isDirectory: false, files: [] },
+      ]
+      const scanned: ScanResult = { components, dependencies: {} }
       const report = generateDiff(baseline, scanned, "99.0.0")
 
-      const globChange = report.sections.tools.find((c) => c.name === "glob")
+      const toolSection = report.sections.tool ?? []
+      const globChange = toolSection.find((c) => c.name === "glob")
       expect(globChange).toBeDefined()
       expect(globChange!.category).toBe("review needed")
 
-      const newTool = report.sections.tools.find((c) => c.name === "brand-new-tool")
+      const newTool = toolSection.find((c) => c.name === "brand-new-tool")
       expect(newTool).toBeDefined()
       expect(newTool!.category).toBe("backport recommended")
 
-      const hookChange = report.sections.hooks.find((c) => c.name === "edit-error-recovery")
+      const hookSection = report.sections.hook ?? []
+      const hookChange = hookSection.find((c) => c.name === "edit-error-recovery")
       expect(hookChange).toBeDefined()
       expect(hookChange!.category).toBe("review needed")
 
-      const newHook = report.sections.hooks.find((c) => c.name === "brand-new-hook")
+      const newHook = hookSection.find((c) => c.name === "brand-new-hook")
       expect(newHook).toBeDefined()
       expect(newHook!.category).toBe("backport recommended")
     })
@@ -137,7 +145,8 @@ describe("omo-baseline.json", () => {
       const tmpBaseline = path.join(dir, ".omo-baseline.json")
 
       const baseline = readBaseline(BASELINE_PATH)
-      expect(baseline.version).toBe("3.10.0")
+      // Fixed: version changes with each OMO sync; assert format instead of hardcoded value
+      expect(baseline.version).toMatch(/^\d+\.\d+\.\d+$/)
 
       baseline.version = "5.0.0"
       baseline.date = "2026-03-01"

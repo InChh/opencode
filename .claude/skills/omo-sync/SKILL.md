@@ -6,19 +6,19 @@ user-invocable: true
 
 # OMO Sync
 
-Fetch the latest oh-my-opencode release from npm, compare against the local baseline, generate a diff report, and selectively backport new features. Phased workflow with ledger tracking.
+Fetch the latest oh-my-opencode/oh-my-openagent release from git(https://github.com/code-yeongyu/oh-my-openagent.git) or npm, compare against the local baseline, generate a diff report, and selectively backport new features. Phased workflow with ledger tracking.
 
 ---
 
 ## Arguments
 
-| Argument | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `--ledger` | No | `.claude/state/omo-sync-ledger.json` | Path to the OMO sync ledger |
-| `--phase` | No | — | Force a specific phase |
-| `--component` | No | — | Process only this component in the `backport` phase |
-| `--skip` | No | — | Mark a component as `skipped` |
-| `--version` | No | `latest` | Specific OMO npm version to compare against |
+| Argument      | Required | Default                              | Description                                         |
+| ------------- | -------- | ------------------------------------ | --------------------------------------------------- |
+| `--ledger`    | No       | `.claude/state/omo-sync-ledger.json` | Path to the OMO sync ledger                         |
+| `--phase`     | No       | —                                    | Force a specific phase                              |
+| `--component` | No       | —                                    | Process only this component in the `backport` phase |
+| `--skip`      | No       | —                                    | Mark a component as `skipped`                       |
+| `--version`   | No       | `latest`                             | Specific OMO npm version to compare against         |
 
 ---
 
@@ -40,29 +40,36 @@ Each phase writes to the ledger. Re-invoke to continue.
 ## Phase 1: FETCH
 
 ### Purpose
+
 Download the latest (or specified) oh-my-opencode package from npm and extract it.
 
 ### Steps
 
 1. **Check current baseline:**
+
    ```bash
    cat packages/opencode/.omo-baseline.json | head -5
    ```
+
    Record the current baseline version.
 
 2. **Fetch OMO package info:**
+
    ```bash
    npm view oh-my-opencode@<version> version dist.tarball
    ```
 
 3. **Download and extract:**
+
    ```bash
    TMPDIR=$(mktemp -d)
    curl -sL <tarball_url> | tar xz -C $TMPDIR
    ```
+
    Record `$TMPDIR/package` as the extracted path.
 
 4. **Initialize ledger:**
+
    ```json
    {
      "session_id": "omo-sync-YYYYMMDD-HHMMSS",
@@ -96,21 +103,23 @@ Download the latest (or specified) oh-my-opencode package from npm and extract i
 ## Phase 2: DIFF
 
 ### Purpose
+
 Run the existing `omo-diff.ts` script to generate a structured comparison.
 
 ### Steps
 
 1. **Run omo-diff:**
+
    ```bash
    bun run script/omo-diff.ts 2>&1
    ```
+
    If the script fails, fall back to manual scanning (Phase 2B).
 
 2. **If omo-diff succeeds**, read the generated report from `tasks/omo-diff-report-<version>.md`.
 
 3. **If omo-diff fails (Phase 2B — manual scan):**
    Scan the extracted OMO package directory to inventory components:
-
    - **Tools:** List directories in `<extracted>/src/tools/`
    - **Hooks:** List directories in `<extracted>/src/hooks/`
    - **Agents:** List files/directories in `<extracted>/src/agents/`
@@ -139,6 +148,7 @@ Run the existing `omo-diff.ts` script to generate a structured comparison.
 ## Phase 3: PLAN
 
 ### Purpose
+
 Create a prioritized backport plan. Determine which components to bring in, their order, and adaptation strategy.
 
 ### Steps
@@ -155,13 +165,13 @@ Create a prioritized backport plan. Determine which components to bring in, thei
 
 3. **Assign priority:**
 
-   | Priority | Criteria |
-   |----------|----------|
-   | P0 | Bug fixes in components we already internalized |
-   | P1 | New hooks/tools that improve existing functionality |
-   | P2 | New agents or optional features |
-   | P3 | Config/dependency updates |
-   | P4 | Cosmetic or minor improvements |
+   | Priority | Criteria                                            |
+   | -------- | --------------------------------------------------- |
+   | P0       | Bug fixes in components we already internalized     |
+   | P1       | New hooks/tools that improve existing functionality |
+   | P2       | New agents or optional features                     |
+   | P3       | Config/dependency updates                           |
+   | P4       | Cosmetic or minor improvements                      |
 
 4. **Create the backport plan** — ordered list of components with:
    - Component name and type (tool/hook/agent/config)
@@ -174,6 +184,7 @@ Create a prioritized backport plan. Determine which components to bring in, thei
 5. **Update ledger** with the plan.
 
 6. **Print the plan** and ask for user review:
+
    ```
    BACKPORT PLAN:
      P0:
@@ -192,6 +203,7 @@ Create a prioritized backport plan. Determine which components to bring in, thei
 ## Phase 4: BACKPORT
 
 ### Purpose
+
 Apply changes one component at a time. Each invocation processes ONE component.
 
 ### Execution Model
@@ -228,6 +240,7 @@ Select the highest-priority non-terminal component. If `--component` is specifie
 5. **Update ledger** with component status and modified files.
 
 6. **Print:**
+
    ```
    BACKPORT [hook] error-recovery:
      Strategy: updated (merged bug fix)
@@ -242,11 +255,13 @@ Select the highest-priority non-terminal component. If `--component` is specifie
 ## Phase 5: VERIFY
 
 ### Purpose
+
 Same as upstream-sync Phase 5 — typecheck and test.
 
 ### Steps
 
 1. **Typecheck:**
+
    ```bash
    bun turbo typecheck 2>&1
    ```
@@ -263,6 +278,7 @@ Same as upstream-sync Phase 5 — typecheck and test.
 ## Phase 6: BASELINE
 
 ### Purpose
+
 Update `.omo-baseline.json` to reflect the new version and any newly internalized components.
 
 ### Steps

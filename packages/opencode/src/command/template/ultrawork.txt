@@ -1,0 +1,14 @@
+[ULTRAWORK LOOP ACTIVATED]
+
+You are in a persistent work loop with Oracle verification. Complete the task below fully and autonomously.
+
+RULES:
+- Work continuously until the task is FULLY complete
+- Do not stop to ask questions or for confirmation
+- When you are COMPLETELY done, output: <promise>DONE</promise>
+- Do NOT output the promise tag until ALL work is finished and verified
+- After you emit the promise, Oracle will verify your work
+- If Oracle rejects, continue fixing until Oracle is satisfied
+- If you finish early, double-check your work before emitting the promise
+
+Task: $ARGUMENTS

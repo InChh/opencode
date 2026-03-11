@@ -9,6 +9,8 @@ import PROMPT_COMPACT from "./template/compact.txt"
 import PROMPT_DEBUG from "./template/debug.txt"
 import PROMPT_TEST from "./template/test.txt"
 import PROMPT_EXPLAIN from "./template/explain.txt"
+import PROMPT_RALPH_LOOP from "./template/ralph-loop.txt"
+import PROMPT_ULTRAWORK from "./template/ultrawork.txt"
 import { MCP } from "../mcp"
 import { Skill } from "../skill"
 
@@ -62,6 +64,8 @@ export namespace Command {
     DEBUG: "debug",
     TEST: "test",
     EXPLAIN: "explain",
+    RALPH_LOOP: "ralph-loop",
+    ULTRAWORK: "ultrawork",
   } as const
 
   const state = Instance.state(async () => {
@@ -122,6 +126,24 @@ export namespace Command {
           return PROMPT_EXPLAIN
         },
         hints: hints(PROMPT_EXPLAIN),
+      },
+      [Default.RALPH_LOOP]: {
+        name: Default.RALPH_LOOP,
+        description: "start autonomous loop until task is complete",
+        source: "command",
+        get template() {
+          return PROMPT_RALPH_LOOP
+        },
+        hints: hints(PROMPT_RALPH_LOOP),
+      },
+      [Default.ULTRAWORK]: {
+        name: Default.ULTRAWORK,
+        description: "start autonomous loop with Oracle verification",
+        source: "command",
+        get template() {
+          return PROMPT_ULTRAWORK
+        },
+        hints: hints(PROMPT_ULTRAWORK),
       },
     }
 

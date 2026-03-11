@@ -6,6 +6,7 @@ import { AgentEnforcementHooks } from "./agent-enforcement"
 import { LLMParameterHooks } from "./llm-parameters"
 import { SessionLifecycleHooks } from "./session-lifecycle"
 import { LlmLogCapture } from "../../log/capture"
+import { RalphLoop } from "./ralph-loop"
 
 export function registerAllHooks(): void {
   ContextInjectionHooks.register()
@@ -16,4 +17,5 @@ export function registerAllHooks(): void {
   LLMParameterHooks.register()
   SessionLifecycleHooks.register()
   LlmLogCapture.register()
+  RalphLoop.register()
 }

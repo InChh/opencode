@@ -60,12 +60,110 @@ export namespace ErrorRecoveryHooks {
   }
 
   // --- Delegate task retry (PostToolChain, priority 200) ---
-  // On delegate_task failure, injects retry guidance with exponential backoff hint
+  // On delegate_task failure, detects structured error patterns and injects specific retry guidance
+
+  interface DelegateTaskErrorPattern {
+    pattern: string
+    errorType: string
+    fixHint: string
+  }
+
+  const DELEGATE_TASK_ERROR_PATTERNS: DelegateTaskErrorPattern[] = [
+    {
+      pattern: "run_in_background",
+      errorType: "missing_run_in_background",
+      fixHint: "Add run_in_background=false (for delegation) or run_in_background=true (for parallel exploration)",
+    },
+    {
+      pattern: "load_skills",
+      errorType: "missing_load_skills",
+      fixHint:
+        "Add load_skills=[] parameter (empty array if no skills needed). Note: Calling Skill tool does NOT populate this.",
+    },
+    {
+      pattern: "category OR subagent_type",
+      errorType: "mutual_exclusion",
+      fixHint: "Provide ONLY one of: category (e.g., 'general', 'quick') OR subagent_type (e.g., 'oracle', 'explore')",
+    },
+    {
+      pattern: "Must provide either category or subagent_type",
+      errorType: "missing_category_or_agent",
+      fixHint: "Add either category='general' OR subagent_type='explore'",
+    },
+    {
+      pattern: "Unknown category",
+      errorType: "unknown_category",
+      fixHint: "Use a valid category from the Available list in the error message",
+    },
+    {
+      pattern: "Agent name cannot be empty",
+      errorType: "empty_agent",
+      fixHint: "Provide a non-empty subagent_type value",
+    },
+    {
+      pattern: "Unknown agent",
+      errorType: "unknown_agent",
+      fixHint: "Use a valid agent from the Available agents list in the error message",
+    },
+    {
+      pattern: "Cannot call primary agent",
+      errorType: "primary_agent",
+      fixHint: "Primary agents cannot be called via task. Use a subagent like 'explore', 'oracle', or 'librarian'",
+    },
+    {
+      pattern: "Skills not found",
+      errorType: "unknown_skills",
+      fixHint: "Use valid skill names from the Available list in the error message",
+    },
+  ]
+
+  function detectDelegateTaskError(output: string): { errorType: string; originalOutput: string } | null {
+    if (!output.includes("[ERROR]") && !output.includes("Invalid arguments")) return null
+    for (const errorPattern of DELEGATE_TASK_ERROR_PATTERNS) {
+      if (output.includes(errorPattern.pattern)) {
+        return { errorType: errorPattern.errorType, originalOutput: output }
+      }
+    }
+    return null
+  }
+
+  function extractAvailableList(output: string): string | null {
+    const availableMatch = output.match(/Available[^:]*:\s*(.+)$/m)
+    return availableMatch ? availableMatch[1]!.trim() : null
+  }
+
+  function buildRetryGuidance(errorInfo: { errorType: string; originalOutput: string }): string {
+    const pattern = DELEGATE_TASK_ERROR_PATTERNS.find((p) => p.errorType === errorInfo.errorType)
+    if (!pattern) return "[task ERROR] Fix the error and retry with correct parameters."
+
+    let guidance = `\n[task CALL FAILED - IMMEDIATE RETRY REQUIRED]\n\n**Error Type**: ${errorInfo.errorType}\n**Fix**: ${pattern.fixHint}`
+
+    const availableList = extractAvailableList(errorInfo.originalOutput)
+    if (availableList) {
+      guidance += `\n**Available Options**: ${availableList}`
+    }
+
+    guidance += `\n\n**Action**: Retry task NOW with corrected parameters.`
+    return guidance
+  }
 
   function registerDelegateTaskRetry(): void {
     HookChain.register("delegate-task-retry", "post-tool", 200, async (ctx) => {
       if (ctx.toolName !== "delegate_task" && ctx.toolName !== "task") return
       const output = ctx.result.output
+
+      // First, try structured error pattern detection (specific, actionable guidance)
+      const errorInfo = detectDelegateTaskError(output)
+      if (errorInfo) {
+        ctx.result.output = output + "\n" + buildRetryGuidance(errorInfo)
+        log.info("delegate task structured error detected", {
+          sessionID: ctx.sessionID,
+          errorType: errorInfo.errorType,
+        })
+        return
+      }
+
+      // Fall back to generic failure detection with retry tracking
       const isFailure =
         output.includes("Error") ||
         output.includes("error") ||
@@ -78,16 +176,20 @@ export namespace ErrorRecoveryHooks {
       const retryCount = (ctx.result.metadata as { retryCount?: number } | undefined)?.retryCount ?? 0
       if (retryCount >= 1) {
         ctx.result.output =
-          output + "\n\nRECOVERY: Delegate task has failed after retry. Consider an alternative approach or investigate the root cause."
+          output +
+          "\n\nRECOVERY: Delegate task has failed after retry. Consider an alternative approach or investigate the root cause."
         log.info("delegate task retry exhausted", { sessionID: ctx.sessionID, retryCount })
         return
       }
 
-      const delay = 1000 * Math.pow(2, retryCount) // 1s first, 2s second
+      const delay = 1000 * Math.pow(2, retryCount)
       ctx.result.output =
         output +
         `\n\nRECOVERY: Delegate task failed. Retry recommended after ${delay}ms delay. This is retry attempt ${retryCount + 1} of 2.`
-      ctx.result.metadata = { ...(ctx.result.metadata as Record<string, unknown> | undefined), retryCount: retryCount + 1 }
+      ctx.result.metadata = {
+        ...(ctx.result.metadata as Record<string, unknown> | undefined),
+        retryCount: retryCount + 1,
+      }
       log.info("delegate task retry suggested", { sessionID: ctx.sessionID, delay, retryCount: retryCount + 1 })
     })
   }

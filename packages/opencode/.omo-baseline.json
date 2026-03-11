@@ -1,6 +1,6 @@
 {
-  "version": "3.10.0",
-  "date": "2026-03-05",
+  "version": "3.11.0",
+  "date": "2026-03-11",
   "tools": {
     "glob": "internalized",
     "grep": "internalized",
@@ -57,7 +57,7 @@
     "interactive-bash-session": "deferred",
     "task-reminder": "deferred",
     "start-work": "skipped",
-    "ralph-loop": "skipped",
+    "ralph-loop": "internalized",
     "no-sisyphus-gpt": "skipped",
     "no-hephaestus-non-gpt": "skipped",
     "prometheus-md-only": "skipped",
@@ -84,5 +84,8 @@
     "multimodal-looker": "optional",
     "sisyphus-junior": "optional"
   },
-  "notes": "Synced to OMO 3.10.0 on 2026-03-05. Backported: json-error-recovery, thinking-block-validator, task-resume-info. Deferred: read-image-resizer, hashline-edit, session-manager, model-fallback, runtime-fallback, interactive-bash-session, task-reminder. Skipped: OMO-specific hooks (ralph-loop, start-work, atlas, etc)."
+  "features": {},
+  "plugins": {},
+  "mcp": {},
+  "notes": "Synced to OMO 3.11.0 on 2026-03-11. Backported: ralph-loop + ulw-loop (autonomous iteration + oracle verification), delegate-task-retry structured patterns, tool-output-truncator selective truncation. thinking-block-validator already up-to-date. Deferred: read-image-resizer (needs sharp), hashline-edit, session-manager, model-fallback, runtime-fallback, interactive-bash-session, task-reminder. Skipped: OMO-specific hooks (start-work, atlas, etc)."
 }

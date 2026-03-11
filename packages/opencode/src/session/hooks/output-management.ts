@@ -58,12 +58,36 @@ export namespace OutputManagementHooks {
   }
 
   // --- tool-output-truncator (PostToolChain, priority 50) ---
-  // Truncates ALL tool outputs based on configurable max size
+  // Selectively truncates outputs from known-large tools with per-tool limits
+
+  const TRUNCATABLE_TOOLS = new Set([
+    "grep",
+    "Grep",
+    "ripgrep",
+    "glob",
+    "Glob",
+    "lsp_diagnostics",
+    "ast_grep_search",
+    "interactive_bash",
+    "skill_mcp",
+    "webfetch",
+    "WebFetch",
+    "bash",
+    "Bash",
+  ])
+
+  const WEBFETCH_MAX_BYTES = 40 * 1024 // 40KB — web pages need aggressive truncation
+  const TOOL_SPECIFIC_MAX_BYTES: Record<string, number> = {
+    webfetch: WEBFETCH_MAX_BYTES,
+    WebFetch: WEBFETCH_MAX_BYTES,
+  }
 
   function registerToolOutputTruncator(): void {
     HookChain.register("tool-output-truncator", "post-tool", 50, async (ctx) => {
+      if (!TRUNCATABLE_TOOLS.has(ctx.toolName)) return
       const output = ctx.result.output
-      const result = await Truncate.output(output)
+      const maxBytes = TOOL_SPECIFIC_MAX_BYTES[ctx.toolName] ?? DEFAULT_MAX_OUTPUT_SIZE
+      const result = await Truncate.output(output, { maxBytes })
       if (result.truncated) {
         ctx.result.output = result.content
         ctx.result.metadata = {
