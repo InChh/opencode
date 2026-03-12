@@ -38,3 +38,7 @@ test-security-project
 
 # Test-fix workflow
 tasks/test-fix-ledger.json
+
+# Logs
+.claude/logs/
+.opencode/logs/

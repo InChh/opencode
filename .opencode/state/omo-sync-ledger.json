@@ -1,0 +1,130 @@
+{
+  "session_id": "omo-sync-20260311-120000",
+  "created_at": "2026-03-11T12:00:00Z",
+  "updated_at": "2026-03-11T14:00:00Z",
+  "baseline_version": "3.10.0",
+  "target_version": "3.11.2",
+  "extracted_path": "/var/folders/3_/_vz8rh0x3mxgw0x58tj6x0q40000gn/T/tmp.cz33xkE1XR/repo",
+  "components": [
+    {
+      "name": "delegate-task-retry",
+      "type": "hook",
+      "category": "review_needed",
+      "priority": "P0",
+      "status": "applied",
+      "target_files": ["packages/opencode/src/session/hooks/error-recovery.ts"],
+      "notes": "Merged 9 structured error patterns with fix hints and available option extraction. Kept existing generic retry fallback."
+    },
+    {
+      "name": "tool-output-truncator",
+      "type": "hook",
+      "category": "review_needed",
+      "priority": "P1",
+      "status": "applied",
+      "target_files": ["packages/opencode/src/session/hooks/output-management.ts"],
+      "notes": "Added TRUNCATABLE_TOOLS selective list and per-tool max bytes (WebFetch: 40KB). No longer truncates all tools."
+    },
+    {
+      "name": "thinking-block-validator",
+      "type": "hook",
+      "category": "up_to_date",
+      "priority": "P1",
+      "status": "up_to_date",
+      "target_files": ["packages/opencode/src/session/prompt.ts"],
+      "notes": "Already equivalent. Our capabilities-based model detection is superior to OMO's string matching."
+    },
+    {
+      "name": "directory-agents-injector",
+      "type": "hook",
+      "category": "review_needed",
+      "priority": "P2",
+      "status": "deferred",
+      "target_files": ["packages/opencode/src/session/hooks/context-injection.ts"],
+      "notes": "Add session cleanup events (session.deleted, session.compacted). Medium effort."
+    },
+    {
+      "name": "todo-continuation-enforcer",
+      "type": "hook",
+      "category": "review_needed",
+      "priority": "P2",
+      "status": "deferred",
+      "target_files": ["packages/opencode/src/session/hooks/agent-enforcement.ts"],
+      "notes": "Full redesign with state storage, abort detection, countdown grace period, failure tracking. High effort."
+    },
+    {
+      "name": "session-notification",
+      "type": "hook",
+      "category": "review_needed",
+      "priority": "P2",
+      "status": "deferred",
+      "target_files": ["packages/opencode/src/session/hooks/session-lifecycle.ts"],
+      "notes": "Full redesign with idle notification scheduler, activity tracking, configurable messages. High effort."
+    },
+    {
+      "name": "read-image-resizer",
+      "type": "hook",
+      "category": "review_needed",
+      "priority": "P1",
+      "status": "deferred",
+      "notes": "Requires sharp as optional dependency + significant import adaptation. Deferred until sharp is added to project."
+    },
+    {
+      "name": "hashline-edit",
+      "type": "tool",
+      "category": "review_needed",
+      "priority": "P2",
+      "status": "deferred",
+      "notes": "Carried over from previous sync. Complex tool with many submodules."
+    },
+    {
+      "name": "session-manager",
+      "type": "tool",
+      "category": "review_needed",
+      "priority": "P2",
+      "status": "deferred",
+      "notes": "Carried over from previous sync."
+    },
+    {
+      "name": "model-fallback",
+      "type": "hook",
+      "category": "review_needed",
+      "priority": "P2",
+      "status": "deferred",
+      "notes": "Carried over from previous sync."
+    },
+    {
+      "name": "runtime-fallback",
+      "type": "hook",
+      "category": "review_needed",
+      "priority": "P2",
+      "status": "deferred",
+      "notes": "Carried over from previous sync."
+    },
+    {
+      "name": "ralph-loop",
+      "type": "hook",
+      "category": "review_needed",
+      "priority": "P1",
+      "status": "applied",
+      "target_files": ["packages/opencode/src/session/hooks/ralph-loop.ts", "packages/opencode/src/session/hooks/register.ts"],
+      "notes": "Created new file. Adapted OMO's ~20-file ralph-loop into single file using Bus.subscribe for idle detection, Session.messages for completion, SessionPrompt.prompt for continuation, Instance.state for state management, TuiEvent.ToastShow for notifications."
+    },
+    {
+      "name": "ulw-loop",
+      "type": "hook",
+      "category": "review_needed",
+      "priority": "P1",
+      "status": "applied",
+      "target_files": ["packages/opencode/src/session/hooks/ralph-loop.ts"],
+      "notes": "Integrated into ralph-loop as ultrawork mode. Oracle verification flow: DONE → verification phase → oracle subagent → VERIFIED/failed → complete/retry."
+    }
+  ],
+  "phases": {
+    "fetch": { "status": "done" },
+    "diff": { "status": "done" },
+    "plan": { "status": "done" },
+    "backport": { "status": "done" },
+    "verify": { "status": "done", "notes": "Typecheck clean for changed files. Pre-existing errors in test/script/omo-diff.test.ts (unrelated)." },
+    "baseline": { "status": "done" }
+  }
+}

@@ -1,0 +1,177 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Upstream Sync Ledger",
+  "description": "Tracks the state of an upstream sync operation across multiple phases and rounds.",
+  "type": "object",
+  "required": ["session_id", "created_at", "updated_at", "upstream_remote", "upstream_branch", "local_branch", "integration_branch", "merge_base", "phases"],
+  "properties": {
+    "session_id": {
+      "type": "string",
+      "description": "Unique identifier for this sync session"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "upstream_remote": {
+      "type": "string",
+      "description": "Git remote name (e.g., 'upstream')"
+    },
+    "upstream_branch": {
+      "type": "string",
+      "description": "Upstream branch to sync from (e.g., 'dev')"
+    },
+    "local_branch": {
+      "type": "string",
+      "description": "Local branch being updated (e.g., 'master')"
+    },
+    "integration_branch": {
+      "type": "string",
+      "description": "Temporary integration branch name"
+    },
+    "backup_branch": {
+      "type": "string",
+      "description": "Backup branch name created before sync"
+    },
+    "merge_base": {
+      "type": "string",
+      "description": "Git merge-base commit SHA between local and upstream"
+    },
+    "upstream_head": {
+      "type": "string",
+      "description": "Upstream HEAD commit SHA at time of sync"
+    },
+    "local_head": {
+      "type": "string",
+      "description": "Local HEAD commit SHA at time of sync"
+    },
+    "custom_commit_count": {
+      "type": "integer",
+      "description": "Number of custom commits on local branch"
+    },
+    "upstream_new_commit_count": {
+      "type": "integer",
+      "description": "Number of new commits on upstream since merge-base"
+    },
+    "feature_groups": {
+      "type": "array",
+      "description": "Custom feature groups to cherry-pick onto the new base",
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "status", "commits"],
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "description": { "type": "string" },
+          "status": {
+            "type": "string",
+            "enum": ["pending", "in_progress", "applied", "conflict", "skipped", "dropped"]
+          },
+          "commits": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["sha", "message", "status"],
+              "properties": {
+                "sha": { "type": "string" },
+                "message": { "type": "string" },
+                "status": {
+                  "type": "string",
+                  "enum": ["pending", "applied", "conflict", "skipped"]
+                },
+                "conflict_files": {
+                  "type": "array",
+                  "items": { "type": "string" }
+                },
+                "resolution_notes": { "type": "string" }
+              }
+            }
+          },
+          "conflict_summary": { "type": "string" },
+          "resolution_strategy": { "type": "string" }
+        }
+      }
+    },
+    "phases": {
+      "type": "object",
+      "required": ["backup", "fetch", "analyze", "integrate", "cherry_pick", "verify"],
+      "properties": {
+        "backup": {
+          "type": "object",
+          "required": ["status"],
+          "properties": {
+            "status": { "type": "string", "enum": ["pending", "done", "skipped"] },
+            "branch_name": { "type": "string" },
+            "completed_at": { "type": "string", "format": "date-time" }
+          }
+        },
+        "fetch": {
+          "type": "object",
+          "required": ["status"],
+          "properties": {
+            "status": { "type": "string", "enum": ["pending", "done", "failed"] },
+            "completed_at": { "type": "string", "format": "date-time" }
+          }
+        },
+        "analyze": {
+          "type": "object",
+          "required": ["status"],
+          "properties": {
+            "status": { "type": "string", "enum": ["pending", "done"] },
+            "report_path": { "type": "string" },
+            "deleted_files_count": { "type": "integer" },
+            "added_files_count": { "type": "integer" },
+            "modified_files_count": { "type": "integer" },
+            "conflict_risk_areas": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "completed_at": { "type": "string", "format": "date-time" }
+          }
+        },
+        "integrate": {
+          "type": "object",
+          "required": ["status"],
+          "properties": {
+            "status": { "type": "string", "enum": ["pending", "done", "failed"] },
+            "strategy": { "type": "string", "enum": ["merge", "reset_and_cherry_pick"] },
+            "completed_at": { "type": "string", "format": "date-time" }
+          }
+        },
+        "cherry_pick": {
+          "type": "object",
+          "required": ["status"],
+          "properties": {
+            "status": { "type": "string", "enum": ["pending", "in_progress", "done", "blocked"] },
+            "current_group_id": { "type": "string" },
+            "groups_applied": { "type": "integer" },
+            "groups_total": { "type": "integer" },
+            "groups_skipped": { "type": "integer" },
+            "groups_conflict": { "type": "integer" },
+            "completed_at": { "type": "string", "format": "date-time" }
+          }
+        },
+        "verify": {
+          "type": "object",
+          "required": ["status"],
+          "properties": {
+            "status": { "type": "string", "enum": ["pending", "pass", "fail"] },
+            "typecheck_pass": { "type": "boolean" },
+            "test_pass": { "type": "boolean" },
+            "test_report_path": { "type": "string" },
+            "completed_at": { "type": "string", "format": "date-time" }
+          }
+        }
+      }
+    },
+    "notes": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Free-form notes recorded during the sync process"
+    }
+  }
+}
