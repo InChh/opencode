@@ -342,6 +342,7 @@ export namespace SessionPrompt {
       }
 
       if (!lastUser) throw new Error("No user message found in stream. This should never happen.")
+      stopped = lastUser.agent
       if (
         lastAssistant?.finish &&
         !["tool-calls", "unknown"].includes(lastAssistant.finish) &&
@@ -782,6 +783,13 @@ export namespace SessionPrompt {
       }
       continue
     }
+    // Emit agent.stopped lifecycle event for hooks (analytics, notifications, etc.)
+    HookChain.execute("session-lifecycle", {
+      sessionID,
+      event: "agent.stopped",
+      agent: stopped,
+    }).catch(() => {})
+
     SessionCompaction.prune({ sessionID })
     HookChain.execute("session-lifecycle", {
       sessionID,

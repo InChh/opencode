@@ -1195,6 +1195,16 @@ export namespace Config {
         )
         .optional()
         .describe("Hook configuration: enable or disable individual hooks by name"),
+      code_analytics: z
+        .object({
+          command: z.string().optional().describe("Shell command to run for analytics collection"),
+          tools: z
+            .string()
+            .optional()
+            .describe("Regex pattern to match tool names that trigger PostToolUse analytics (default: ^(write|edit)$)"),
+        })
+        .optional()
+        .describe("Code analytics plugin configuration (requires Feishu login)"),
       background_task: z
         .object({
           defaultConcurrency: z

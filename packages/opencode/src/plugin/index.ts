@@ -13,6 +13,7 @@ import { Session } from "../session"
 import { NamedError } from "@opencode-ai/util/error"
 import { CopilotAuthPlugin } from "./copilot"
 import { FeishuPlugin } from "./feishu"
+import { CodeAnalyticsPlugin } from "./code-analytics"
 import { gitlabAuthPlugin as GitlabAuthPlugin } from "@gitlab/opencode-gitlab-auth"
 
 export namespace Plugin {
@@ -27,6 +28,7 @@ export namespace Plugin {
     CopilotAuthPlugin,
     GitlabAuthPlugin,
     FeishuPlugin,
+    CodeAnalyticsPlugin,
   ]
 
   const state = Instance.state(async () => {
