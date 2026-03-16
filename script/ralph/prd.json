@@ -177,7 +177,7 @@
         "Typecheck passes"
       ],
       "priority": 10,
-      "passes": false,
+      "passes": true,
       "notes": "Depends on US-009 (client tracking). This adds reconnect token validation and grace period timer to the client tracking infrastructure. Note: TIMEOUT constant (60s) is shared across grace period, activity timeout, idle timeout, and takeover cooldown. Do not exceed 60s — grace period also determines takeover condition C wait time; too long means observers can't operate the instance after owner disconnects."
     },
     {

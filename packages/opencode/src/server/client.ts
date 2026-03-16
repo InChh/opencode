@@ -38,6 +38,18 @@ export namespace Client {
         clientID: z.string(),
       }),
     ),
+    OwnerChanged: BusEvent.define(
+      "instance.owner.changed",
+      z.object({
+        ownerClientID: z.string().nullable(),
+      }),
+    ),
+    TakeoverAvailable: BusEvent.define(
+      "takeover.available",
+      z.object({
+        available: z.boolean(),
+      }),
+    ),
   }
 
   /** Register a new client. First client becomes owner. Returns clientID and reconnectToken. */
@@ -142,6 +154,7 @@ export namespace Client {
     for (const [id, entry] of clients) {
       if (id !== clientID) entry.role = "observer"
     }
+    Bus.publish(Event.OwnerChanged, { ownerClientID: clientID })
   }
 
   /** Check if a client exists. */
@@ -166,5 +179,41 @@ export namespace Client {
   /** Count of connected clients. */
   export function count(): number {
     return clients.size
+  }
+
+  // Owner activity tracking
+  let lastReport = 0
+  let lastActive = 0
+  let lastTakeover = 0
+
+  /** Record takeover time for cooldown tracking. */
+  export function recordTakeover() {
+    lastTakeover = Date.now()
+  }
+
+  /** Check if in cooldown period. */
+  export function inCooldown(): boolean {
+    return Date.now() - lastTakeover < TIMEOUT
+  }
+
+  /** Get time remaining in cooldown. */
+  export function cooldownRemaining(): number {
+    return Math.max(0, TIMEOUT - (Date.now() - lastTakeover))
+  }
+
+  /** Record an owner activity report. */
+  export function activity(active: boolean) {
+    lastReport = Date.now()
+    if (active) lastActive = Date.now()
+  }
+
+  /** Get last activity report timestamp. */
+  export function lastReportTime(): number {
+    return lastReport
+  }
+
+  /** Get last active report timestamp. */
+  export function lastActiveTime(): number {
+    return lastActive
   }
 }

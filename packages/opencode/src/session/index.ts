@@ -881,6 +881,14 @@ export namespace Session {
     }
   }
 
+  export class LockedError extends Error {
+    public readonly ownerClientID: string
+    constructor(sessionID: string, ownerClientID: string) {
+      super(`Session ${sessionID} is locked by ${ownerClientID}`)
+      this.ownerClientID = ownerClientID
+    }
+  }
+
   export const initialize = fn(
     z.object({
       sessionID: Identifier.schema("session"),

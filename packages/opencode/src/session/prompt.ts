@@ -98,6 +98,19 @@ export namespace SessionPrompt {
     if (match) throw new Session.BusyError(sessionID)
   }
 
+  /** Check ownership and busy state. Non-owner gets 423 Locked. */
+  export function assertCanWrite(sessionID: string, clientID?: string) {
+    // If clientID provided, check ownership
+    if (clientID) {
+      const { Client } = require("@/server/client") as typeof import("@/server/client")
+      const ownerID = Client.ownerID()
+      if (ownerID && ownerID !== clientID) {
+        throw new Session.LockedError(sessionID, ownerID)
+      }
+    }
+    assertNotBusy(sessionID)
+  }
+
   export const PromptInput = z.object({
     sessionID: Identifier.schema("session"),
     messageID: Identifier.schema("message").optional(),
@@ -667,9 +680,7 @@ export namespace SessionPrompt {
         for (let i = 0; i < msgs.length; i++) {
           const msg = msgs[i]
           if (msg.info.role !== "assistant") continue
-          const hasContent = msg.parts.some(
-            (p) => p.type === "text" || p.type === "tool",
-          )
+          const hasContent = msg.parts.some((p) => p.type === "text" || p.type === "tool")
           if (!hasContent) continue
           const startsWithReasoning = msg.parts.length > 0 && msg.parts[0].type === "reasoning"
           if (startsWithReasoning) continue

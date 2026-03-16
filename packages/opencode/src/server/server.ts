@@ -35,6 +35,7 @@ import { ProviderRoutes } from "./routes/provider"
 import { lazy } from "../util/lazy"
 import { InstanceBootstrap } from "../project/bootstrap"
 import { NotFoundError } from "../storage/db"
+import { Session } from "../session"
 import type { ContentfulStatusCode } from "hono/utils/http-status"
 import { websocket } from "hono/bun"
 import { HTTPException } from "hono/http-exception"
@@ -71,6 +72,9 @@ export namespace Server {
           log.error("failed", {
             error: err,
           })
+          if (err instanceof Session.LockedError) {
+            return c.json({ error: "Locked", ownerClientID: err.ownerClientID }, { status: 423 })
+          }
           if (err instanceof NamedError) {
             let status: ContentfulStatusCode
             if (err instanceof NotFoundError) status = 404
@@ -101,6 +105,16 @@ export namespace Server {
           if (!password) return next()
           const username = Flag.OPENCODE_SERVER_USERNAME ?? "opencode"
           return basicAuth({ username, password })(c, next)
+        })
+        .use(async (c, next) => {
+          // ClientID validation for write operations
+          if (c.req.method !== "GET" && c.req.method !== "OPTIONS") {
+            const clientID = c.req.header("X-OpenCode-Client-ID")
+            if (clientID && !Client.has(clientID)) {
+              return c.json({ error: "Forbidden: unknown client" }, { status: 403 })
+            }
+          }
+          return next()
         })
         .use(async (c, next) => {
           const skipLogging = c.req.path === "/log"
@@ -267,6 +281,125 @@ export namespace Server {
         .route("/", FileRoutes())
         .route("/mcp", McpRoutes())
         .route("/tui", TuiRoutes())
+        .post(
+          "/instance/takeover",
+          describeRoute({
+            summary: "Take over instance ownership",
+            description: "Observer takes over instance ownership when conditions are met",
+            operationId: "instance.takeover",
+            responses: {
+              200: { description: "Takeover successful" },
+              409: { description: "Takeover conditions not met" },
+            },
+          }),
+          validator("json", z.object({ force: z.boolean().optional() })),
+          async (c) => {
+            const clientID = c.req.header("X-OpenCode-Client-ID")
+            if (!clientID) return c.json({ error: "Missing client ID" }, { status: 400 })
+
+            const now = Date.now()
+            const currentOwner = Client.ownerID()
+
+            // Check cooldown
+            if (Client.inCooldown()) {
+              return c.json({ reason: "cooldown", retryAfter: Client.cooldownRemaining() }, { status: 409 })
+            }
+
+            // Check takeover conditions
+            const reportTimeout = Client.lastReportTime() > 0 && now - Client.lastReportTime() > TIMEOUT
+            const activeTimeout = Client.lastActiveTime() > 0 && now - Client.lastActiveTime() > TIMEOUT
+            const ownerGone = currentOwner !== null && !Client.has(currentOwner)
+            const available = reportTimeout || activeTimeout || ownerGone || currentOwner === null
+
+            if (!available) {
+              return c.json({ reason: "owner_active", ownerClientID: currentOwner }, { status: 409 })
+            }
+
+            // Takeover
+            Client.setOwner(clientID)
+            Client.recordTakeover()
+            return c.json({ ownerClientID: clientID })
+          },
+        )
+        .post(
+          "/instance/activity",
+          describeRoute({
+            summary: "Report owner activity",
+            description: "Owner sends activity heartbeat",
+            operationId: "instance.activity",
+            responses: {
+              200: { description: "Activity recorded" },
+              403: { description: "Not the owner" },
+            },
+          }),
+          validator("json", z.object({ active: z.boolean() })),
+          async (c) => {
+            const clientID = c.req.header("X-OpenCode-Client-ID")
+            if (!clientID || clientID !== Client.ownerID()) {
+              return c.json({ error: "Forbidden: not the owner" }, { status: 403 })
+            }
+            Client.activity(c.req.valid("json").active)
+            return c.json(true)
+          },
+        )
+        .get(
+          "/clients",
+          describeRoute({
+            summary: "List connected clients",
+            description: "Get list of connected clients and their roles",
+            operationId: "clients.list",
+            responses: {
+              200: {
+                description: "Connected clients",
+                content: {
+                  "application/json": {
+                    schema: resolver(
+                      z.object({
+                        ownerClientID: z.string().nullable(),
+                        takeoverAvailable: z.boolean(),
+                        clients: z.array(
+                          z.object({
+                            clientID: z.string(),
+                            role: z.enum(["owner", "observer"]),
+                            type: z.string(),
+                            remoteIP: z.string(),
+                            connectedAt: z.number(),
+                            duration: z.number(),
+                          }),
+                        ),
+                      }),
+                    ),
+                  },
+                },
+              },
+            },
+          }),
+          async (c) => {
+            const now = Date.now()
+            const entries = Array.from(Client.all().entries()).map(([id, entry]) => ({
+              clientID: id,
+              role: entry.role,
+              type: entry.type,
+              remoteIP: entry.remoteIP,
+              connectedAt: entry.connectedAt,
+              duration: now - entry.connectedAt,
+            }))
+            const curOwner = Client.ownerID()
+            const takeoverAvailable = (() => {
+              if (Client.inCooldown()) return false
+              if (curOwner === null) return true
+              if (!Client.has(curOwner)) return true
+              if (Client.lastReportTime() > 0 && now - Client.lastReportTime() > TIMEOUT) return true
+              if (Client.lastActiveTime() > 0 && now - Client.lastActiveTime() > TIMEOUT) return true
+              return false
+            })()
+            return c.json({
+              ownerClientID: curOwner,
+              takeoverAvailable,
+              clients: entries,
+            })
+          },
+        )
         .post(
           "/instance/dispose",
           describeRoute({

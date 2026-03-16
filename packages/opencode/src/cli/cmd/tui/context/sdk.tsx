@@ -1,7 +1,15 @@
 import { createOpencodeClient, type Event } from "@opencode-ai/sdk/v2"
 import { createSimpleContext } from "./helper"
 import { createGlobalEmitter } from "@solid-primitives/event-bus"
-import { batch, onCleanup, onMount } from "solid-js"
+import { batch, createSignal, onCleanup, onMount } from "solid-js"
+
+export type ConnectionState = {
+  clientID: string | null
+  reconnectToken: string | null
+  role: "owner" | "observer" | null
+  ownerClientID: string | null
+  timeout: number
+}
 
 export const { use: useSDK, provider: SDKProvider } = createSimpleContext({
   name: "SDK",
@@ -19,6 +27,14 @@ export const { use: useSDK, provider: SDKProvider } = createSimpleContext({
       [key in Event["type"]]: Extract<Event, { type: key }>
     }>()
 
+    const [connection, setConnection] = createSignal<ConnectionState>({
+      clientID: null,
+      reconnectToken: null,
+      role: null,
+      ownerClientID: null,
+      timeout: 60_000,
+    })
+
     let queue: Event[] = []
     let timer: Timer | undefined
     let last = 0
@@ -29,7 +45,6 @@ export const { use: useSDK, provider: SDKProvider } = createSimpleContext({
       queue = []
       timer = undefined
       last = Date.now()
-      // Batch all event emissions so all store updates result in a single render
       batch(() => {
         for (const event of events) {
           emitter.emit(event.type, event)
@@ -38,12 +53,24 @@ export const { use: useSDK, provider: SDKProvider } = createSimpleContext({
     }
 
     const handle = (event: Event) => {
+      // Intercept server.connected to extract clientID and role info
+      if (event.type === "server.connected") {
+        const props = event.properties as Record<string, unknown>
+        if (props.clientID) {
+          setConnection({
+            clientID: props.clientID as string,
+            reconnectToken: props.reconnectToken as string,
+            role: props.role as "owner" | "observer",
+            ownerClientID: props.ownerClientID as string | null,
+            timeout: (props.timeout as number) ?? 60_000,
+          })
+        }
+      }
+
       queue.push(event)
       const elapsed = Date.now() - last
 
       if (timer) return
-      // If we just flushed recently (within 16ms), batch this with future events
-      // Otherwise, process immediately to avoid latency
       if (elapsed < 16) {
         timer = setTimeout(flush, 16)
         return
@@ -52,7 +79,6 @@ export const { use: useSDK, provider: SDKProvider } = createSimpleContext({
     }
 
     onMount(async () => {
-      // All connections use SSE
       while (true) {
         if (abort.signal.aborted) break
         const events = await sdk.event
@@ -73,7 +99,6 @@ export const { use: useSDK, provider: SDKProvider } = createSimpleContext({
           handle(event)
         }
 
-        // Flush any remaining events
         if (timer) clearTimeout(timer)
         if (queue.length > 0) {
           flush()
@@ -86,6 +111,12 @@ export const { use: useSDK, provider: SDKProvider } = createSimpleContext({
       if (timer) clearTimeout(timer)
     })
 
-    return { client: sdk, event: emitter, url: props.url, fetch: props.fetch ?? globalThis.fetch }
+    return {
+      client: sdk,
+      event: emitter,
+      url: props.url,
+      fetch: props.fetch ?? globalThis.fetch,
+      connection,
+    }
   },
 })
