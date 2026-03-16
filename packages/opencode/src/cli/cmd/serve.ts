@@ -4,10 +4,15 @@ import { withNetworkOptions, resolveNetworkOptions } from "../network"
 import { Flag } from "../../flag/flag"
 import { Lockfile } from "../../server/lockfile"
 import { Instance } from "../../project/instance"
+import { AuthToken } from "../../server/auth-token"
 
 export const ServeCommand = cmd({
   command: "serve",
-  builder: (yargs) => withNetworkOptions(yargs),
+  builder: (yargs) =>
+    withNetworkOptions(yargs).option("auth-token", {
+      type: "string",
+      describe: "auth token for Bearer authentication (auto-generated when hostname is not loopback)",
+    }),
   describe: "starts a headless opencode server",
   handler: async (args) => {
     if (!Flag.OPENCODE_SERVER_PASSWORD) {
@@ -26,13 +31,23 @@ export const ServeCommand = cmd({
     }
 
     const opts = await resolveNetworkOptions(args)
+
+    // Set up auth token when hostname is not loopback
+    const token = (() => {
+      if (AuthToken.loopback(opts.hostname)) return null
+      const val = ((args as Record<string, unknown>)["auth-token"] as string | undefined) ?? AuthToken.generate()
+      AuthToken.set(val)
+      console.log(`Auth token: ${val}`)
+      return val
+    })()
+
     const server = Server.listen(opts)
     const port = server.port!
 
     const ok = await Lockfile.create(dir, {
       pid: process.pid,
       port,
-      token: null,
+      token,
       createdAt: Date.now(),
     })
 

@@ -6,6 +6,7 @@ import { Config } from "@/config/config"
 import { registerAllHooks } from "@/session/hooks/register"
 import { Lockfile } from "@/server/lockfile"
 import { Lifecycle } from "@/server/lifecycle"
+import { AuthToken } from "@/server/auth-token"
 import type { BunWebSocketData } from "hono/bun"
 
 await Log.init({
@@ -57,6 +58,21 @@ const port = (() => {
   return parseInt(process.argv[idx + 1], 10) || 0
 })()
 
+const authTokenArg = (() => {
+  const idx = process.argv.indexOf("--auth-token")
+  if (idx === -1 || idx + 1 >= process.argv.length) return undefined
+  return process.argv[idx + 1]
+})()
+
+// Set up auth token when hostname is not loopback
+const token = (() => {
+  if (AuthToken.loopback(hostname)) return null
+  const val = authTokenArg ?? AuthToken.generate()
+  AuthToken.set(val)
+  Log.Default.info("auth token", { token: val })
+  return val
+})()
+
 let server: Bun.Server<BunWebSocketData> | undefined
 
 // Start HTTP server and write lock file
@@ -67,7 +83,7 @@ const bound = server.port!
 const ok = await Lockfile.create(dir, {
   pid: process.pid,
   port: bound,
-  token: null,
+  token,
   createdAt: Date.now(),
 })
 

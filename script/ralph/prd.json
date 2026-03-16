@@ -75,7 +75,7 @@
         "Typecheck passes"
       ],
       "priority": 4,
-      "passes": false,
+      "passes": true,
       "notes": "Depends on US-002 (detached process model). Grace period timeout constant should be defined as a shared constant (TIMEOUT = 60_000) for reuse by later ownership stories. opencode serve is a foreground process (not detached) — distinct from TUI-launched detached Workers."
     },
     {
