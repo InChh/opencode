@@ -1948,8 +1948,7 @@ function Task(props: ToolProps<typeof TaskTool>) {
   const sync = useSync()
 
   onMount(() => {
-    if (props.metadata.sessionId && !sync.data.message[props.metadata.sessionId]?.length)
-      sync.session.sync(props.metadata.sessionId)
+    if (props.metadata.sessionId) sync.session.sync(props.metadata.sessionId)
   })
 
   const messages = createMemo(() => sync.data.message[props.metadata.sessionId ?? ""] ?? [])
