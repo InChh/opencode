@@ -45,6 +45,8 @@ import { GlobalRoutes } from "./routes/global"
 import { MDNS } from "./mdns"
 import { Lifecycle } from "./lifecycle"
 import { AuthToken } from "./auth-token"
+import { Client } from "./client"
+import { TIMEOUT } from "./lifecycle"
 
 // @ts-ignore This global is needed to prevent ai-sdk from logging warnings to stdout https://github.com/vercel/ai/blob/2dc67e0ef538307f21368db32d5a12345d98831b/packages/ai/src/logger/log-warnings.ts#L85
 globalThis.AI_SDK_LOG_WARNINGS = false
@@ -559,11 +561,28 @@ export namespace Server {
             c.header("X-Accel-Buffering", "no")
             c.header("X-Content-Type-Options", "nosniff")
             Lifecycle.connect()
+
+            const clientType = c.req.header("X-OpenCode-Client-Type") ?? "tui"
+            const remoteIP = c.req.header("X-Forwarded-For") ?? c.req.header("X-Real-IP") ?? "127.0.0.1"
+            const directory = c.req.header("x-opencode-directory") ?? process.cwd()
+
+            const registration = Client.add({
+              directory,
+              type: clientType,
+              remoteIP,
+            })
+
             return streamSSE(c, async (stream) => {
               stream.writeSSE({
                 data: JSON.stringify({
                   type: "server.connected",
-                  properties: {},
+                  properties: {
+                    clientID: registration.clientID,
+                    reconnectToken: registration.reconnectToken,
+                    role: registration.role,
+                    ownerClientID: registration.ownerClientID,
+                    timeout: TIMEOUT,
+                  },
                 }),
               })
               const unsub = Bus.subscribeAll(async (event) => {
@@ -590,8 +609,9 @@ export namespace Server {
                   clearInterval(heartbeat)
                   unsub()
                   Lifecycle.disconnect()
+                  Client.remove(registration.clientID)
                   resolve()
-                  log.info("event disconnected")
+                  log.info("event disconnected", { clientID: registration.clientID })
                 })
               })
             })

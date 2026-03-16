@@ -1,0 +1,143 @@
+import crypto from "crypto"
+import z from "zod"
+import { BusEvent } from "@/bus/bus-event"
+import { Bus } from "@/bus"
+import { Log } from "@/util/log"
+import { TIMEOUT } from "./lifecycle"
+
+const log = Log.create({ service: "client" })
+
+export namespace Client {
+  export type Role = "owner" | "observer"
+
+  export interface Entry {
+    directory: string
+    connectedAt: number
+    reconnectToken: string
+    role: Role
+    type: string
+    remoteIP: string
+  }
+
+  const clients = new Map<string, Entry>()
+  let owner: string | null = null
+
+  export const Event = {
+    Connected: BusEvent.define(
+      "client.connected",
+      z.object({
+        clientID: z.string(),
+        role: z.enum(["owner", "observer"]),
+        type: z.string(),
+        remoteIP: z.string(),
+      }),
+    ),
+    Disconnected: BusEvent.define(
+      "client.disconnected",
+      z.object({
+        clientID: z.string(),
+      }),
+    ),
+  }
+
+  /** Register a new client. First client becomes owner. Returns clientID and reconnectToken. */
+  export function add(opts: { directory: string; type: string; remoteIP: string }): {
+    clientID: string
+    reconnectToken: string
+    role: Role
+    ownerClientID: string | null
+  } {
+    const clientID = crypto.randomUUID()
+    const reconnectToken = crypto.randomUUID()
+    const role: Role = owner === null ? "owner" : "observer"
+    if (role === "owner") owner = clientID
+
+    clients.set(clientID, {
+      directory: opts.directory,
+      connectedAt: Date.now(),
+      reconnectToken,
+      role,
+      type: opts.type,
+      remoteIP: opts.remoteIP,
+    })
+
+    log.info("client added", { clientID, role, type: opts.type })
+
+    Bus.publish(Event.Connected, {
+      clientID,
+      role,
+      type: opts.type,
+      remoteIP: opts.remoteIP,
+    })
+
+    return { clientID, reconnectToken, role, ownerClientID: owner }
+  }
+
+  /** Remove a client. */
+  export function remove(clientID: string) {
+    const entry = clients.get(clientID)
+    if (!entry) return
+    clients.delete(clientID)
+
+    log.info("client removed", { clientID })
+
+    Bus.publish(Event.Disconnected, { clientID })
+
+    // If owner left and no clients remain, reset owner
+    if (owner === clientID) {
+      owner = null
+    }
+  }
+
+  /** Get a client entry by ID. */
+  export function get(clientID: string): Entry | undefined {
+    return clients.get(clientID)
+  }
+
+  /** Get all clients. */
+  export function all(): Map<string, Entry> {
+    return clients
+  }
+
+  /** Get the current owner client ID. */
+  export function ownerID(): string | null {
+    return owner
+  }
+
+  /** Set owner (for takeover). */
+  export function setOwner(clientID: string | null) {
+    owner = clientID
+    if (clientID) {
+      const entry = clients.get(clientID)
+      if (entry) entry.role = "owner"
+    }
+    // Reset all other clients to observer
+    for (const [id, entry] of clients) {
+      if (id !== clientID) entry.role = "observer"
+    }
+  }
+
+  /** Check if a client exists. */
+  export function has(clientID: string): boolean {
+    return clients.has(clientID)
+  }
+
+  /** Update reconnect token for a client. */
+  export function setReconnectToken(clientID: string, token: string) {
+    const entry = clients.get(clientID)
+    if (entry) entry.reconnectToken = token
+  }
+
+  /** Find client by reconnect token. */
+  export function findByReconnectToken(token: string): string | undefined {
+    for (const [id, entry] of clients) {
+      if (entry.reconnectToken === token) return id
+    }
+    return undefined
+  }
+
+  /** Count of connected clients. */
+  export function count(): number {
+    return clients.size
+  }
+}

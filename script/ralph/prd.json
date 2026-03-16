@@ -141,7 +141,7 @@
         "Typecheck passes"
       ],
       "priority": 8,
-      "passes": false,
+      "passes": true,
       "notes": "Depends on US-007 (migration). Non-persisted state (client list, ownership) will use server in-memory per-entity incrementing counters — added in later stories. This story touches every write path for session/message/part + all API responses + all SSE events — if too large for one iteration, consider splitting into 'session update_seq' and 'message/part update_seq'."
     },
     {
