@@ -282,6 +282,27 @@ export namespace Server {
         .route("/mcp", McpRoutes())
         .route("/tui", TuiRoutes())
         .post(
+          "/session/:sessionID/typing",
+          describeRoute({
+            summary: "Report typing status",
+            description: "Owner reports that they are typing in a session",
+            operationId: "session.typing",
+            responses: {
+              200: { description: "Typing recorded" },
+              403: { description: "Not the owner" },
+            },
+          }),
+          async (c) => {
+            const clientID = c.req.header("X-OpenCode-Client-ID")
+            if (!clientID || clientID !== Client.ownerID()) {
+              return c.json({ error: "Forbidden" }, { status: 403 })
+            }
+            const sessionID = c.req.param("sessionID")
+            Bus.publish(Client.Event.Typing, { sessionID, clientID })
+            return c.json(true)
+          },
+        )
+        .post(
           "/instance/takeover",
           describeRoute({
             summary: "Take over instance ownership",

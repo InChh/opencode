@@ -1,8 +1,11 @@
 import crypto from "crypto"
 import z from "zod"
+import fsp from "fs/promises"
+import path from "path"
 import { BusEvent } from "@/bus/bus-event"
 import { Bus } from "@/bus"
 import { Log } from "@/util/log"
+import { Global } from "@/global"
 import { TIMEOUT } from "./lifecycle"
 
 const log = Log.create({ service: "client" })
@@ -48,6 +51,13 @@ export namespace Client {
       "takeover.available",
       z.object({
         available: z.boolean(),
+      }),
+    ),
+    Typing: BusEvent.define(
+      "session.typing",
+      z.object({
+        sessionID: z.string(),
+        clientID: z.string(),
       }),
     ),
   }
@@ -143,6 +153,28 @@ export namespace Client {
     return owner
   }
 
+  const ownerFile = path.join(Global.Path.data, "owner.json")
+
+  /** Persist owner clientID to disk for server restart recovery. */
+  async function persistOwner(clientID: string | null) {
+    if (clientID) {
+      await fsp.writeFile(ownerFile, JSON.stringify({ clientID })).catch(() => {})
+    } else {
+      await fsp.unlink(ownerFile).catch(() => {})
+    }
+  }
+
+  /** Read persisted owner clientID. */
+  export async function loadPersistedOwner(): Promise<string | null> {
+    try {
+      const raw = await fsp.readFile(ownerFile, "utf-8")
+      const data = JSON.parse(raw)
+      return data.clientID ?? null
+    } catch {
+      return null
+    }
+  }
+
   /** Set owner (for takeover). */
   export function setOwner(clientID: string | null) {
     owner = clientID
@@ -154,6 +186,7 @@ export namespace Client {
     for (const [id, entry] of clients) {
       if (id !== clientID) entry.role = "observer"
     }
+    persistOwner(clientID)
     Bus.publish(Event.OwnerChanged, { ownerClientID: clientID })
   }
 

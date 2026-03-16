@@ -192,7 +192,7 @@
         "Typecheck passes"
       ],
       "priority": 11,
-      "passes": false,
+      "passes": true,
       "notes": "Depends on US-009 (client tracking). takeoverAvailable will be computed properly when takeover endpoint is implemented."
     },
     {
@@ -209,7 +209,7 @@
         "Typecheck passes"
       ],
       "priority": 12,
-      "passes": false,
+      "passes": true,
       "notes": "Depends on US-009 (server-side client tracking). config.headers in v2/client.ts is currently static — needs extension to support dynamic/function-form values."
     },
     {
@@ -224,7 +224,7 @@
         "Typecheck passes"
       ],
       "priority": 13,
-      "passes": false,
+      "passes": true,
       "notes": "Depends on US-009 (ConnectedClients Map). This middleware enforces that write operations come from known clients."
     },
     {
@@ -242,7 +242,7 @@
         "Typecheck passes"
       ],
       "priority": 14,
-      "passes": false,
+      "passes": true,
       "notes": "Depends on US-009/010 (client tracking + reconnect). This establishes the ownership model without the enforcement (US-015) or takeover (US-017/018). Ownership state uses in-memory update_seq counter (non-persisted) for SSE event versioning consistency."
     },
     {
@@ -258,7 +258,7 @@
         "Typecheck passes"
       ],
       "priority": 15,
-      "passes": false,
+      "passes": true,
       "notes": "Depends on US-014. Modifies prompt.ts assertNotBusy → assertCanWrite. Server-side enforcement — TUI-side UI changes come later."
     },
     {
@@ -274,7 +274,7 @@
         "Typecheck passes"
       ],
       "priority": 16,
-      "passes": false,
+      "passes": true,
       "notes": "Depends on US-014. Prerequisite for takeover conditions. Uses separate POST endpoint (not SSE) because SSE is server→client only."
     },
     {
@@ -291,7 +291,7 @@
         "Typecheck passes"
       ],
       "priority": 17,
-      "passes": false,
+      "passes": true,
       "notes": "Depends on US-016 (activity heartbeat). retry status treated same as busy for all takeover logic. See PRD pseudocode for handleTakeover flow. Full /instance/takeover API schema has 4 different 409 response variants: { reason: 'cooldown', retryAfter } (US-018), { reason: 'owner_active', ownerClientID }, { reason: 'active_sessions', ownerClientID, sessions }, { reason: 'owner_changed', ownerClientID } (US-018). Success 200: { ownerClientID }."
     },
     {
@@ -308,7 +308,7 @@
         "Typecheck passes"
       ],
       "priority": 18,
-      "passes": false,
+      "passes": true,
       "notes": "Depends on US-017 (takeover core). Adds cooldown, race protection, self-takeover, and broadcast event on top of core takeover logic. Conditions A and B are time-based (Date.now() - lastReport > TIMEOUT), so server needs a timer mechanism to detect when these conditions become true due to time passing."
     },
     {
