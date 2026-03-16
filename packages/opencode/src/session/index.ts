@@ -10,7 +10,7 @@ import { Flag } from "../flag/flag"
 import { Identifier } from "../id/id"
 import { Installation } from "../installation"
 
-import { Database, NotFoundError, eq, and, or, gte, isNull, desc, like, inArray, lt } from "../storage/db"
+import { Database, NotFoundError, eq, and, or, gte, isNull, desc, like, inArray, lt, sql } from "../storage/db"
 import type { SQL } from "../storage/db"
 import { SessionTable, MessageTable, PartTable } from "./session.sql"
 import { ProjectTable } from "../project/project.sql"
@@ -73,6 +73,7 @@ export namespace Session {
       share,
       revert,
       permission: row.permission ?? undefined,
+      updateSeq: row.update_seq,
       time: {
         created: row.time_created,
         updated: row.time_updated,
@@ -154,6 +155,7 @@ export namespace Session {
           diff: z.string().optional(),
         })
         .optional(),
+      updateSeq: z.number().optional(),
     })
     .meta({
       ref: "Session",
@@ -278,7 +280,7 @@ export namespace Session {
     Database.use((db) => {
       const row = db
         .update(SessionTable)
-        .set({ time_updated: now })
+        .set({ time_updated: now, update_seq: sql`update_seq + 1` })
         .where(eq(SessionTable.id, sessionID))
         .returning()
         .get()
@@ -351,7 +353,12 @@ export namespace Session {
     const { ShareNext } = await import("@/share/share-next")
     const share = await ShareNext.create(id)
     Database.use((db) => {
-      const row = db.update(SessionTable).set({ share_url: share.url }).where(eq(SessionTable.id, id)).returning().get()
+      const row = db
+        .update(SessionTable)
+        .set({ share_url: share.url, update_seq: sql`update_seq + 1` })
+        .where(eq(SessionTable.id, id))
+        .returning()
+        .get()
       if (!row) throw new NotFoundError({ message: `Session not found: ${id}` })
       const info = fromRow(row)
       Database.effect(() => Bus.publish(Event.Updated, { info }))
@@ -364,7 +371,12 @@ export namespace Session {
     const { ShareNext } = await import("@/share/share-next")
     await ShareNext.remove(id)
     Database.use((db) => {
-      const row = db.update(SessionTable).set({ share_url: null }).where(eq(SessionTable.id, id)).returning().get()
+      const row = db
+        .update(SessionTable)
+        .set({ share_url: null, update_seq: sql`update_seq + 1` })
+        .where(eq(SessionTable.id, id))
+        .returning()
+        .get()
       if (!row) throw new NotFoundError({ message: `Session not found: ${id}` })
       const info = fromRow(row)
       Database.effect(() => Bus.publish(Event.Updated, { info }))
@@ -380,7 +392,7 @@ export namespace Session {
       return Database.use((db) => {
         const row = db
           .update(SessionTable)
-          .set({ title: input.title })
+          .set({ title: input.title, update_seq: sql`update_seq + 1` })
           .where(eq(SessionTable.id, input.sessionID))
           .returning()
           .get()
@@ -401,7 +413,7 @@ export namespace Session {
       return Database.use((db) => {
         const row = db
           .update(SessionTable)
-          .set({ time_archived: input.time })
+          .set({ time_archived: input.time, update_seq: sql`update_seq + 1` })
           .where(eq(SessionTable.id, input.sessionID))
           .returning()
           .get()
@@ -422,7 +434,7 @@ export namespace Session {
       return Database.use((db) => {
         const row = db
           .update(SessionTable)
-          .set({ permission: input.permission, time_updated: Date.now() })
+          .set({ permission: input.permission, time_updated: Date.now(), update_seq: sql`update_seq + 1` })
           .where(eq(SessionTable.id, input.sessionID))
           .returning()
           .get()
@@ -450,6 +462,7 @@ export namespace Session {
             summary_deletions: input.summary?.deletions,
             summary_files: input.summary?.files,
             time_updated: Date.now(),
+            update_seq: sql`update_seq + 1`,
           })
           .where(eq(SessionTable.id, input.sessionID))
           .returning()
@@ -469,6 +482,7 @@ export namespace Session {
         .set({
           revert: null,
           time_updated: Date.now(),
+          update_seq: sql`update_seq + 1`,
         })
         .where(eq(SessionTable.id, sessionID))
         .returning()
@@ -494,6 +508,7 @@ export namespace Session {
             summary_deletions: input.summary?.deletions,
             summary_files: input.summary?.files,
             time_updated: Date.now(),
+            update_seq: sql`update_seq + 1`,
           })
           .where(eq(SessionTable.id, input.sessionID))
           .returning()
@@ -687,7 +702,7 @@ export namespace Session {
           time_created,
           data,
         })
-        .onConflictDoUpdate({ target: MessageTable.id, set: { data } })
+        .onConflictDoUpdate({ target: MessageTable.id, set: { data, update_seq: sql`update_seq + 1` } })
         .run()
       Database.effect(() =>
         Bus.publish(MessageV2.Event.Updated, {
@@ -757,7 +772,7 @@ export namespace Session {
           time_created: time,
           data,
         })
-        .onConflictDoUpdate({ target: PartTable.id, set: { data } })
+        .onConflictDoUpdate({ target: PartTable.id, set: { data, update_seq: sql`update_seq + 1` } })
         .run()
       Database.effect(() =>
         Bus.publish(MessageV2.Event.PartUpdated, {

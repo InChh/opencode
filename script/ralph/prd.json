@@ -125,7 +125,7 @@
         "Typecheck passes"
       ],
       "priority": 7,
-      "passes": false,
+      "passes": true,
       "notes": "Session table has existing 'version' column storing software version string like '0.0.3' — cannot be reused. time_updated is millisecond timestamp which isn't monotonically incrementing for same-ms writes. This is schema-only — incrementing logic comes in next story."
     },
     {

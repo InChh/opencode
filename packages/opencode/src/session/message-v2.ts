@@ -81,6 +81,7 @@ export namespace MessageV2 {
     id: z.string(),
     sessionID: z.string(),
     messageID: z.string(),
+    updateSeq: z.number().optional(),
   })
 
   export const SnapshotPart = PartBase.extend({
@@ -345,6 +346,7 @@ export namespace MessageV2 {
   const Base = z.object({
     id: z.string(),
     sessionID: z.string(),
+    updateSeq: z.number().optional(),
   })
 
   export const User = Base.extend({
@@ -761,6 +763,7 @@ export namespace MessageV2 {
             id: row.id,
             sessionID: row.session_id,
             messageID: row.message_id,
+            updateSeq: row.update_seq,
           } as MessageV2.Part
           const list = partsByMessage.get(row.message_id)
           if (list) list.push(part)
@@ -769,7 +772,7 @@ export namespace MessageV2 {
       }
 
       for (const row of rows) {
-        const info = { ...row.data, id: row.id, sessionID: row.session_id } as MessageV2.Info
+        const info = { ...row.data, id: row.id, sessionID: row.session_id, updateSeq: row.update_seq } as MessageV2.Info
         yield {
           info,
           parts: partsByMessage.get(row.id) ?? [],
@@ -786,7 +789,14 @@ export namespace MessageV2 {
       db.select().from(PartTable).where(eq(PartTable.message_id, message_id)).orderBy(PartTable.id).all(),
     )
     return rows.map(
-      (row) => ({ ...row.data, id: row.id, sessionID: row.session_id, messageID: row.message_id }) as MessageV2.Part,
+      (row) =>
+        ({
+          ...row.data,
+          id: row.id,
+          sessionID: row.session_id,
+          messageID: row.message_id,
+          updateSeq: row.update_seq,
+        }) as MessageV2.Part,
     )
   })
 
@@ -798,7 +808,7 @@ export namespace MessageV2 {
     async (input): Promise<WithParts> => {
       const row = Database.use((db) => db.select().from(MessageTable).where(eq(MessageTable.id, input.messageID)).get())
       if (!row) throw new Error(`Message not found: ${input.messageID}`)
-      const info = { ...row.data, id: row.id, sessionID: row.session_id } as MessageV2.Info
+      const info = { ...row.data, id: row.id, sessionID: row.session_id, updateSeq: row.update_seq } as MessageV2.Info
       return {
         info,
         parts: await parts(input.messageID),
