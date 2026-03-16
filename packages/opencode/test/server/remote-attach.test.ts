@@ -391,33 +391,24 @@ describe("POST /instance/takeover", () => {
     expect(res.status).toBe(400)
   })
 
-  test("takeover succeeds when owner is null", async () => {
+  test("owner removal with no remaining clients sets owner to null", async () => {
     await withCtx(async () => {
       const reg = Client.add({ directory: "/tmp", type: "tui", remoteIP: "127.0.0.1" })
-      // Remove owner so ownerID becomes null
       Client.remove(reg.clientID)
       expect(Client.ownerID()).toBeNull()
+    })
+  })
 
-      const newClient = Client.add({ directory: "/tmp", type: "tui", remoteIP: "127.0.0.2" })
-      // newClient is now owner since no one was registered
-      // But let's test the takeover path directly: force another client to be observer
-      const observer = Client.add({ directory: "/tmp", type: "tui", remoteIP: "127.0.0.3" })
+  test("owner removal auto-promotes earliest observer", async () => {
+    await withCtx(async () => {
+      const first = Client.add({ directory: "/tmp", type: "tui", remoteIP: "127.0.0.1" })
+      const second = Client.add({ directory: "/tmp", type: "tui", remoteIP: "127.0.0.2" })
+      expect(first.role).toBe("owner")
+      expect(second.role).toBe("observer")
 
-      // Remove owner again
-      Client.remove(newClient.clientID)
-      expect(Client.ownerID()).toBeNull()
-
-      const res = await fetch(`${base()}/instance/takeover`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-OpenCode-Client-ID": observer.clientID,
-        },
-        body: JSON.stringify({}),
-      })
-      expect(res.status).toBe(200)
-      const body = await res.json()
-      expect(body.ownerClientID).toBe(observer.clientID)
+      Client.remove(first.clientID)
+      expect(Client.ownerID()).toBe(second.clientID)
+      expect(Client.get(second.clientID)!.role).toBe("owner")
     })
   })
 

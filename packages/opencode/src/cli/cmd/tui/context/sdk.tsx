@@ -95,11 +95,13 @@ export const { use: useSDK, provider: SDKProvider } = createSimpleContext({
     onMount(async () => {
       while (true) {
         if (abort.signal.aborted) break
+        const token = connection().reconnectToken
         const events = await sdk.event
           .subscribe(
             {},
             {
               signal: abort.signal,
+              headers: token ? { "X-OpenCode-Reconnect-Token": token } : undefined,
             },
           )
           .catch(() => undefined)

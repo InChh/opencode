@@ -136,10 +136,17 @@ export namespace Client {
 
     Bus.publish(Event.Disconnected, { clientID })
 
-    // If owner left and no clients remain, reset owner
+    // If owner left, promote the earliest connected observer
     if (owner === clientID) {
-      owner = null
-      setOwnerState(null)
+      let next: string | null = null
+      let earliest = Infinity
+      for (const [id, e] of clients) {
+        if (e.connectedAt < earliest) {
+          earliest = e.connectedAt
+          next = id
+        }
+      }
+      setOwner(next)
     }
   }
 
