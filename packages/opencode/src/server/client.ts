@@ -240,6 +240,11 @@ export namespace Client {
     return Math.max(0, TIMEOUT - (Date.now() - lastTakeover))
   }
 
+  /** Reset cooldown state. */
+  export function resetCooldown() {
+    lastTakeover = 0
+  }
+
   /** Record an owner activity report. */
   export function activity(active: boolean) {
     lastReport = Date.now()

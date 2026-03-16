@@ -1,606 +1,610 @@
 {
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/session/hooks/llm-parameters.test.ts": {
-    "avg": 14380.3229,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/tool/skill-enhanced.test.ts": {
-    "avg": 14277.689999999999,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/session/hooks/hook-chain.test.ts": {
-    "avg": 15215.126099999998,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/session/hooks/error-recovery.test.ts": {
-    "avg": 16508.9858,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/session/hooks/output-management.test.ts": {
-    "avg": 16415.174199999998,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/session/hooks/session-lifecycle.test.ts": {
-    "avg": 16556.1495,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/session/hooks/context-injection.test.ts": {
-    "avg": 17160.6842,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/session/hooks/detection-checking.test.ts": {
-    "avg": 20022.807999999997,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/provider/provider.test.ts": {
-    "avg": 19002.5184,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/tool/bash.test.ts": {
-    "avg": 20428.5616,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/session/llm.test.ts": {
-    "avg": 8117.139599999999,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/memory/abort-leak.test.ts": {
-    "avg": 22584.767799999998,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/session/hooks/agent-enforcement.test.ts": {
-    "avg": 9088.3665,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/session/persistent-task.test.ts": {
-    "avg": 7764.1614,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/tool/delegate-task.test.ts": {
-    "avg": 23948.838999999996,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/skill/skill.test.ts": {
-    "avg": 8501.6205,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/skill/builtin-skills.test.ts": {
-    "avg": 6892.270299999999,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/pty/pty-output-isolation.test.ts": {
-    "avg": 11469.5548,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/session/prompt.test.ts": {
-    "avg": 9716.4195,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/plugin/auth-override.test.ts": {
-    "avg": 7708.719999999999,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/provider/gitlab-duo.test.ts": {
-    "avg": 10391.025299999998,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/session/retry.test.ts": {
-    "avg": 8648.811,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/session/hooks/hooks-bench.test.ts": {
-    "avg": 7058.284299999999,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/log/capture.test.ts": {
-    "avg": 6174.2282,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/agent/agent.test.ts": {
-    "avg": 6526.1204,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/tool/read.test.ts": {
-    "avg": 7693.378,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/agent/background/manager.test.ts": {
-    "avg": 5182.143899999999,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/agent/sisyphus.test.ts": {
-    "avg": 5860.351999999999,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/server/global-session-list.test.ts": {
-    "avg": 6400.6797,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/session/revert-compact.test.ts": {
-    "avg": 6910.8688,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/control-plane/workspace-server-sse.test.ts": {
-    "avg": 10935.3512,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/security/access_control_cases/unit/access-guard-integration.test.ts": {
-    "avg": 5697.9478,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/provider/amazon-bedrock.test.ts": {
-    "avg": 10280.7498,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/security/integration/context-injection-security.test.ts": {
-    "avg": 4571.9947999999995,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/session/compaction.test.ts": {
-    "avg": 4274.643599999999,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/tool/skill.test.ts": {
-    "avg": 4485.018999999999,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/snapshot/snapshot.test.ts": {
-    "avg": 38047.3253,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/agent/optional-agents.test.ts": {
-    "avg": 4021.5004999999996,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/project/worktree-remove.test.ts": {
-    "avg": 6334.021199999999,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/acp/event-subscription.test.ts": {
-    "avg": 4229.643499999999,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/agent/optional-agents-batch2.test.ts": {
-    "avg": 3963.9528,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/agent/omo-explore.test.ts": {
-    "avg": 3953.9421999999995,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/agent/background/categories.test.ts": {
-    "avg": 3873.7715,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/tool/look-at.test.ts": {
-    "avg": 3992.8758999999995,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/session/session.test.ts": {
-    "avg": 4334.7917,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/server/session-list.test.ts": {
-    "avg": 3951.447899999999,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/security/integration/output-truncator-security.test.ts": {
-    "avg": 4134.7645999999995,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/agent/oracle.test.ts": {
-    "avg": 4077.8498999999993,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/agent/optional-agents-batch3.test.ts": {
-    "avg": 3994.3825999999995,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/server/session-select.test.ts": {
-    "avg": 4011.0418,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/project/project.test.ts": {
-    "avg": 3288.4970999999996,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/util/process.test.ts": {
-    "avg": 3177.9011,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/cli/plugin-auth-picker.test.ts": {
-    "avg": 3222.7677,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/session/structured-output.test.ts": {
-    "avg": 3055.6642999999995,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/config/agent-color.test.ts": {
-    "avg": 3837.8715999999995,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/lsp/client.test.ts": {
-    "avg": 3273.2981,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/cli/github-action.test.ts": {
-    "avg": 3160.7785999999996,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/cli/github-remote.test.ts": {
-    "avg": 4040.0321999999996,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/tool/glob.test.ts": {
-    "avg": 2486.2061,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/mcp/oauth-browser.test.ts": {
-    "avg": 3085.6148999999996,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/cli/import.test.ts": {
-    "avg": 3211.2326,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/tool/lsp-tools.test.ts": {
-    "avg": 2959.5703999999996,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/tool/lsp-tools-extended.test.ts": {
-    "avg": 3082.2617999999998,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/question/question.test.ts": {
-    "avg": 2395.1138,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/permission/next.test.ts": {
-    "avg": 2248.9058999999997,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/script/test-parallel/runner.test.ts": {
-    "avg": 2871.1674000000003,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/tool/interactive-bash.test.ts": {
-    "avg": 2580.7275999999997,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/permission-task.test.ts": {
-    "avg": 3380.5202,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/security/integration/security-audit-integration.test.ts": {
-    "avg": 2654.0719999999997,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/session/structured-output-integration.test.ts": {
-    "avg": 4168.426799999999,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/acp/agent-interface.test.ts": {
-    "avg": 4237.3027999999995,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/tool/write.test.ts": {
-    "avg": 2870.6303,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/tool/edit.test.ts": {
-    "avg": 3045.8682999999996,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/security/integration/interactive-bash-security.test.ts": {
-    "avg": 1652.7994999999996,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/storage/json-migration.test.ts": {
-    "avg": 2434.2036,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/tool/apply_patch.test.ts": {
-    "avg": 3353.7111999999997,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/config/omo-config.test.ts": {
-    "avg": 2198.0397,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/config/config.test.ts": {
-    "avg": 15355.1366,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/file/index.test.ts": {
-    "avg": 1348.4296,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/file/path-traversal.test.ts": {
-    "avg": 1474.9850999999999,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/session/instruction.test.ts": {
-    "avg": 2245.7079999999996,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/mcp/headers.test.ts": {
-    "avg": 3040.8805,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/security/integration/delegate-task-security.test.ts": {
-    "avg": 1148.9729,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/tool/grep-enhanced.test.ts": {
-    "avg": 1400.3207,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/scheduler.test.ts": {
-    "avg": 1106.5419,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/security/integration/background-agent-security.test.ts": {
-    "avg": 1142.4541,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/security/access_control_cases/unit/grep-glob-bypass.test.ts": {
-    "avg": 999.1299999999999,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/security/access_control_cases/unit/skill-subagent-bypass.test.ts": {
-    "avg": 1308.6428999999998,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/security/integration/ast-grep-security.test.ts": {
-    "avg": 989.7452999999999,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/tool/ast-grep.test.ts": {
-    "avg": 1212.9605999999999,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/security/access_control_cases/unit/audit-evasion.test.ts": {
-    "avg": 1447.0919999999999,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/sandbox/integration.test.ts": {
-    "avg": 746.372,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/file/time.test.ts": {
-    "avg": 1131.9515999999999,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/tool/skill-mcp.test.ts": {
-    "avg": 1561.3662,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/security/access_control_cases/unit/mcp-bypass.test.ts": {
-    "avg": 1014.3662999999999,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/security/access_control_cases/unit/allowlist.test.ts": {
-    "avg": 1007.5966,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/tool/grep.test.ts": {
-    "avg": 777.7995999999999,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/security/access_control_cases/unit/write-edit-bypass.test.ts": {
-    "avg": 860.1018999999999,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/security/access_control_cases/unit/path-traversal.test.ts": {
-    "avg": 986.3401999999999,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/control-plane/session-proxy-middleware.test.ts": {
-    "avg": 691.3894999999999,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/security/doctor.test.ts": {
-    "avg": 621.4879,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/security/access_control_cases/unit/agent-interaction.test.ts": {
-    "avg": 660.0781,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/security/access_control_cases/unit/segment-evasion.test.ts": {
-    "avg": 657.6618,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/security/access_control_cases/unit/read-bypass.test.ts": {
-    "avg": 727.5941,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/security/access_control_cases/unit/inheritance-bypass.test.ts": {
-    "avg": 740.2266,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/security/access_control_cases/unit/llm-leakage.test.ts": {
-    "avg": 754.8869,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/config/tui.test.ts": {
-    "avg": 847.1345999999999,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/control-plane/workspace-sync.test.ts": {
-    "avg": 621.8386,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/session/message-v2.test.ts": {
-    "avg": 699.5325,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/file/ripgrep.test.ts": {
-    "avg": 360.3153,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/provider/transform.test.ts": {
-    "avg": 418.5508,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/security/access_control_cases/unit/race-condition.test.ts": {
-    "avg": 584.9771,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/security/access_control_cases/unit/config-manipulation.test.ts": {
-    "avg": 668.2908,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/script/test-parallel/discover.test.ts": {
-    "avg": 441.77329999999995,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/tool/webfetch.test.ts": {
-    "avg": 545.6524999999999,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/util/filesystem.test.ts": {
-    "avg": 412.2763,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/security/access_control_cases/unit/bash-bypass.test.ts": {
-    "avg": 571.5781,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/mcp/builtin-mcp.test.ts": {
-    "avg": 537.9959,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/security/access_control_cases/unit/role-authentication.test.ts": {
-    "avg": 738.2176,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/config/markdown.test.ts": {
-    "avg": 436.566,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/script/omo-diff.test.ts": {
-    "avg": 448.6064441,
-    "runs": 8
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/util/glob.test.ts": {
-    "avg": 416.5204,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/control-plane/sse.test.ts": {
-    "avg": 296.0656,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/tool/question.test.ts": {
-    "avg": 314.78249999999997,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/util/timeout.test.ts": {
-    "avg": 374.93199999999996,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/patch/patch.test.ts": {
-    "avg": 393.50319999999994,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/plugin/codex.test.ts": {
-    "avg": 327.7763,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/script/omo-baseline.test.ts": {
-    "avg": 351.57946084413,
-    "runs": 12
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/tool/external-directory.test.ts": {
-    "avg": 337.1697,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/util/lazy.test.ts": {
-    "avg": 290.0832,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/util/wildcard.test.ts": {
-    "avg": 332.4468,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/tui/textarea-keybindings.test.ts": {
-    "avg": 368.7365,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/skill/discovery.test.ts": {
-    "avg": 393.1603,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/tool/truncation.test.ts": {
-    "avg": 424.7994,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/util/format.test.ts": {
-    "avg": 317.7953,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/sandbox/glob-to-regex.test.ts": {
-    "avg": 351.4836,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/ide/ide.test.ts": {
-    "avg": 352.7254,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/keybind.test.ts": {
-    "avg": 368.74719999999996,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/sandbox/profile-glob.test.ts": {
-    "avg": 316.34049999999996,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/cli/tui/transcript.test.ts": {
-    "avg": 324.77639999999997,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/provider/copilot/convert-to-copilot-messages.test.ts": {
-    "avg": 341.44939999999997,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/provider/copilot/copilot-chat-model.test.ts": {
-    "avg": 339.22569999999996,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/sandbox/profile.test.ts": {
-    "avg": 313.4452,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/permission/arity.test.ts": {
-    "avg": 286.97119999999995,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/script/test-parallel/timing.test.ts": {
-    "avg": 292.9253,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/file/ignore.test.ts": {
-    "avg": 262.16339999999997,
-    "runs": 5
-  },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/util/iife.test.ts": {
-    "avg": 267.1612,
-    "runs": 5
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/bun.test.ts": {
+    "avg": 602,
+    "runs": 1
   },
   "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/auth/auth.test.ts": {
-    "avg": 233.7179,
-    "runs": 5
+    "avg": 605,
+    "runs": 1
   },
-  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/bun.test.ts": {
-    "avg": 222.38659999999996,
-    "runs": 5
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/agent/background/manager.test.ts": {
+    "avg": 3450,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/acp/agent-interface.test.ts": {
+    "avg": 3881,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/cli/github-action.test.ts": {
+    "avg": 3642,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/cli/github-remote.test.ts": {
+    "avg": 3702,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/agent/optional-agents-batch3.test.ts": {
+    "avg": 4504,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/agent/optional-agents-batch2.test.ts": {
+    "avg": 4516,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/agent/oracle.test.ts": {
+    "avg": 4515,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/agent/omo-explore.test.ts": {
+    "avg": 4640,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/agent/background/categories.test.ts": {
+    "avg": 4649,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/cli/tui/transcript.test.ts": {
+    "avg": 425,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/agent/optional-agents.test.ts": {
+    "avg": 4721,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/acp/event-subscription.test.ts": {
+    "avg": 4784,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/agent/sisyphus.test.ts": {
+    "avg": 5010,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/config/markdown.test.ts": {
+    "avg": 600,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/control-plane/sse.test.ts": {
+    "avg": 455,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/file/ignore.test.ts": {
+    "avg": 386,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/config/omo-config.test.ts": {
+    "avg": 782,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/control-plane/workspace-sync.test.ts": {
+    "avg": 673,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/control-plane/session-proxy-middleware.test.ts": {
+    "avg": 793,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/file/ripgrep.test.ts": {
+    "avg": 526,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/config/tui.test.ts": {
+    "avg": 1130,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/ide/ide.test.ts": {
+    "avg": 472,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/keybind.test.ts": {
+    "avg": 387,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/agent/agent.test.ts": {
+    "avg": 5914,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/mcp/builtin-mcp.test.ts": {
+    "avg": 396,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/file/time.test.ts": {
+    "avg": 1118,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/file/index.test.ts": {
+    "avg": 1318,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/file/path-traversal.test.ts": {
+    "avg": 1257,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/patch/patch.test.ts": {
+    "avg": 322,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/mcp/headers.test.ts": {
+    "avg": 745,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/permission/arity.test.ts": {
+    "avg": 264,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/plugin/codex.test.ts": {
+    "avg": 262,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/cli/import.test.ts": {
+    "avg": 3749,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/cli/plugin-auth-picker.test.ts": {
+    "avg": 3467,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/provider/copilot/convert-to-copilot-messages.test.ts": {
+    "avg": 332,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/config/agent-color.test.ts": {
+    "avg": 3380,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/permission/next.test.ts": {
+    "avg": 1614,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/provider/copilot/copilot-chat-model.test.ts": {
+    "avg": 369,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/permission-task.test.ts": {
+    "avg": 2012,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/lsp/client.test.ts": {
+    "avg": 2657,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/mcp/oauth-browser.test.ts": {
+    "avg": 2578,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/provider/transform.test.ts": {
+    "avg": 646,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/sandbox/glob-to-regex.test.ts": {
+    "avg": 560,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/sandbox/profile-glob.test.ts": {
+    "avg": 537,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/sandbox/integration.test.ts": {
+    "avg": 1005,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/sandbox/profile.test.ts": {
+    "avg": 380,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/project/project.test.ts": {
+    "avg": 3362,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/log/capture.test.ts": {
+    "avg": 4541,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/script/omo-baseline.test.ts": {
+    "avg": 363,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/control-plane/workspace-server-sse.test.ts": {
+    "avg": 8152.999999999999,
+    "runs": 2
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/script/omo-diff.test.ts": {
+    "avg": 329,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/script/test-parallel/discover.test.ts": {
+    "avg": 304,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/script/test-parallel/timing.test.ts": {
+    "avg": 353,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/scheduler.test.ts": {
+    "avg": 944,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/question/question.test.ts": {
+    "avg": 2379,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/security/access_control_cases/unit/agent-interaction.test.ts": {
+    "avg": 495,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/project/worktree-remove.test.ts": {
+    "avg": 4036,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/security/access_control_cases/unit/bash-bypass.test.ts": {
+    "avg": 508,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/security/access_control_cases/unit/allowlist.test.ts": {
+    "avg": 633,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/security/access_control_cases/unit/config-manipulation.test.ts": {
+    "avg": 570,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/security/access_control_cases/unit/grep-glob-bypass.test.ts": {
+    "avg": 673,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/security/access_control_cases/unit/inheritance-bypass.test.ts": {
+    "avg": 524,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/security/access_control_cases/unit/llm-leakage.test.ts": {
+    "avg": 623,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/security/access_control_cases/unit/audit-evasion.test.ts": {
+    "avg": 1227,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/script/test-parallel/runner.test.ts": {
+    "avg": 1694,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/security/access_control_cases/unit/mcp-bypass.test.ts": {
+    "avg": 698,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/security/access_control_cases/unit/path-traversal.test.ts": {
+    "avg": 622,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/security/access_control_cases/unit/race-condition.test.ts": {
+    "avg": 699,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/security/access_control_cases/unit/segment-evasion.test.ts": {
+    "avg": 603,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/security/access_control_cases/unit/read-bypass.test.ts": {
+    "avg": 688,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/security/access_control_cases/unit/role-authentication.test.ts": {
+    "avg": 864,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/security/access_control_cases/unit/write-edit-bypass.test.ts": {
+    "avg": 721,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/security/access_control_cases/unit/skill-subagent-bypass.test.ts": {
+    "avg": 1072,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/security/doctor.test.ts": {
+    "avg": 717,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/security/integration/ast-grep-security.test.ts": {
+    "avg": 829,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/security/integration/background-agent-security.test.ts": {
+    "avg": 960,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/plugin/auth-override.test.ts": {
+    "avg": 7492,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/security/integration/delegate-task-security.test.ts": {
+    "avg": 1161,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/security/integration/interactive-bash-security.test.ts": {
+    "avg": 1355,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/provider/gitlab-duo.test.ts": {
+    "avg": 7022,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/provider/amazon-bedrock.test.ts": {
+    "avg": 7643,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/security/access_control_cases/unit/access-guard-integration.test.ts": {
+    "avg": 4610,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/security/integration/security-audit-integration.test.ts": {
+    "avg": 2206,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/pty/pty-output-isolation.test.ts": {
+    "avg": 7325,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/security/integration/output-truncator-security.test.ts": {
+    "avg": 3713,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/security/integration/context-injection-security.test.ts": {
+    "avg": 4122,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/provider/provider.test.ts": {
+    "avg": 9231,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/server/session-list.test.ts": {
+    "avg": 3904,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/server/global-session-list.test.ts": {
+    "avg": 5046,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/server/session-select.test.ts": {
+    "avg": 4330,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/session/compaction.test.ts": {
+    "avg": 4366,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/config/config.test.ts": {
+    "avg": 15221,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/session/instruction.test.ts": {
+    "avg": 1568,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/session/message-v2.test.ts": {
+    "avg": 888,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/session/hooks/agent-enforcement.test.ts": {
+    "avg": 10672,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/session/hooks/hooks-bench.test.ts": {
+    "avg": 9238,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/session/hooks/context-injection.test.ts": {
+    "avg": 12354,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/session/hooks/error-recovery.test.ts": {
+    "avg": 12738,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/server/remote-attach.test.ts": {
+    "avg": 14535,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/session/hooks/llm-parameters.test.ts": {
+    "avg": 11648,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/session/hooks/hook-chain.test.ts": {
+    "avg": 12619,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/skill/discovery.test.ts": {
+    "avg": 506,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/session/persistent-task.test.ts": {
+    "avg": 10736,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/session/llm.test.ts": {
+    "avg": 12131,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/session/hooks/detection-checking.test.ts": {
+    "avg": 15915,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/session/hooks/output-management.test.ts": {
+    "avg": 13576,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/session/hooks/session-lifecycle.test.ts": {
+    "avg": 13415,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/session/structured-output-integration.test.ts": {
+    "avg": 3640,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/session/structured-output.test.ts": {
+    "avg": 3652,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/tool/ast-grep.test.ts": {
+    "avg": 962,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/session/session.test.ts": {
+    "avg": 5588,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/storage/json-migration.test.ts": {
+    "avg": 1650,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/tool/external-directory.test.ts": {
+    "avg": 493,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/session/revert-compact.test.ts": {
+    "avg": 6925,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/tool/grep.test.ts": {
+    "avg": 927,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/tool/apply_patch.test.ts": {
+    "avg": 2497,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/tool/grep-enhanced.test.ts": {
+    "avg": 1320,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/session/retry.test.ts": {
+    "avg": 8850,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/tool/question.test.ts": {
+    "avg": 637,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/tool/edit.test.ts": {
+    "avg": 2927,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/tool/interactive-bash.test.ts": {
+    "avg": 2548,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/session/prompt.test.ts": {
+    "avg": 15127,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/tool/glob.test.ts": {
+    "avg": 3160,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/tool/skill-mcp.test.ts": {
+    "avg": 1554,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/skill/builtin-skills.test.ts": {
+    "avg": 8511,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/tool/lsp-tools-extended.test.ts": {
+    "avg": 3612,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/tool/truncation.test.ts": {
+    "avg": 525,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/tool/lsp-tools.test.ts": {
+    "avg": 3644,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/tool/webfetch.test.ts": {
+    "avg": 682,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/tui/textarea-keybindings.test.ts": {
+    "avg": 435,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/util/filesystem.test.ts": {
+    "avg": 559,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/util/format.test.ts": {
+    "avg": 351,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/skill/skill.test.ts": {
+    "avg": 8537,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/util/glob.test.ts": {
+    "avg": 530,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/util/lazy.test.ts": {
+    "avg": 376,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/util/iife.test.ts": {
+    "avg": 404,
+    "runs": 1
   },
   "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/util/lock.test.ts": {
-    "avg": 222.24889999999996,
-    "runs": 5
+    "avg": 405,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/util/wildcard.test.ts": {
+    "avg": 657,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/util/timeout.test.ts": {
+    "avg": 659,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/tool/write.test.ts": {
+    "avg": 2483,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/tool/look-at.test.ts": {
+    "avg": 6334,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/tool/skill.test.ts": {
+    "avg": 6470,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/util/process.test.ts": {
+    "avg": 4062,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/tool/read.test.ts": {
+    "avg": 9110,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/tool/skill-enhanced.test.ts": {
+    "avg": 10469,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/tool/delegate-task.test.ts": {
+    "avg": 15255,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/tool/bash.test.ts": {
+    "avg": 15765,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/memory/abort-leak.test.ts": {
+    "avg": 42036,
+    "runs": 1
   },
   "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/tool/registry.test.ts": {
-    "avg": 41588.967099999994,
-    "runs": 5
+    "avg": 13635,
+    "runs": 1
+  },
+  "/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/snapshot/snapshot.test.ts": {
+    "avg": 24724,
+    "runs": 1
   }
 }

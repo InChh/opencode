@@ -4,6 +4,10 @@ import { Client } from "../../src/server/client"
 import { AuthToken } from "../../src/server/auth-token"
 import { Lifecycle, TIMEOUT } from "../../src/server/lifecycle"
 import { Log } from "../../src/util/log"
+import { Instance } from "../../src/project/instance"
+
+const TEST_DIR = "/tmp/test-remote-attach"
+const withCtx = <T>(fn: () => T): Promise<T> => Instance.provide({ directory: TEST_DIR, fn })
 
 Log.init({ print: false })
 
@@ -59,6 +63,7 @@ function resetClients() {
     Client.cancelGrace(id)
     Client.remove(id)
   }
+  Client.resetCooldown()
 }
 
 beforeAll(() => {
@@ -66,8 +71,8 @@ beforeAll(() => {
   server = Server.listen({ port: 0, hostname: "localhost" })
 })
 
-afterEach(() => {
-  resetClients()
+afterEach(async () => {
+  await withCtx(() => resetClients())
 })
 
 afterAll(() => {
@@ -78,50 +83,62 @@ afterAll(() => {
 // Client Registration & Identity
 // ──────────────────────────────────────────────
 describe("Client registration", () => {
-  test("add() returns clientID, reconnectToken, role, ownerClientID", () => {
-    const result = Client.add({ directory: "/tmp", type: "tui", remoteIP: "127.0.0.1" })
-    expect(result.clientID).toBeTruthy()
-    expect(result.reconnectToken).toBeTruthy()
-    expect(result.role).toBe("owner") // first client becomes owner
-    expect(result.ownerClientID).toBe(result.clientID)
+  test("add() returns clientID, reconnectToken, role, ownerClientID", async () => {
+    await withCtx(() => {
+      const result = Client.add({ directory: "/tmp", type: "tui", remoteIP: "127.0.0.1" })
+      expect(result.clientID).toBeTruthy()
+      expect(result.reconnectToken).toBeTruthy()
+      expect(result.role).toBe("owner") // first client becomes owner
+      expect(result.ownerClientID).toBe(result.clientID)
+    })
   })
 
-  test("first client becomes owner, second becomes observer", () => {
-    const first = Client.add({ directory: "/tmp", type: "tui", remoteIP: "127.0.0.1" })
-    const second = Client.add({ directory: "/tmp", type: "tui", remoteIP: "192.168.1.2" })
-    expect(first.role).toBe("owner")
-    expect(second.role).toBe("observer")
-    expect(second.ownerClientID).toBe(first.clientID)
+  test("first client becomes owner, second becomes observer", async () => {
+    await withCtx(() => {
+      const first = Client.add({ directory: "/tmp", type: "tui", remoteIP: "127.0.0.1" })
+      const second = Client.add({ directory: "/tmp", type: "tui", remoteIP: "192.168.1.2" })
+      expect(first.role).toBe("owner")
+      expect(second.role).toBe("observer")
+      expect(second.ownerClientID).toBe(first.clientID)
+    })
   })
 
-  test("get() returns entry by clientID", () => {
-    const result = Client.add({ directory: "/tmp/project", type: "cli", remoteIP: "10.0.0.1" })
-    const entry = Client.get(result.clientID)
-    expect(entry).toBeDefined()
-    expect(entry!.directory).toBe("/tmp/project")
-    expect(entry!.type).toBe("cli")
-    expect(entry!.remoteIP).toBe("10.0.0.1")
-    expect(entry!.role).toBe("owner")
+  test("get() returns entry by clientID", async () => {
+    await withCtx(() => {
+      const result = Client.add({ directory: "/tmp/project", type: "cli", remoteIP: "10.0.0.1" })
+      const entry = Client.get(result.clientID)
+      expect(entry).toBeDefined()
+      expect(entry!.directory).toBe("/tmp/project")
+      expect(entry!.type).toBe("cli")
+      expect(entry!.remoteIP).toBe("10.0.0.1")
+      expect(entry!.role).toBe("owner")
+    })
   })
 
-  test("has() returns true for registered client", () => {
-    const result = Client.add({ directory: "/tmp", type: "tui", remoteIP: "127.0.0.1" })
-    expect(Client.has(result.clientID)).toBe(true)
-    expect(Client.has("nonexistent")).toBe(false)
+  test("has() returns true for registered client", async () => {
+    await withCtx(() => {
+      const result = Client.add({ directory: "/tmp", type: "tui", remoteIP: "127.0.0.1" })
+      expect(Client.has(result.clientID)).toBe(true)
+      expect(Client.has("nonexistent")).toBe(false)
+    })
   })
 
-  test("count() tracks number of clients", () => {
-    expect(Client.count()).toBe(0)
-    Client.add({ directory: "/tmp", type: "tui", remoteIP: "127.0.0.1" })
-    expect(Client.count()).toBe(1)
-    Client.add({ directory: "/tmp", type: "tui", remoteIP: "127.0.0.2" })
-    expect(Client.count()).toBe(2)
+  test("count() tracks number of clients", async () => {
+    await withCtx(() => {
+      expect(Client.count()).toBe(0)
+      Client.add({ directory: "/tmp", type: "tui", remoteIP: "127.0.0.1" })
+      expect(Client.count()).toBe(1)
+      Client.add({ directory: "/tmp", type: "tui", remoteIP: "127.0.0.2" })
+      expect(Client.count()).toBe(2)
+    })
   })
 
-  test("all() returns all clients", () => {
-    Client.add({ directory: "/tmp", type: "tui", remoteIP: "127.0.0.1" })
-    Client.add({ directory: "/tmp", type: "cli", remoteIP: "127.0.0.2" })
-    expect(Client.all().size).toBe(2)
+  test("all() returns all clients", async () => {
+    await withCtx(() => {
+      Client.add({ directory: "/tmp", type: "tui", remoteIP: "127.0.0.1" })
+      Client.add({ directory: "/tmp", type: "cli", remoteIP: "127.0.0.2" })
+      expect(Client.all().size).toBe(2)
+    })
   })
 })
 
@@ -129,38 +146,46 @@ describe("Client registration", () => {
 // Reconnect Token
 // ──────────────────────────────────────────────
 describe("Reconnect token", () => {
-  test("findByReconnectToken() locates client", () => {
-    const result = Client.add({ directory: "/tmp", type: "tui", remoteIP: "127.0.0.1" })
-    const found = Client.findByReconnectToken(result.reconnectToken)
-    expect(found).toBe(result.clientID)
+  test("findByReconnectToken() locates client", async () => {
+    await withCtx(() => {
+      const result = Client.add({ directory: "/tmp", type: "tui", remoteIP: "127.0.0.1" })
+      const found = Client.findByReconnectToken(result.reconnectToken)
+      expect(found).toBe(result.clientID)
+    })
   })
 
-  test("findByReconnectToken() returns undefined for invalid token", () => {
-    Client.add({ directory: "/tmp", type: "tui", remoteIP: "127.0.0.1" })
-    expect(Client.findByReconnectToken("invalid-token")).toBeUndefined()
+  test("findByReconnectToken() returns undefined for invalid token", async () => {
+    await withCtx(() => {
+      Client.add({ directory: "/tmp", type: "tui", remoteIP: "127.0.0.1" })
+      expect(Client.findByReconnectToken("invalid-token")).toBeUndefined()
+    })
   })
 
-  test("setReconnectToken() updates token", () => {
-    const result = Client.add({ directory: "/tmp", type: "tui", remoteIP: "127.0.0.1" })
-    const old = result.reconnectToken
-    Client.setReconnectToken(result.clientID, "new-token-123")
-    expect(Client.findByReconnectToken(old)).toBeUndefined()
-    expect(Client.findByReconnectToken("new-token-123")).toBe(result.clientID)
+  test("setReconnectToken() updates token", async () => {
+    await withCtx(() => {
+      const result = Client.add({ directory: "/tmp", type: "tui", remoteIP: "127.0.0.1" })
+      const old = result.reconnectToken
+      Client.setReconnectToken(result.clientID, "new-token-123")
+      expect(Client.findByReconnectToken(old)).toBeUndefined()
+      expect(Client.findByReconnectToken("new-token-123")).toBe(result.clientID)
+    })
   })
 
-  test("used token is invalidated after reconnect", () => {
-    const result = Client.add({ directory: "/tmp", type: "tui", remoteIP: "127.0.0.1" })
-    const token = result.reconnectToken
+  test("used token is invalidated after reconnect", async () => {
+    await withCtx(() => {
+      const result = Client.add({ directory: "/tmp", type: "tui", remoteIP: "127.0.0.1" })
+      const token = result.reconnectToken
 
-    // Simulate reconnect: find by token, cancel grace, issue new token
-    const found = Client.findByReconnectToken(token)
-    expect(found).toBe(result.clientID)
-    Client.setReconnectToken(result.clientID, "new-token-after-reconnect")
+      // Simulate reconnect: find by token, cancel grace, issue new token
+      const found = Client.findByReconnectToken(token)
+      expect(found).toBe(result.clientID)
+      Client.setReconnectToken(result.clientID, "new-token-after-reconnect")
 
-    // Old token should no longer work
-    expect(Client.findByReconnectToken(token)).toBeUndefined()
-    // New token works
-    expect(Client.findByReconnectToken("new-token-after-reconnect")).toBe(result.clientID)
+      // Old token should no longer work
+      expect(Client.findByReconnectToken(token)).toBeUndefined()
+      // New token works
+      expect(Client.findByReconnectToken("new-token-after-reconnect")).toBe(result.clientID)
+    })
   })
 })
 
@@ -168,38 +193,46 @@ describe("Reconnect token", () => {
 // Grace Period & Disconnect
 // ──────────────────────────────────────────────
 describe("Grace period", () => {
-  test("disconnect starts grace period, cancelGrace cancels it", () => {
-    const result = Client.add({ directory: "/tmp", type: "tui", remoteIP: "127.0.0.1" })
-    Client.disconnect(result.clientID)
-    // Client still exists during grace period
-    expect(Client.has(result.clientID)).toBe(true)
+  test("disconnect starts grace period, cancelGrace cancels it", async () => {
+    await withCtx(() => {
+      const result = Client.add({ directory: "/tmp", type: "tui", remoteIP: "127.0.0.1" })
+      Client.disconnect(result.clientID)
+      // Client still exists during grace period
+      expect(Client.has(result.clientID)).toBe(true)
 
-    // Cancel grace (simulating reconnect)
-    Client.cancelGrace(result.clientID)
-    // Client still exists
-    expect(Client.has(result.clientID)).toBe(true)
+      // Cancel grace (simulating reconnect)
+      Client.cancelGrace(result.clientID)
+      // Client still exists
+      expect(Client.has(result.clientID)).toBe(true)
+    })
   })
 
-  test("remove() immediately clears client", () => {
-    const result = Client.add({ directory: "/tmp", type: "tui", remoteIP: "127.0.0.1" })
-    Client.remove(result.clientID)
-    expect(Client.has(result.clientID)).toBe(false)
-    expect(Client.count()).toBe(0)
+  test("remove() immediately clears client", async () => {
+    await withCtx(() => {
+      const result = Client.add({ directory: "/tmp", type: "tui", remoteIP: "127.0.0.1" })
+      Client.remove(result.clientID)
+      expect(Client.has(result.clientID)).toBe(false)
+      expect(Client.count()).toBe(0)
+    })
   })
 
-  test("owner removal resets ownerID to null", () => {
-    const result = Client.add({ directory: "/tmp", type: "tui", remoteIP: "127.0.0.1" })
-    expect(Client.ownerID()).toBe(result.clientID)
-    Client.remove(result.clientID)
-    expect(Client.ownerID()).toBeNull()
+  test("owner removal resets ownerID to null", async () => {
+    await withCtx(() => {
+      const result = Client.add({ directory: "/tmp", type: "tui", remoteIP: "127.0.0.1" })
+      expect(Client.ownerID()).toBe(result.clientID)
+      Client.remove(result.clientID)
+      expect(Client.ownerID()).toBeNull()
+    })
   })
 
-  test("next client after owner removal becomes owner", () => {
-    const first = Client.add({ directory: "/tmp", type: "tui", remoteIP: "127.0.0.1" })
-    Client.remove(first.clientID)
-    const second = Client.add({ directory: "/tmp", type: "tui", remoteIP: "127.0.0.2" })
-    expect(second.role).toBe("owner")
-    expect(Client.ownerID()).toBe(second.clientID)
+  test("next client after owner removal becomes owner", async () => {
+    await withCtx(() => {
+      const first = Client.add({ directory: "/tmp", type: "tui", remoteIP: "127.0.0.1" })
+      Client.remove(first.clientID)
+      const second = Client.add({ directory: "/tmp", type: "tui", remoteIP: "127.0.0.2" })
+      expect(second.role).toBe("owner")
+      expect(Client.ownerID()).toBe(second.clientID)
+    })
   })
 })
 
@@ -207,23 +240,27 @@ describe("Grace period", () => {
 // Ownership Model
 // ──────────────────────────────────────────────
 describe("Ownership model", () => {
-  test("setOwner transfers ownership", () => {
-    const first = Client.add({ directory: "/tmp", type: "tui", remoteIP: "127.0.0.1" })
-    const second = Client.add({ directory: "/tmp", type: "tui", remoteIP: "127.0.0.2" })
+  test("setOwner transfers ownership", async () => {
+    await withCtx(() => {
+      const first = Client.add({ directory: "/tmp", type: "tui", remoteIP: "127.0.0.1" })
+      const second = Client.add({ directory: "/tmp", type: "tui", remoteIP: "127.0.0.2" })
 
-    expect(Client.ownerID()).toBe(first.clientID)
-    Client.setOwner(second.clientID)
-    expect(Client.ownerID()).toBe(second.clientID)
+      expect(Client.ownerID()).toBe(first.clientID)
+      Client.setOwner(second.clientID)
+      expect(Client.ownerID()).toBe(second.clientID)
 
-    // Roles updated
-    expect(Client.get(first.clientID)!.role).toBe("observer")
-    expect(Client.get(second.clientID)!.role).toBe("owner")
+      // Roles updated
+      expect(Client.get(first.clientID)!.role).toBe("observer")
+      expect(Client.get(second.clientID)!.role).toBe("owner")
+    })
   })
 
-  test("setOwner(null) resets ownership", () => {
-    Client.add({ directory: "/tmp", type: "tui", remoteIP: "127.0.0.1" })
-    Client.setOwner(null)
-    expect(Client.ownerID()).toBeNull()
+  test("setOwner(null) resets ownership", async () => {
+    await withCtx(() => {
+      Client.add({ directory: "/tmp", type: "tui", remoteIP: "127.0.0.1" })
+      Client.setOwner(null)
+      expect(Client.ownerID()).toBeNull()
+    })
   })
 })
 
@@ -270,34 +307,38 @@ describe("GET /clients", () => {
   })
 
   test("returns connected clients with roles", async () => {
-    const first = Client.add({ directory: "/tmp", type: "tui", remoteIP: "127.0.0.1" })
-    const second = Client.add({ directory: "/tmp", type: "cli", remoteIP: "10.0.0.1" })
+    await withCtx(async () => {
+      const first = Client.add({ directory: "/tmp", type: "tui", remoteIP: "127.0.0.1" })
+      const second = Client.add({ directory: "/tmp", type: "cli", remoteIP: "10.0.0.1" })
 
-    const res = await fetch(`${base()}/clients`)
-    const body = await res.json()
+      const res = await fetch(`${base()}/clients`)
+      const body = await res.json()
 
-    expect(body.ownerClientID).toBe(first.clientID)
-    expect(body.clients).toHaveLength(2)
+      expect(body.ownerClientID).toBe(first.clientID)
+      expect(body.clients).toHaveLength(2)
 
-    const owner = body.clients.find((c: any) => c.clientID === first.clientID)
-    const observer = body.clients.find((c: any) => c.clientID === second.clientID)
+      const owner = body.clients.find((c: any) => c.clientID === first.clientID)
+      const observer = body.clients.find((c: any) => c.clientID === second.clientID)
 
-    expect(owner.role).toBe("owner")
-    expect(owner.type).toBe("tui")
-    expect(observer.role).toBe("observer")
-    expect(observer.type).toBe("cli")
-    expect(owner.duration).toBeGreaterThanOrEqual(0)
+      expect(owner.role).toBe("owner")
+      expect(owner.type).toBe("tui")
+      expect(observer.role).toBe("observer")
+      expect(observer.type).toBe("cli")
+      expect(owner.duration).toBeGreaterThanOrEqual(0)
+    })
   })
 
   test("takeoverAvailable reflects state", async () => {
-    Client.add({ directory: "/tmp", type: "tui", remoteIP: "127.0.0.1" })
-    // Owner just connected, activity not reported yet — lastReportTime is 0 → condition won't fire
-    Client.activity(true) // report activity so conditions are fresh
+    await withCtx(async () => {
+      Client.add({ directory: "/tmp", type: "tui", remoteIP: "127.0.0.1" })
+      // Owner just connected, activity not reported yet — lastReportTime is 0 → condition won't fire
+      Client.activity(true) // report activity so conditions are fresh
 
-    const res = await fetch(`${base()}/clients`)
-    const body = await res.json()
-    // Owner is active, no takeover
-    expect(body.takeoverAvailable).toBe(false)
+      const res = await fetch(`${base()}/clients`)
+      const body = await res.json()
+      // Owner is active, no takeover
+      expect(body.takeoverAvailable).toBe(false)
+    })
   })
 })
 
@@ -306,30 +347,34 @@ describe("GET /clients", () => {
 // ──────────────────────────────────────────────
 describe("POST /instance/activity", () => {
   test("owner can report activity", async () => {
-    const reg = Client.add({ directory: "/tmp", type: "tui", remoteIP: "127.0.0.1" })
-    const res = await fetch(`${base()}/instance/activity`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-OpenCode-Client-ID": reg.clientID,
-      },
-      body: JSON.stringify({ active: true }),
+    await withCtx(async () => {
+      const reg = Client.add({ directory: "/tmp", type: "tui", remoteIP: "127.0.0.1" })
+      const res = await fetch(`${base()}/instance/activity`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-OpenCode-Client-ID": reg.clientID,
+        },
+        body: JSON.stringify({ active: true }),
+      })
+      expect(res.status).toBe(200)
     })
-    expect(res.status).toBe(200)
   })
 
   test("non-owner gets 403", async () => {
-    Client.add({ directory: "/tmp", type: "tui", remoteIP: "127.0.0.1" })
-    const observer = Client.add({ directory: "/tmp", type: "tui", remoteIP: "127.0.0.2" })
-    const res = await fetch(`${base()}/instance/activity`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-OpenCode-Client-ID": observer.clientID,
-      },
-      body: JSON.stringify({ active: true }),
+    await withCtx(async () => {
+      Client.add({ directory: "/tmp", type: "tui", remoteIP: "127.0.0.1" })
+      const observer = Client.add({ directory: "/tmp", type: "tui", remoteIP: "127.0.0.2" })
+      const res = await fetch(`${base()}/instance/activity`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-OpenCode-Client-ID": observer.clientID,
+        },
+        body: JSON.stringify({ active: true }),
+      })
+      expect(res.status).toBe(403)
     })
-    expect(res.status).toBe(403)
   })
 })
 
@@ -347,50 +392,54 @@ describe("POST /instance/takeover", () => {
   })
 
   test("takeover succeeds when owner is null", async () => {
-    const reg = Client.add({ directory: "/tmp", type: "tui", remoteIP: "127.0.0.1" })
-    // Remove owner so ownerID becomes null
-    Client.remove(reg.clientID)
-    expect(Client.ownerID()).toBeNull()
+    await withCtx(async () => {
+      const reg = Client.add({ directory: "/tmp", type: "tui", remoteIP: "127.0.0.1" })
+      // Remove owner so ownerID becomes null
+      Client.remove(reg.clientID)
+      expect(Client.ownerID()).toBeNull()
 
-    const newClient = Client.add({ directory: "/tmp", type: "tui", remoteIP: "127.0.0.2" })
-    // newClient is now owner since no one was registered
-    // But let's test the takeover path directly: force another client to be observer
-    const observer = Client.add({ directory: "/tmp", type: "tui", remoteIP: "127.0.0.3" })
+      const newClient = Client.add({ directory: "/tmp", type: "tui", remoteIP: "127.0.0.2" })
+      // newClient is now owner since no one was registered
+      // But let's test the takeover path directly: force another client to be observer
+      const observer = Client.add({ directory: "/tmp", type: "tui", remoteIP: "127.0.0.3" })
 
-    // Remove owner again
-    Client.remove(newClient.clientID)
-    expect(Client.ownerID()).toBeNull()
+      // Remove owner again
+      Client.remove(newClient.clientID)
+      expect(Client.ownerID()).toBeNull()
 
-    const res = await fetch(`${base()}/instance/takeover`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-OpenCode-Client-ID": observer.clientID,
-      },
-      body: JSON.stringify({}),
+      const res = await fetch(`${base()}/instance/takeover`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-OpenCode-Client-ID": observer.clientID,
+        },
+        body: JSON.stringify({}),
+      })
+      expect(res.status).toBe(200)
+      const body = await res.json()
+      expect(body.ownerClientID).toBe(observer.clientID)
     })
-    expect(res.status).toBe(200)
-    const body = await res.json()
-    expect(body.ownerClientID).toBe(observer.clientID)
   })
 
   test("takeover fails when owner is active (409)", async () => {
-    const owner = Client.add({ directory: "/tmp", type: "tui", remoteIP: "127.0.0.1" })
-    const observer = Client.add({ directory: "/tmp", type: "tui", remoteIP: "127.0.0.2" })
-    Client.activity(true) // Owner is active
+    await withCtx(async () => {
+      const owner = Client.add({ directory: "/tmp", type: "tui", remoteIP: "127.0.0.1" })
+      const observer = Client.add({ directory: "/tmp", type: "tui", remoteIP: "127.0.0.2" })
+      Client.activity(true) // Owner is active
 
-    const res = await fetch(`${base()}/instance/takeover`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-OpenCode-Client-ID": observer.clientID,
-      },
-      body: JSON.stringify({}),
+      const res = await fetch(`${base()}/instance/takeover`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-OpenCode-Client-ID": observer.clientID,
+        },
+        body: JSON.stringify({}),
+      })
+      expect(res.status).toBe(409)
+      const body = await res.json()
+      expect(body.reason).toBe("owner_active")
+      expect(body.ownerClientID).toBe(owner.clientID)
     })
-    expect(res.status).toBe(409)
-    const body = await res.json()
-    expect(body.reason).toBe("owner_active")
-    expect(body.ownerClientID).toBe(owner.clientID)
   })
 })
 
@@ -399,28 +448,32 @@ describe("POST /instance/takeover", () => {
 // ──────────────────────────────────────────────
 describe("POST /session/:sessionID/typing", () => {
   test("owner can send typing event", async () => {
-    const reg = Client.add({ directory: "/tmp", type: "tui", remoteIP: "127.0.0.1" })
-    const res = await fetch(`${base()}/session/test-session/typing`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-OpenCode-Client-ID": reg.clientID,
-      },
+    await withCtx(async () => {
+      const reg = Client.add({ directory: "/tmp", type: "tui", remoteIP: "127.0.0.1" })
+      const res = await fetch(`${base()}/session/test-session/typing`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-OpenCode-Client-ID": reg.clientID,
+        },
+      })
+      expect(res.status).toBe(200)
     })
-    expect(res.status).toBe(200)
   })
 
   test("non-owner gets 403", async () => {
-    Client.add({ directory: "/tmp", type: "tui", remoteIP: "127.0.0.1" })
-    const observer = Client.add({ directory: "/tmp", type: "tui", remoteIP: "127.0.0.2" })
-    const res = await fetch(`${base()}/session/test-session/typing`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-OpenCode-Client-ID": observer.clientID,
-      },
+    await withCtx(async () => {
+      Client.add({ directory: "/tmp", type: "tui", remoteIP: "127.0.0.1" })
+      const observer = Client.add({ directory: "/tmp", type: "tui", remoteIP: "127.0.0.2" })
+      const res = await fetch(`${base()}/session/test-session/typing`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-OpenCode-Client-ID": observer.clientID,
+        },
+      })
+      expect(res.status).toBe(403)
     })
-    expect(res.status).toBe(403)
   })
 
   test("no client ID gets 403", async () => {
@@ -540,8 +593,11 @@ describe("ClientID middleware", () => {
 // Lockfile module
 // ──────────────────────────────────────────────
 describe("Lockfile", () => {
-  // Lockfile tests use the module directly
-  const { Lockfile } = require("../../src/server/lockfile") as typeof import("../../src/server/lockfile")
+  let Lockfile: (typeof import("../../src/server/lockfile"))["Lockfile"]
+  beforeAll(async () => {
+    const mod = await import("../../src/server/lockfile")
+    Lockfile = mod.Lockfile
+  })
 
   test("create and read lock file", async () => {
     const dir = `/tmp/opencode-test-lockfile-${Date.now()}`
@@ -706,25 +762,27 @@ describe("SSE /event", () => {
   })
 
   test("reconnect with invalid token gets new identity as observer", async () => {
-    // Create an owner first
-    const owner = Client.add({ directory: "/tmp", type: "tui", remoteIP: "127.0.0.1" })
+    await withCtx(async () => {
+      // Create an owner first
+      const owner = Client.add({ directory: "/tmp", type: "tui", remoteIP: "127.0.0.1" })
 
-    // Try reconnect with bad token — should get new client as observer
-    const res = await fetch(`${base()}/event`, {
-      headers: {
-        Accept: "text/event-stream",
-        "X-OpenCode-Client-Type": "tui",
-        "X-OpenCode-Reconnect-Token": "invalid-token",
-      },
-    })
-    const events = await collectSSE(res, {
-      until: (e) => e.type === "server.connected",
-      timeout: 3000,
-    })
-    const connected = events.find((e) => e.type === "server.connected")!
+      // Try reconnect with bad token — should get new client as observer
+      const res = await fetch(`${base()}/event`, {
+        headers: {
+          Accept: "text/event-stream",
+          "X-OpenCode-Client-Type": "tui",
+          "X-OpenCode-Reconnect-Token": "invalid-token",
+        },
+      })
+      const events = await collectSSE(res, {
+        until: (e) => e.type === "server.connected",
+        timeout: 3000,
+      })
+      const connected = events.find((e) => e.type === "server.connected")!
 
-    expect(connected.properties.clientID).not.toBe(owner.clientID)
-    expect(connected.properties.role).toBe("observer")
+      expect(connected.properties.clientID).not.toBe(owner.clientID)
+      expect(connected.properties.role).toBe("observer")
+    })
   })
 })
 
@@ -732,38 +790,52 @@ describe("SSE /event", () => {
 // assertCanWrite (Session.LockedError)
 // ──────────────────────────────────────────────
 describe("assertCanWrite", () => {
-  const { SessionPrompt } = require("../../src/session/prompt") as typeof import("../../src/session/prompt")
-  const { Session } = require("../../src/session") as typeof import("../../src/session")
-
-  test("allows write when no owner set", () => {
-    Client.setOwner(null)
-    // Should not throw
-    expect(() => SessionPrompt.assertCanWrite("test-session")).not.toThrow()
+  let SessionPrompt: (typeof import("../../src/session/prompt"))["SessionPrompt"]
+  let Session: (typeof import("../../src/session"))["Session"]
+  beforeAll(async () => {
+    const promptMod = await import("../../src/session/prompt")
+    SessionPrompt = promptMod.SessionPrompt
+    const sessionMod = await import("../../src/session")
+    Session = sessionMod.Session
   })
 
-  test("allows write for owner", () => {
-    const reg = Client.add({ directory: "/tmp", type: "tui", remoteIP: "127.0.0.1" })
-    expect(() => SessionPrompt.assertCanWrite("test-session", reg.clientID)).not.toThrow()
+  test("allows write when no owner set", async () => {
+    await withCtx(() => {
+      Client.setOwner(null)
+      // Should not throw
+      expect(() => SessionPrompt.assertCanWrite("test-session")).not.toThrow()
+    })
   })
 
-  test("throws LockedError for non-owner", () => {
-    const owner = Client.add({ directory: "/tmp", type: "tui", remoteIP: "127.0.0.1" })
-    Client.add({ directory: "/tmp", type: "tui", remoteIP: "127.0.0.2" })
-    const observer = Client.add({ directory: "/tmp", type: "tui", remoteIP: "127.0.0.3" })
-
-    try {
-      SessionPrompt.assertCanWrite("test-session", observer.clientID)
-      expect(true).toBe(false) // should not reach here
-    } catch (err: any) {
-      expect(err).toBeInstanceOf(Session.LockedError)
-      expect(err.ownerClientID).toBe(owner.clientID)
-    }
+  test("allows write for owner", async () => {
+    await withCtx(() => {
+      const reg = Client.add({ directory: "/tmp", type: "tui", remoteIP: "127.0.0.1" })
+      expect(() => SessionPrompt.assertCanWrite("test-session", reg.clientID)).not.toThrow()
+    })
   })
 
-  test("allows write without clientID (internal/child session)", () => {
-    Client.add({ directory: "/tmp", type: "tui", remoteIP: "127.0.0.1" })
-    // No clientID means internal call — should be allowed
-    expect(() => SessionPrompt.assertCanWrite("test-session")).not.toThrow()
+  test("throws LockedError for non-owner", async () => {
+    await withCtx(() => {
+      const owner = Client.add({ directory: "/tmp", type: "tui", remoteIP: "127.0.0.1" })
+      Client.add({ directory: "/tmp", type: "tui", remoteIP: "127.0.0.2" })
+      const observer = Client.add({ directory: "/tmp", type: "tui", remoteIP: "127.0.0.3" })
+
+      try {
+        SessionPrompt.assertCanWrite("test-session", observer.clientID)
+        expect(true).toBe(false) // should not reach here
+      } catch (err: any) {
+        expect(err).toBeInstanceOf(Session.LockedError)
+        expect(err.ownerClientID).toBe(owner.clientID)
+      }
+    })
+  })
+
+  test("allows write without clientID (internal/child session)", async () => {
+    await withCtx(() => {
+      Client.add({ directory: "/tmp", type: "tui", remoteIP: "127.0.0.1" })
+      // No clientID means internal call — should be allowed
+      expect(() => SessionPrompt.assertCanWrite("test-session")).not.toThrow()
+    })
   })
 })
 
