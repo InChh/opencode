@@ -251,7 +251,7 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
             }),
           )
           const updated = store.message[event.properties.info.sessionID]
-          if (updated.length > 100) {
+          if (updated.length > 500) {
             const oldest = updated[0]
             batch(() => {
               setStore(
