@@ -326,7 +326,7 @@
         "Typecheck passes"
       ],
       "priority": 19,
-      "passes": false,
+      "passes": true,
       "notes": "Depends on US-007/008 (update_seq), US-010 (reconnect token), US-012 (SDK headers). sync.tsx needs to listen for server.connected event and trigger bootstrap()."
     },
     {
@@ -344,7 +344,7 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 20,
-      "passes": false,
+      "passes": true,
       "notes": "Depends on US-019 (reconnect mechanism). sync.tsx currently does NOT listen for server.connected event. The complete bootstrap data list must match all data types managed by sync.tsx."
     },
     {
@@ -362,7 +362,7 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 21,
-      "passes": false,
+      "passes": true,
       "notes": "Depends on US-014 (owner model), US-015 (write interception). Modifies TUI sidebar, prompt components, and permission/question dialogs."
     },
     {
@@ -380,7 +380,7 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 22,
-      "passes": false,
+      "passes": true,
       "notes": "Depends on US-017/018 (takeover endpoint), US-021 (observer UI). Listen for takeover.available event to toggle button visibility."
     },
     {
@@ -396,7 +396,7 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 23,
-      "passes": false,
+      "passes": true,
       "notes": "Depends on US-011 (GET /clients API). Uses client.connected/disconnected events for real-time updates."
     },
     {
@@ -414,7 +414,7 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 24,
-      "passes": false,
+      "passes": true,
       "notes": "Known limitation: typing not visible for first message in new session (session doesn't exist yet on server)."
     },
     {
@@ -431,7 +431,7 @@
         "Typecheck passes"
       ],
       "priority": 25,
-      "passes": false,
+      "passes": true,
       "notes": "Depends on US-014 (owner model), US-015 (write interception). Modifies run.ts attach mode."
     },
     {
@@ -448,7 +448,7 @@
         "Typecheck passes"
       ],
       "priority": 26,
-      "passes": false,
+      "passes": true,
       "notes": "Depends on US-009/010 and US-014. This is the server restart recovery mechanism. Memory-state counters (update_seq for non-persisted state) restart from 0 — paired with client-side store reset on reconnect."
     }
   ]

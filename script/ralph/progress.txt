@@ -21,6 +21,11 @@ Started: Sat Mar 14 2026
 - Atomic file creation: use `fs.openSync()` with `O_WRONLY | O_CREAT | O_EXCL` flags, catch EEXIST
 - `Bun.file().text()` for reads, `node:fs` sync for atomic O_EXCL writes
 - `Filesystem.write()` helper exists for normal writes with mode support, but doesn't do atomic O_EXCL
+- Auth token: `AuthToken.set()` then middleware validates `Authorization: Bearer <token>` header
+- Client tracking: `Client.add()` on SSE connect, `Client.disconnect()` (grace period) on SSE abort
+- Lifecycle: `Lifecycle.enable(shutdown)` for auto-exit mode, `Lifecycle.connect()/disconnect()` for SSE tracking
+- Session.LockedError → 423 Locked response in server.ts onError handler
+- `sql\`update_seq + 1\`` in Drizzle `.set()` calls for atomic counter increment
 
 ## Mon Mar 16 2026 - US-001
 - Implemented Worker lock file module at `packages/opencode/src/server/lockfile.ts`
@@ -51,4 +56,39 @@ Started: Sat Mar 14 2026
   - In detached mode, Worker handles its own SIGTERM/SIGINT for lock file cleanup
   - External mode (--port/--hostname/--mdns) still uses Worker thread (not detached) for backward compat
   - `server.port!` needs non-null assertion since Bun types mark it optional
+---
+
+## Mon Mar 16 2026 - US-003
+- Removed in-process RPC and unified to HTTP/SSE
+- Files changed: worker.ts (removed RPC, GlobalBus, event stream), thread.ts (removed createWorkerFetch, createEventSource), sdk.tsx (removed EventSource type, custom event source branch), app.tsx (removed events prop)
+---
+
+## Mon Mar 16 2026 - US-004
+- Worker lifecycle modes and idle watchdog
+- Files: lifecycle.ts (new), worker.ts (--mode, --hostname, --port), serve.ts (lock file, mutual exclusion, auth)
+---
+
+## Mon Mar 16 2026 - US-005 + US-006
+- Auth token middleware and local TUI auto-auth
+- Files: auth-token.ts (new), server.ts (Bearer middleware), worker.ts (auth token generation), thread.ts (lock file token), attach.ts (--auth-token), SDK v2/client.ts (authToken param)
+---
+
+## Mon Mar 16 2026 - US-007 + US-008
+- update_seq DB migration and increment integration
+- Files: session.sql.ts (update_seq columns), migration (ALTER TABLE), session/index.ts (sql`update_seq + 1` on updates), message-v2.ts (updateSeq in schemas/fromRow)
+---
+
+## Mon Mar 16 2026 - US-009..US-018
+- Client tracking, reconnect tokens, grace period, owner/observer model, takeover, activity heartbeat
+- Files: client.ts (new - full client state machine), server.ts (SSE client tracking, /clients, /instance/activity, /instance/takeover, clientID validation middleware), lifecycle.ts (TIMEOUT constant), prompt.ts (assertCanWrite, LockedError)
+---
+
+## Mon Mar 16 2026 - US-019..US-026
+- SSE reconnect bootstrap, typing broadcast, owner recovery persistence
+- Files: sync.tsx (server.connected → bootstrap), sdk.tsx (ConnectionState signal), client.ts (typing event, persistOwner, loadPersistedOwner), server.ts (typing endpoint)
+- **Learnings:**
+  - `BusEvent.define()` auto-registers events for SSE broadcast
+  - Client module is singleton state — no Instance scoping needed
+  - LockedError (423) handled in server.ts onError handler
+  - Owner persistence uses simple JSON file in Global.Path.data
 ---
