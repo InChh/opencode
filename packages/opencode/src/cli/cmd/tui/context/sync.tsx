@@ -506,6 +506,36 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
           )
           fullSyncedSessions.add(sessionID)
         },
+        async loadOlder(sessionID: string, limit = 50): Promise<number> {
+          const messages = store.message[sessionID] ?? []
+          if (messages.length === 0) return 0
+          const oldestID = messages[0].id
+          const older = await sdk.client.session.messages({
+            sessionID,
+            limit,
+            before: oldestID,
+          })
+          const fetched = older.data ?? []
+          if (fetched.length === 0) return 0
+          setStore(
+            produce((draft) => {
+              const existing = draft.message[sessionID] ?? []
+              const newMessages = fetched
+                .map((x) => x.info)
+                .filter((m) => {
+                  const match = Binary.search(existing, m.id, (x) => x.id)
+                  return !match.found
+                })
+              draft.message[sessionID] = [...newMessages, ...existing]
+              for (const message of fetched) {
+                if (!draft.part[message.info.id]) {
+                  draft.part[message.info.id] = message.parts
+                }
+              }
+            }),
+          )
+          return fetched.length
+        },
       },
       bootstrap,
     }

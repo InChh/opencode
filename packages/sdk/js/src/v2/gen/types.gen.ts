@@ -3221,6 +3221,7 @@ export type SessionMessagesData = {
     directory?: string
     workspace?: string
     limit?: number
+    before?: string
   }
   url: "/session/{sessionID}/message"
 }

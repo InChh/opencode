@@ -159,6 +159,40 @@ export function Session() {
   const [diffWrapMode] = kv.signal<"word" | "none">("diff_wrap_mode", "word")
   const [animationsEnabled, setAnimationsEnabled] = kv.signal("animations_enabled", true)
   const [showGenericToolOutput, setShowGenericToolOutput] = kv.signal("generic_tool_output_visibility", false)
+  const [loadingOlder, setLoadingOlder] = createSignal(false)
+  const [noMoreOlder, setNoMoreOlder] = createSignal(false)
+
+  // Reset pagination state when session changes
+  createEffect(
+    on(
+      () => route.sessionID,
+      () => setNoMoreOlder(false),
+    ),
+  )
+
+  async function checkScrollTop() {
+    if (!scroll || scroll.isDestroyed) return
+    if (scroll.y > 0) return
+    if (loadingOlder() || noMoreOlder()) return
+
+    setLoadingOlder(true)
+    try {
+      const prevHeight = scroll.scrollHeight
+      const count = await sync.session.loadOlder(route.sessionID)
+      if (count === 0) {
+        setNoMoreOlder(true)
+      } else {
+        // After prepending, restore scroll position so the view doesn't jump
+        setTimeout(() => {
+          if (!scroll || scroll.isDestroyed) return
+          const delta = scroll.scrollHeight - prevHeight
+          if (delta > 0) scroll.scrollTo(delta)
+        }, 50)
+      }
+    } finally {
+      setLoadingOlder(false)
+    }
+  }
 
   const wide = createMemo(() => dimensions().width > 120)
   const sidebarVisible = createMemo(() => {
@@ -646,6 +680,7 @@ export function Session() {
       hidden: true,
       onSelect: (dialog) => {
         scroll.scrollBy(-scroll.height / 2)
+        checkScrollTop()
         dialog.clear()
       },
     },
@@ -668,6 +703,7 @@ export function Session() {
       disabled: true,
       onSelect: (dialog) => {
         scroll.scrollBy(-1)
+        checkScrollTop()
         dialog.clear()
       },
     },
@@ -690,6 +726,7 @@ export function Session() {
       hidden: true,
       onSelect: (dialog) => {
         scroll.scrollBy(-scroll.height / 4)
+        checkScrollTop()
         dialog.clear()
       },
     },
@@ -712,6 +749,7 @@ export function Session() {
       hidden: true,
       onSelect: (dialog) => {
         scroll.scrollTo(0)
+        checkScrollTop()
         dialog.clear()
       },
     },
@@ -772,7 +810,10 @@ export function Session() {
       keybind: "messages_previous",
       category: "Session",
       hidden: true,
-      onSelect: (dialog) => scrollToMessage("prev", dialog),
+      onSelect: (dialog) => {
+        scrollToMessage("prev", dialog)
+        checkScrollTop()
+      },
     },
     {
       title: "Copy last assistant message",
@@ -1053,6 +1094,13 @@ export function Session() {
               flexGrow={1}
               scrollAcceleration={scrollAcceleration()}
             >
+              <Show when={loadingOlder()}>
+                <box justifyContent="center" paddingBottom={1}>
+                  <text fg={theme.textMuted}>
+                    <Spinner /> Loading older messages…
+                  </text>
+                </box>
+              </Show>
               <For each={messages()}>
                 {(message, index) => (
                   <Switch>
