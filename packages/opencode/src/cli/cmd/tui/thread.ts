@@ -124,14 +124,17 @@ export const TuiThreadCommand = cmd({
       const existing = await Lockfile.acquire(cwd)
 
       let url: string
+      let headers: RequestInit["headers"] | undefined
       if (existing) {
         // Connect to existing Worker via HTTP
         url = `http://127.0.0.1:${existing.port}`
+        if (existing.token) headers = { Authorization: `Bearer ${existing.token}` }
       } else {
         // Spawn detached Worker process and wait for it to be ready
         await spawnDetached(cwd)
         const lock = await waitForLockfile(cwd)
         url = `http://127.0.0.1:${lock.port}`
+        if (lock.token) headers = { Authorization: `Bearer ${lock.token}` }
       }
 
       const prompt = await input(args.prompt)
@@ -157,6 +160,7 @@ export const TuiThreadCommand = cmd({
         await tui({
           url,
           config,
+          headers,
           directory: cwd,
           args: {
             continue: args.continue,

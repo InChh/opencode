@@ -93,7 +93,7 @@
         "Typecheck passes"
       ],
       "priority": 5,
-      "passes": false,
+      "passes": true,
       "notes": "Focus on server-side middleware only. CLI parameter --auth-token for 'opencode attach' is handled in US-006."
     },
     {

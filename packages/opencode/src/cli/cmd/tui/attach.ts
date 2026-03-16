@@ -38,6 +38,10 @@ export const AttachCommand = cmd({
         alias: ["p"],
         type: "string",
         describe: "basic auth password (defaults to OPENCODE_SERVER_PASSWORD)",
+      })
+      .option("auth-token", {
+        type: "string",
+        describe: "Bearer auth token for remote connections",
       }),
   handler: async (args) => {
     const unguard = win32InstallCtrlCGuard()
@@ -61,6 +65,8 @@ export const AttachCommand = cmd({
         }
       })()
       const headers = (() => {
+        const token = args["auth-token"] as string | undefined
+        if (token) return { Authorization: `Bearer ${token}` }
         const password = args.password ?? process.env.OPENCODE_SERVER_PASSWORD
         if (!password) return undefined
         const auth = `Basic ${Buffer.from(`opencode:${password}`).toString("base64")}`
