@@ -318,7 +318,7 @@ export namespace SessionPrompt {
       SessionStatus.set(sessionID, { type: "busy" })
       log.info("loop", { step, sessionID })
       if (abort.aborted) break
-      let msgs = await MessageV2.filterCompacted(MessageV2.stream(sessionID))
+      let msgs = await MessageV2.filterCompacted(MessageV2.stream({ sessionID }))
 
       let lastUser: MessageV2.User | undefined
       let lastAssistant: MessageV2.Assistant | undefined
@@ -774,7 +774,7 @@ export namespace SessionPrompt {
       continue
     }
     SessionCompaction.prune({ sessionID })
-    for await (const item of MessageV2.stream(sessionID)) {
+    for await (const item of MessageV2.stream({ sessionID })) {
       if (item.info.role === "user") continue
       const queued = state()[sessionID]?.callbacks ?? []
       for (const q of queued) {
@@ -786,7 +786,7 @@ export namespace SessionPrompt {
   })
 
   async function lastModel(sessionID: string) {
-    for await (const item of MessageV2.stream(sessionID)) {
+    for await (const item of MessageV2.stream({ sessionID })) {
       if (item.info.role === "user" && item.info.model) return item.info.model
     }
     return Provider.defaultModel()

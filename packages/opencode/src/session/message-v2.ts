@@ -6,7 +6,7 @@ import { Identifier } from "../id/id"
 import { LSP } from "../lsp"
 import { Snapshot } from "@/snapshot"
 import { fn } from "@/util/fn"
-import { Database, eq, desc, inArray } from "@/storage/db"
+import { Database, eq, desc, inArray, lt, and } from "@/storage/db"
 import { MessageTable, PartTable } from "./session.sql"
 import { ProviderTransform } from "@/provider/transform"
 import { STATUS_CODES } from "http"
@@ -730,20 +730,30 @@ export namespace MessageV2 {
     )
   }
 
-  export const stream = fn(Identifier.schema("session"), async function* (sessionID) {
-    const size = 50
-    let offset = 0
-    while (true) {
-      const rows = Database.use((db) =>
-        db
-          .select()
-          .from(MessageTable)
-          .where(eq(MessageTable.session_id, sessionID))
-          .orderBy(desc(MessageTable.time_created))
-          .limit(size)
-          .offset(offset)
-          .all(),
-      )
+  export const stream = fn(
+    z.object({
+      sessionID: Identifier.schema("session"),
+      before: z.string().optional(),
+    }),
+    async function* (input) {
+      const { sessionID, before } = input
+      const size = 50
+      let offset = 0
+      let cursor = before
+      while (true) {
+        const conditions = cursor
+          ? and(eq(MessageTable.session_id, sessionID), lt(MessageTable.id, cursor))
+          : eq(MessageTable.session_id, sessionID)
+        const rows = Database.use((db) =>
+          db
+            .select()
+            .from(MessageTable)
+            .where(conditions!)
+            .orderBy(desc(MessageTable.time_created))
+            .limit(size)
+            .offset(offset)
+            .all(),
+        )
       if (rows.length === 0) break
 
       const ids = rows.map((row) => row.id)

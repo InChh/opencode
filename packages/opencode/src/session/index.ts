@@ -533,10 +533,11 @@ export namespace Session {
     z.object({
       sessionID: Identifier.schema("session"),
       limit: z.number().optional(),
+      before: z.string().optional(),
     }),
     async (input) => {
       const result = [] as MessageV2.WithParts[]
-      for await (const msg of MessageV2.stream(input.sessionID)) {
+      for await (const msg of MessageV2.stream({ sessionID: input.sessionID, before: input.before })) {
         if (input.limit && result.length >= input.limit) break
         result.push(msg)
       }
