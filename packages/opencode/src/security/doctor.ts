@@ -308,6 +308,13 @@ function checkRoleReferences(config: SecuritySchema.ResolvedSecurityConfig, diag
         message: `${p}Rule '${rule.pattern}' has empty allowedRoles — no role can bypass this deny`,
       })
     }
+    if (rule.llmAction === "block" && rule.deniedOperations.includes("llm")) {
+      diagnostics.push({
+        level: "warn",
+        category: "rules",
+        message: `${p}Rule '${rule.pattern}' has llmAction: "block" — LLM requests containing this pattern will be fully blocked (use "redact" to replace content instead)`,
+      })
+    }
   }
 }
 

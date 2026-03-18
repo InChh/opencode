@@ -425,11 +425,9 @@ export namespace LLM {
           const matches = LLMScanner.scanForProtectedContent(part.text, config)
           if (matches.length === 0) continue
 
-          // Determine action based on rule configuration
-          // Rules with "llm" in deniedOperations that don't have allowedRoles = "block"
-          // If any roles are specified in allowedRoles, treat as "redact" (since we can't verify role at this level)
-          const blockMatches = matches.filter((m) => m.rule.allowedRoles.length === 0)
-          const redactMatches = matches.filter((m) => m.rule.allowedRoles.length > 0)
+          // Determine action based on rule's llmAction field (defaults to "redact" when unset)
+          const blockMatches = matches.filter((m) => m.rule.llmAction === "block")
+          const redactMatches = matches.filter((m) => m.rule.llmAction !== "block")
 
           for (const match of blockMatches) {
             blockViolations.push({ text: part.text.slice(match.start, match.end).slice(0, 50), match })

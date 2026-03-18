@@ -13,11 +13,15 @@ export namespace SecuritySchema {
   export const RuleType = z.enum(["directory", "file"])
   export type RuleType = z.infer<typeof RuleType>
 
+  export const LlmAction = z.enum(["block", "redact"])
+  export type LlmAction = z.infer<typeof LlmAction>
+
   export const Rule = z.object({
     pattern: z.string(),
     type: RuleType,
     deniedOperations: z.array(Operation),
     allowedRoles: z.array(z.string()),
+    llmAction: LlmAction.optional(),
   })
   export type Rule = z.infer<typeof Rule>
 
@@ -26,6 +30,7 @@ export namespace SecuritySchema {
     end: z.string(),
     deniedOperations: z.array(Operation),
     allowedRoles: z.array(z.string()),
+    llmAction: LlmAction.optional(),
   })
   export type MarkerConfig = z.infer<typeof MarkerConfig>
 
@@ -35,6 +40,7 @@ export namespace SecuritySchema {
     namePattern: z.string(),
     deniedOperations: z.array(Operation),
     allowedRoles: z.array(z.string()),
+    llmAction: LlmAction.optional(),
   })
   export type ASTConfig = z.infer<typeof ASTConfig>
 

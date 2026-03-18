@@ -1,51 +1,85 @@
 {
-  "session_id": "tfr-20260316-001",
-  "created_at": "2026-03-16T10:00:00Z",
-  "updated_at": "2026-03-16T10:15:00Z",
-  "initial_failure_count": 30,
+  "session_id": "tfr-20260318-001",
+  "created_at": "2026-03-18T12:00:00Z",
+  "updated_at": "2026-03-18T12:10:00Z",
+  "initial_failure_count": 6,
   "entries": [
     {
       "id": "F-001",
-      "file": "test/server/remote-attach.test.ts",
-      "test": "Lockfile > create and read lock file (and 4 other Lockfile tests)",
-      "priority": "P1",
-      "status": "fixed",
+      "file": "test/session/hooks/detection-checking.test.ts",
+      "test": "DetectionCheckingHooks > config-driven disable > disabled keyword-detector -> no variant set",
+      "priority": "P4",
+      "status": "escalated",
       "attempt_count": 1,
       "max_attempts": 3,
-      "diagnosis": "Compile error: Lockfile describe block uses require() to load src/server/lockfile.ts which contains top-level await (async module). Bun rejects require() on async modules.",
-      "fix_applied": "Replaced require() with beforeAll + await import() pattern for Lockfile and assertCanWrite describe blocks",
-      "escalation_reason": null,
-      "modified_files": [
-        "packages/opencode/test/server/remote-attach.test.ts"
-      ]
+      "diagnosis": "Flaky: TimeoutError under parallel execution load. Passes consistently in isolation (28/28 pass, 6.3s). Resource contention during full suite causes intermittent timeouts.",
+      "fix_applied": null,
+      "escalation_reason": "flaky",
+      "modified_files": []
     },
     {
       "id": "F-002",
-      "file": "test/server/remote-attach.test.ts",
-      "test": "Client registration/Reconnect/Grace/Ownership/Routes (24 tests missing Instance context)",
-      "priority": "P2",
-      "status": "fixed",
+      "file": "test/plugin/auth-override.test.ts",
+      "test": "plugin.auth-override > user plugin overrides built-in github-copilot auth",
+      "priority": "P4",
+      "status": "escalated",
       "attempt_count": 1,
       "max_attempts": 3,
-      "diagnosis": "Runtime error: Client.add() and Client.remove() call Bus.publish() which requires Instance context (AsyncLocalStorage). Tests were not providing Instance context.",
-      "fix_applied": "Added Instance import and withCtx() helper wrapping Instance.provide(). Wrapped all 24+ test callbacks that call Client methods in withCtx(). Also added Client.resetCooldown() to prevent takeover cooldown interference between tests.",
-      "escalation_reason": null,
-      "modified_files": [
-        "packages/opencode/test/server/remote-attach.test.ts",
-        "packages/opencode/src/server/client.ts"
-      ]
+      "diagnosis": "Flaky: Test timed out after 30000ms during parallel execution. Passes in isolation (1/1 pass, 3.4s). Likely resource contention with other test processes.",
+      "fix_applied": null,
+      "escalation_reason": "flaky",
+      "modified_files": []
     },
     {
       "id": "F-003",
-      "file": "test/control-plane/workspace-server-sse.test.ts",
-      "test": "workspace-server-sse (flaky - passes in isolation, fails in full run)",
-      "priority": "P5",
-      "status": "fixed",
+      "file": "test/tool/delegate-task.test.ts",
+      "test": "delegate-task tools > tool registration > tools are registered in registry",
+      "priority": "P4",
+      "status": "escalated",
       "attempt_count": 1,
       "max_attempts": 3,
-      "diagnosis": "Environment/flaky: Test passes when run in isolation. Failure in full run was likely caused by port collision or timing issue with parallel test execution. The fix to remote-attach.test.ts (providing Instance context) may have resolved the underlying resource contention.",
-      "fix_applied": "No direct fix needed — resolved by fixing Instance context in remote-attach.test.ts which was causing unhandled errors that interfered with parallel test execution",
-      "escalation_reason": null,
+      "diagnosis": "Flaky: TimeoutError (3516ms) during parallel execution. Passes in isolation (29/29 pass, 6.0s). Resource contention causes intermittent timeout.",
+      "fix_applied": null,
+      "escalation_reason": "flaky",
+      "modified_files": []
+    },
+    {
+      "id": "F-004",
+      "file": "test/tool/bash.test.ts",
+      "test": "tool.bash > basic",
+      "priority": "P4",
+      "status": "escalated",
+      "attempt_count": 1,
+      "max_attempts": 3,
+      "diagnosis": "Flaky: TimeoutError (9918ms) during parallel execution. Passes in isolation (15/15 pass, 7.8s). Resource contention causes intermittent timeout.",
+      "fix_applied": null,
+      "escalation_reason": "flaky",
+      "modified_files": []
+    },
+    {
+      "id": "F-005",
+      "file": "test/config/config.test.ts",
+      "test": "(entire file)",
+      "priority": "P4",
+      "status": "escalated",
+      "attempt_count": 1,
+      "max_attempts": 3,
+      "diagnosis": "Flaky: Process-level timeout after 60s during parallel execution. Passes in isolation (62/62 pass, 3.8s). Resource contention causes the entire file to exceed the per-file timeout.",
+      "fix_applied": null,
+      "escalation_reason": "flaky",
+      "modified_files": []
+    },
+    {
+      "id": "F-006",
+      "file": "test/control-plane/workspace-server-sse.test.ts",
+      "test": "(entire file)",
+      "priority": "P4",
+      "status": "escalated",
+      "attempt_count": 1,
+      "max_attempts": 3,
+      "diagnosis": "Flaky: Process-level timeout after 60s during parallel execution. Passes in isolation (1/1 pass, 3.8s). Resource contention causes the test to exceed the per-file timeout.",
+      "fix_applied": null,
+      "escalation_reason": "flaky",
       "modified_files": []
     }
   ]
