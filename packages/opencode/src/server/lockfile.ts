@@ -23,14 +23,20 @@ export namespace Lockfile {
     return raw.slice(0, 200) + "_" + hash
   }
 
-  /** Resolve the lock file path for a given project directory. */
-  export function filepath(dir: string): string {
-    return path.join(Global.Path.data, encode(dir), "worker.lock")
+  /** Resolve the lock directory for a given project directory. */
+  export function lockdir(dir: string): string {
+    return path.join(Global.Path.data, encode(dir))
   }
 
-  /** Atomically create a lock file. Returns true on success, false if file already exists (another Worker won). */
+  /** Resolve the lock file path for a given project directory and PID. */
+  export function filepath(dir: string, pid?: number): string {
+    const id = pid ?? process.pid
+    return path.join(lockdir(dir), `worker-${id}.lock`)
+  }
+
+  /** Atomically create a lock file. Returns true on success, false if file already exists. */
   export async function create(dir: string, data: Data): Promise<boolean> {
-    const p = filepath(dir)
+    const p = filepath(dir, data.pid)
     await fsp.mkdir(path.dirname(p), { recursive: true })
     const content = JSON.stringify(data, null, 2)
     try {
@@ -44,17 +50,21 @@ export namespace Lockfile {
     }
   }
 
-  /** Read and validate the lock file. Returns parsed data or undefined if not found or invalid. */
-  export async function read(dir: string): Promise<Data | undefined> {
-    const p = filepath(dir)
+  /** Read and validate a specific lock file. Returns parsed data or undefined if not found or invalid. */
+  async function readFile(filepath: string): Promise<Data | undefined> {
     try {
-      const raw = await Bun.file(p).text()
+      const raw = await Bun.file(filepath).text()
       const parsed = Schema.safeParse(JSON.parse(raw))
       if (!parsed.success) return undefined
       return parsed.data
     } catch {
       return undefined
     }
+  }
+
+  /** Read the lock file for this process's PID. Returns parsed data or undefined. */
+  export async function read(dir: string, pid?: number): Promise<Data | undefined> {
+    return readFile(filepath(dir, pid))
   }
 
   /** Check if a process with the given PID is alive. */
@@ -67,22 +77,65 @@ export namespace Lockfile {
     }
   }
 
-  /** Read the lock file and check for staleness. If stale (process dead), clean up and return undefined. */
-  export async function acquire(dir: string): Promise<Data | undefined> {
-    const data = await read(dir)
+  /** Read a lock file and check for staleness. If stale (process dead), clean up and return undefined. */
+  export async function acquire(dir: string, pid?: number): Promise<Data | undefined> {
+    const data = await read(dir, pid)
     if (!data) return undefined
     if (alive(data.pid)) return data
-    await remove(dir)
+    await remove(dir, data.pid)
     return undefined
   }
 
-  /** Remove the lock file. */
-  export async function remove(dir: string): Promise<void> {
-    const p = filepath(dir)
+  /** List all live lock files for a directory. Cleans up stale entries. */
+  export async function list(dir: string): Promise<Data[]> {
+    const d = lockdir(dir)
+    let entries: string[]
+    try {
+      entries = await fsp.readdir(d)
+    } catch {
+      return []
+    }
+    const results: Data[] = []
+    for (const entry of entries) {
+      if (!entry.startsWith("worker-") || !entry.endsWith(".lock")) continue
+      const data = await readFile(path.join(d, entry))
+      if (!data) continue
+      if (alive(data.pid)) {
+        results.push(data)
+      } else {
+        // Clean up stale lock file
+        try {
+          await fsp.unlink(path.join(d, entry))
+        } catch {}
+      }
+    }
+    return results
+  }
+
+  /** Remove a lock file. If pid is given, removes that specific lock; otherwise removes this process's lock. */
+  export async function remove(dir: string, pid?: number): Promise<void> {
+    const p = filepath(dir, pid)
     try {
       await fsp.unlink(p)
     } catch {
       // ignore if already gone
+    }
+  }
+
+  /** Remove all lock files for a directory. */
+  export async function removeAll(dir: string): Promise<void> {
+    const d = lockdir(dir)
+    let entries: string[]
+    try {
+      entries = await fsp.readdir(d)
+    } catch {
+      return
+    }
+    for (const entry of entries) {
+      if (!entry.startsWith("worker-") || !entry.endsWith(".lock")) continue
+      try {
+        await fsp.unlink(path.join(d, entry))
+      } catch {}
     }
   }
 }

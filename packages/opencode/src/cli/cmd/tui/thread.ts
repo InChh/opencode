@@ -30,13 +30,18 @@ async function spawnDetached(cwd: string): Promise<void> {
   child.unref()
 }
 
-/** Wait for lock file to appear and return its data. Polls with backoff. */
-async function waitForLockfile(dir: string, timeout = 10_000): Promise<Lockfile.Data> {
+/** Wait for a NEW lock file to appear (one that didn't exist before). Polls with backoff. */
+async function waitForNewLockfile(
+  dir: string,
+  existingPids: Set<number>,
+  timeout = 10_000,
+): Promise<Lockfile.Data> {
   const start = Date.now()
   let delay = 50
   while (Date.now() - start < timeout) {
-    const data = await Lockfile.read(dir)
-    if (data) return data
+    const all = await Lockfile.list(dir)
+    const fresh = all.find((d) => !existingPids.has(d.pid))
+    if (fresh) return fresh
     await Bun.sleep(delay)
     delay = Math.min(delay * 2, 500)
   }
@@ -104,22 +109,14 @@ export const TuiThreadCommand = cmd({
         return
       }
 
-      // Check for existing Worker via lock file
-      const existing = await Lockfile.acquire(cwd)
-
-      let url: string
-      let headers: RequestInit["headers"] | undefined
-      if (existing) {
-        // Connect to existing Worker via HTTP
-        url = `http://127.0.0.1:${existing.port}`
-        if (existing.token) headers = { Authorization: `Bearer ${existing.token}` }
-      } else {
-        // Spawn detached Worker process and wait for it to be ready
-        await spawnDetached(cwd)
-        const lock = await waitForLockfile(cwd)
-        url = `http://127.0.0.1:${lock.port}`
-        if (lock.token) headers = { Authorization: `Bearer ${lock.token}` }
-      }
+      // Always spawn a new independent Worker — collect existing PIDs so we can detect the new one
+      const existingPids = new Set((await Lockfile.list(cwd)).map((d) => d.pid))
+      await spawnDetached(cwd)
+      const lock = await waitForNewLockfile(cwd, existingPids)
+      const url = `http://127.0.0.1:${lock.port}`
+      const headers: RequestInit["headers"] | undefined = lock.token
+        ? { Authorization: `Bearer ${lock.token}` }
+        : undefined
 
       const prompt = await input(args.prompt)
       const config = await Instance.provide({

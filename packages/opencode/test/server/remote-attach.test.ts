@@ -649,15 +649,15 @@ describe("Lockfile", () => {
     const created = await Lockfile.create(dir, data)
     expect(created).toBe(true)
 
-    const read = await Lockfile.read(dir)
+    const read = await Lockfile.read(dir, process.pid)
     expect(read).toBeDefined()
     expect(read!.pid).toBe(process.pid)
     expect(read!.port).toBe(12345)
 
-    await Lockfile.remove(dir)
+    await Lockfile.remove(dir, process.pid)
   })
 
-  test("create fails when lock file exists", async () => {
+  test("create fails when lock file with same PID exists", async () => {
     const dir = `/tmp/opencode-test-lockfile-dup-${Date.now()}`
     const data = { pid: process.pid, port: 12345, token: null, createdAt: Date.now() }
 
@@ -667,7 +667,22 @@ describe("Lockfile", () => {
     const second = await Lockfile.create(dir, data)
     expect(second).toBe(false)
 
-    await Lockfile.remove(dir)
+    await Lockfile.remove(dir, process.pid)
+  })
+
+  test("create succeeds for different PIDs in same directory", async () => {
+    const dir = `/tmp/opencode-test-lockfile-multi-${Date.now()}`
+    const data1 = { pid: process.pid, port: 12345, token: null, createdAt: Date.now() }
+    const data2 = { pid: process.ppid, port: 12346, token: null, createdAt: Date.now() }
+
+    const first = await Lockfile.create(dir, data1)
+    expect(first).toBe(true)
+
+    const second = await Lockfile.create(dir, data2)
+    expect(second).toBe(true)
+
+    await Lockfile.remove(dir, process.pid)
+    await Lockfile.remove(dir, process.ppid)
   })
 
   test("acquire returns data for alive process", async () => {
@@ -675,11 +690,11 @@ describe("Lockfile", () => {
     const data = { pid: process.pid, port: 12345, token: null, createdAt: Date.now() }
 
     await Lockfile.create(dir, data)
-    const acquired = await Lockfile.acquire(dir)
+    const acquired = await Lockfile.acquire(dir, process.pid)
     expect(acquired).toBeDefined()
     expect(acquired!.pid).toBe(process.pid)
 
-    await Lockfile.remove(dir)
+    await Lockfile.remove(dir, process.pid)
   })
 
   test("acquire cleans stale lock (dead PID)", async () => {
@@ -688,14 +703,48 @@ describe("Lockfile", () => {
     const data = { pid: 999999999, port: 12345, token: null, createdAt: Date.now() }
 
     await Lockfile.create(dir, data)
-    const acquired = await Lockfile.acquire(dir)
+    const acquired = await Lockfile.acquire(dir, 999999999)
     // Should return undefined after cleaning stale lock
     expect(acquired).toBeUndefined()
   })
 
   test("read returns undefined for missing file", async () => {
-    const result = await Lockfile.read("/tmp/nonexistent-lockfile-dir-" + Date.now())
+    const result = await Lockfile.read("/tmp/nonexistent-lockfile-dir-" + Date.now(), 99999)
     expect(result).toBeUndefined()
+  })
+
+  test("list returns all live lock files", async () => {
+    const dir = `/tmp/opencode-test-lockfile-list-${Date.now()}`
+    const data1 = { pid: process.pid, port: 12345, token: null, createdAt: Date.now() }
+    const data2 = { pid: process.ppid, port: 12346, token: null, createdAt: Date.now() }
+    // Stale entry
+    const data3 = { pid: 999999999, port: 12347, token: null, createdAt: Date.now() }
+
+    await Lockfile.create(dir, data1)
+    await Lockfile.create(dir, data2)
+    await Lockfile.create(dir, data3)
+
+    const live = await Lockfile.list(dir)
+    // Should include process.pid and process.ppid, but not 999999999
+    expect(live.length).toBe(2)
+    expect(live.map((d) => d.pid).sort((a, b) => a - b)).toEqual([process.pid, process.ppid].sort((a, b) => a - b))
+
+    await Lockfile.removeAll(dir)
+  })
+
+  test("list returns empty for nonexistent directory", async () => {
+    const result = await Lockfile.list("/tmp/nonexistent-lockfile-list-" + Date.now())
+    expect(result).toEqual([])
+  })
+
+  test("removeAll clears all lock files", async () => {
+    const dir = `/tmp/opencode-test-lockfile-removeall-${Date.now()}`
+    await Lockfile.create(dir, { pid: process.pid, port: 12345, token: null, createdAt: Date.now() })
+    await Lockfile.create(dir, { pid: process.ppid, port: 12346, token: null, createdAt: Date.now() })
+
+    await Lockfile.removeAll(dir)
+    const remaining = await Lockfile.list(dir)
+    expect(remaining).toEqual([])
   })
 })
 

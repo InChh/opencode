@@ -30,15 +30,6 @@ export const ServeCommand = cmd({
 
     const dir = process.cwd()
 
-    // Mutual exclusion: if another worker is running, exit with error
-    const existing = await Lockfile.acquire(dir)
-    if (existing) {
-      console.error(`Error: another worker is already running (PID ${existing.pid}, port ${existing.port}).`)
-      console.error("Use 'opencode stop' to stop it first.")
-      process.exitCode = 1
-      return
-    }
-
     const opts = await resolveNetworkOptions(args)
 
     // Set up auth token when hostname is not loopback

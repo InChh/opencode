@@ -88,9 +88,9 @@ const ok = await Lockfile.create(dir, {
 })
 
 if (!ok) {
-  Log.Default.info("lock file already exists, another worker is running")
+  Log.Default.error("failed to create lock file (race condition with same PID)")
   server.stop(true)
-  process.exit(0)
+  process.exit(1)
 }
 
 Log.Default.info("worker started", { mode, pid: process.pid, port: bound, hostname })
