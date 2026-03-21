@@ -62,7 +62,7 @@ function formatTime(timestamp: string | number): string {
 
 async function fetchStats(params: Record<string, string>): Promise<StatsResult> {
   const qs = new URLSearchParams(params).toString()
-  const res = await fetch(`/api/logs/stats${qs ? `?${qs}` : ""}`)
+  const res = await fetch(`/log-viewer/api/logs/stats${qs ? `?${qs}` : ""}`)
   if (!res.ok) throw new Error(`Failed to fetch stats: ${res.status}`)
   return res.json()
 }
@@ -100,13 +100,7 @@ function SummaryCards({ summary }: { summary: StatsSummary }) {
   )
 }
 
-function TimeRangeFilter({
-  value,
-  onChange,
-}: {
-  value: string
-  onChange: (v: string) => void
-}) {
+function TimeRangeFilter({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   return (
     <select
       value={value}
@@ -166,7 +160,12 @@ function TokenTimeChart({ timeRange }: { timeRange: string }) {
         <CartesianGrid strokeDasharray="3 3" stroke="#3f3f46" />
         <XAxis dataKey="group" tick={{ fill: "#a1a1aa", fontSize: 12 }} tickFormatter={formatTime} />
         <YAxis yAxisId="tokens" tick={{ fill: "#a1a1aa", fontSize: 12 }} tickFormatter={formatTokens} />
-        <YAxis yAxisId="cost" orientation="right" tick={{ fill: "#a1a1aa", fontSize: 12 }} tickFormatter={(v) => formatCost(v)} />
+        <YAxis
+          yAxisId="cost"
+          orientation="right"
+          tick={{ fill: "#a1a1aa", fontSize: 12 }}
+          tickFormatter={(v) => formatCost(v)}
+        />
         <Tooltip
           contentStyle={{ backgroundColor: "#27272a", border: "1px solid #3f3f46", borderRadius: 8 }}
           labelFormatter={(label) => formatTime(String(label))}
@@ -177,8 +176,22 @@ function TokenTimeChart({ timeRange }: { timeRange: string }) {
           }}
         />
         <Legend />
-        <Line yAxisId="tokens" type="monotone" dataKey="input_tokens" name="Input Tokens" stroke="#3b82f6" dot={false} />
-        <Line yAxisId="tokens" type="monotone" dataKey="output_tokens" name="Output Tokens" stroke="#10b981" dot={false} />
+        <Line
+          yAxisId="tokens"
+          type="monotone"
+          dataKey="input_tokens"
+          name="Input Tokens"
+          stroke="#3b82f6"
+          dot={false}
+        />
+        <Line
+          yAxisId="tokens"
+          type="monotone"
+          dataKey="output_tokens"
+          name="Output Tokens"
+          stroke="#10b981"
+          dot={false}
+        />
         <Line yAxisId="cost" type="monotone" dataKey="cost" name="cost" stroke="#f59e0b" dot={false} />
       </LineChart>
     </ResponsiveContainer>

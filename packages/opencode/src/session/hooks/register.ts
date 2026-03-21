@@ -7,6 +7,7 @@ import { LLMParameterHooks } from "./llm-parameters"
 import { SessionLifecycleHooks } from "./session-lifecycle"
 import { LlmLogCapture } from "../../log/capture"
 import { RalphLoop } from "./ralph-loop"
+import { registerMemoryHooks } from "../../memory/hooks/register"
 
 export function registerAllHooks(): void {
   ContextInjectionHooks.register()
@@ -18,4 +19,5 @@ export function registerAllHooks(): void {
   SessionLifecycleHooks.register()
   LlmLogCapture.register()
   RalphLoop.register()
+  registerMemoryHooks()
 }

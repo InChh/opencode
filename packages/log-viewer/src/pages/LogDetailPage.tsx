@@ -157,16 +157,16 @@ function JsonTree({ data, collapsed }: { data: any; collapsed?: boolean }) {
       </button>
       <div className="pl-4 border-l border-zinc-800">
         {entries.map((entry: any, idx: number) => {
-        const key = entry[0]
-        const value = entry[1]
-        return (
-          <div key={idx}>
-            {!isArray && <span className="text-purple-400">{key}</span>}
-            {!isArray && <span className="text-zinc-500">: </span>}
-            <JsonTree data={value} collapsed />
-            {idx < entries.length - 1 && <span className="text-zinc-600">,</span>}
-          </div>
-        )
+          const key = entry[0]
+          const value = entry[1]
+          return (
+            <div key={idx}>
+              {!isArray && <span className="text-purple-400">{key}</span>}
+              {!isArray && <span className="text-zinc-500">: </span>}
+              <JsonTree data={value} collapsed />
+              {idx < entries.length - 1 && <span className="text-zinc-600">,</span>}
+            </div>
+          )
         })}
       </div>
       <span className="text-zinc-500">{bracket[1]}</span>
@@ -174,7 +174,15 @@ function JsonTree({ data, collapsed }: { data: any; collapsed?: boolean }) {
   )
 }
 
-function CollapsibleSection({ title, defaultOpen, children }: { title: string; defaultOpen?: boolean; children: React.ReactNode }) {
+function CollapsibleSection({
+  title,
+  defaultOpen,
+  children,
+}: {
+  title: string
+  defaultOpen?: boolean
+  children: React.ReactNode
+}) {
   const [open, setOpen] = useState(defaultOpen ?? false)
   return (
     <div className="border border-zinc-800 rounded-lg overflow-hidden">
@@ -207,19 +215,21 @@ function MessageBubble({ message }: { message: any }) {
   const borderClass = roleColors[role] ?? "border-zinc-800 bg-zinc-900"
   const labelClass = roleLabelColors[role] ?? "text-zinc-400"
 
-  const content = typeof message.content === "string"
-    ? message.content
-    : Array.isArray(message.content)
+  const content =
+    typeof message.content === "string"
       ? message.content
-          .map((part: any) => {
-            if (typeof part === "string") return part
-            if (part.type === "text") return part.text
-            if (part.type === "tool-call" || part.type === "tool_call") return `[Tool: ${part.toolName ?? part.name}]`
-            if (part.type === "tool-result" || part.type === "tool_result") return `[Tool Result: ${part.toolName ?? part.name ?? ""}]`
-            return JSON.stringify(part)
-          })
-          .join("\n")
-      : JSON.stringify(message.content)
+      : Array.isArray(message.content)
+        ? message.content
+            .map((part: any) => {
+              if (typeof part === "string") return part
+              if (part.type === "text") return part.text
+              if (part.type === "tool-call" || part.type === "tool_call") return `[Tool: ${part.toolName ?? part.name}]`
+              if (part.type === "tool-result" || part.type === "tool_result")
+                return `[Tool Result: ${part.toolName ?? part.name ?? ""}]`
+              return JSON.stringify(part)
+            })
+            .join("\n")
+        : JSON.stringify(message.content)
 
   return (
     <div className={`border rounded-lg p-3 ${borderClass}`}>
@@ -317,9 +327,7 @@ function RequestTab({ data }: { data: LogDetail }) {
           {data.request.messages.length === 0 ? (
             <p className="text-zinc-500 text-sm">No messages.</p>
           ) : (
-            data.request.messages.map((msg: any, i: number) => (
-              <MessageBubble key={i} message={msg} />
-            ))
+            data.request.messages.map((msg: any, i: number) => <MessageBubble key={i} message={msg} />)
           )}
         </div>
       </CollapsibleSection>
@@ -441,7 +449,8 @@ function ToolsTab({ data }: { data: LogDetail }) {
 
 function ToolCallCard({ toolCall }: { toolCall: ToolCall }) {
   const [expanded, setExpanded] = useState(false)
-  const statusColor = toolCall.status === "success" ? "text-green-400" : toolCall.status === "error" ? "text-red-400" : "text-zinc-400"
+  const statusColor =
+    toolCall.status === "success" ? "text-green-400" : toolCall.status === "error" ? "text-red-400" : "text-zinc-400"
 
   return (
     <div className="bg-zinc-900 border border-zinc-800 rounded-lg overflow-hidden">
@@ -456,9 +465,7 @@ function ToolCallCard({ toolCall }: { toolCall: ToolCall }) {
         <div className="flex items-center gap-4 text-xs">
           <span className={statusColor}>{toolCall.status ?? "-"}</span>
           <span className="text-zinc-500">{formatDuration(toolCall.duration_ms)}</span>
-          {toolCall.output_bytes != null && (
-            <span className="text-zinc-500">{formatBytes(toolCall.output_bytes)}</span>
-          )}
+          {toolCall.output_bytes != null && <span className="text-zinc-500">{formatBytes(toolCall.output_bytes)}</span>}
           <span className="text-zinc-600">{expanded ? "collapse" : "expand"}</span>
         </div>
       </button>
@@ -517,9 +524,7 @@ function HooksTab({ data }: { data: LogDetail }) {
       {Object.entries(grouped).map(([chainType, hooks]) => (
         <div key={chainType} className="bg-zinc-900 border border-zinc-800 rounded-lg overflow-hidden">
           <div className="px-4 py-2.5 border-b border-zinc-800">
-            <h3 className={`text-sm font-medium ${chainTypeColors[chainType] ?? "text-zinc-400"}`}>
-              {chainType}
-            </h3>
+            <h3 className={`text-sm font-medium ${chainTypeColors[chainType] ?? "text-zinc-400"}`}>{chainType}</h3>
           </div>
           <table className="w-full text-sm">
             <thead>
@@ -535,7 +540,13 @@ function HooksTab({ data }: { data: LogDetail }) {
                 const fields = Array.isArray(hook.modified_fields)
                   ? hook.modified_fields
                   : typeof hook.modified_fields === "string"
-                    ? (() => { try { return JSON.parse(hook.modified_fields) } catch { return [] } })()
+                    ? (() => {
+                        try {
+                          return JSON.parse(hook.modified_fields)
+                        } catch {
+                          return []
+                        }
+                      })()
                     : []
                 return (
                   <tr key={hook.id} className="border-b border-zinc-800/50">
@@ -568,10 +579,31 @@ function HooksTab({ data }: { data: LogDetail }) {
   )
 }
 
-const annotationTypeConfig: Record<string, { label: string; bg: string; border: string; text: string; highlight: string }> = {
-  hallucination: { label: "Hallucination", bg: "bg-red-950", border: "border-red-800", text: "text-red-400", highlight: "bg-red-500/20" },
-  quality: { label: "Quality", bg: "bg-yellow-950", border: "border-yellow-800", text: "text-yellow-400", highlight: "bg-yellow-500/20" },
-  note: { label: "Note", bg: "bg-blue-950", border: "border-blue-800", text: "text-blue-400", highlight: "bg-blue-500/20" },
+const annotationTypeConfig: Record<
+  string,
+  { label: string; bg: string; border: string; text: string; highlight: string }
+> = {
+  hallucination: {
+    label: "Hallucination",
+    bg: "bg-red-950",
+    border: "border-red-800",
+    text: "text-red-400",
+    highlight: "bg-red-500/20",
+  },
+  quality: {
+    label: "Quality",
+    bg: "bg-yellow-950",
+    border: "border-yellow-800",
+    text: "text-yellow-400",
+    highlight: "bg-yellow-500/20",
+  },
+  note: {
+    label: "Note",
+    bg: "bg-blue-950",
+    border: "border-blue-800",
+    text: "text-blue-400",
+    highlight: "bg-blue-500/20",
+  },
 }
 
 function AnnotationToolbar({
@@ -642,7 +674,7 @@ function AnnotationsTab({
     const rect = range.getBoundingClientRect()
     setToolbar({
       top: rect.top + window.scrollY,
-      left: rect.left + (rect.width / 2) - 100,
+      left: rect.left + rect.width / 2 - 100,
       selectedText,
     })
   }, [])
@@ -652,7 +684,7 @@ function AnnotationsTab({
       if (!toolbar || creating) return
       setCreating(true)
       try {
-        const res = await fetch(`/api/logs/${data.id}/annotations`, {
+        const res = await fetch(`/log-viewer/api/logs/${data.id}/annotations`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -680,7 +712,7 @@ function AnnotationsTab({
       if (deleting) return
       setDeleting(annotationId)
       try {
-        const res = await fetch(`/api/logs/annotations/${annotationId}`, { method: "DELETE" })
+        const res = await fetch(`/log-viewer/api/logs/annotations/${annotationId}`, { method: "DELETE" })
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         onAnnotationDeleted()
       } catch {
@@ -725,8 +757,8 @@ function AnnotationsTab({
       <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
         <h3 className="text-sm font-medium text-zinc-300 mb-2">How to Annotate</h3>
         <p className="text-xs text-zinc-500">
-          Select text in the completion below, then choose an annotation type from the floating toolbar.
-          Optionally add a note before selecting the type.
+          Select text in the completion below, then choose an annotation type from the floating toolbar. Optionally add
+          a note before selecting the type.
         </p>
         {toolbar && (
           <div className="mt-2">
@@ -782,9 +814,7 @@ function AnnotationsTab({
       {/* Existing annotations list */}
       <div className="bg-zinc-900 border border-zinc-800 rounded-lg overflow-hidden">
         <div className="px-4 py-2.5 border-b border-zinc-800">
-          <h3 className="text-sm font-medium text-zinc-400">
-            Annotations ({data.annotations.length})
-          </h3>
+          <h3 className="text-sm font-medium text-zinc-400">Annotations ({data.annotations.length})</h3>
         </div>
         {data.annotations.length === 0 ? (
           <div className="p-4 text-zinc-500 text-sm">No annotations yet. Select text above to create one.</div>
@@ -794,14 +824,17 @@ function AnnotationsTab({
               const config = annotationTypeConfig[ann.type] ?? annotationTypeConfig.note
               return (
                 <div key={ann.id} className="p-4 flex items-start gap-3">
-                  <span className={`px-2 py-0.5 text-xs font-medium rounded ${config.bg} ${config.border} border ${config.text} shrink-0`}>
+                  <span
+                    className={`px-2 py-0.5 text-xs font-medium rounded ${config.bg} ${config.border} border ${config.text} shrink-0`}
+                  >
                     {config.label}
                   </span>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm text-zinc-300">{ann.content}</p>
                     {ann.marked_text && (
                       <p className="text-xs text-zinc-500 mt-1 font-mono truncate">
-                        &quot;{ann.marked_text.length > 100 ? ann.marked_text.slice(0, 100) + "..." : ann.marked_text}&quot;
+                        &quot;{ann.marked_text.length > 100 ? ann.marked_text.slice(0, 100) + "..." : ann.marked_text}
+                        &quot;
                       </p>
                     )}
                     <p className="text-xs text-zinc-600 mt-1">{formatTime(ann.time_created)}</p>
@@ -833,9 +866,7 @@ interface DiffPair {
 
 function buildDiffPairs(data: LogDetail): DiffPair[] {
   const completionText = data.response?.completion_text ?? ""
-  const toolCalls = data.tool_calls.filter(
-    (tc) => tc.tool_name && (tc.input != null || tc.output != null),
-  )
+  const toolCalls = data.tool_calls.filter((tc) => tc.tool_name && (tc.input != null || tc.output != null))
 
   if (toolCalls.length === 0) return []
 
@@ -871,9 +902,7 @@ function buildDiffPairs(data: LogDetail): DiffPair[] {
     // Check for potential hallucination: tool call failed but completion doesn't mention failure/error
     const isFailed = tc.status === "error"
     const completionMentionsFailure = completionText
-      ? /\b(fail|error|issue|problem|couldn't|unable|sorry)\b/i.test(
-          segment ?? completionText,
-        )
+      ? /\b(fail|error|issue|problem|couldn't|unable|sorry)\b/i.test(segment ?? completionText)
       : false
     const potentialHallucination = isFailed && !completionMentionsFailure
 
@@ -915,11 +944,7 @@ function DiffTab({ data }: { data: LogDetail }) {
 function DiffPairCard({ pair, index }: { pair: DiffPair; index: number }) {
   const { toolCall, completionSegment, potentialHallucination } = pair
   const statusColor =
-    toolCall.status === "success"
-      ? "text-green-400"
-      : toolCall.status === "error"
-        ? "text-red-400"
-        : "text-zinc-400"
+    toolCall.status === "success" ? "text-green-400" : toolCall.status === "error" ? "text-red-400" : "text-zinc-400"
 
   return (
     <div
@@ -970,9 +995,7 @@ function DiffPairCard({ pair, index }: { pair: DiffPair; index: number }) {
           <div>
             <h4 className="text-xs font-medium text-zinc-500 mb-2">
               Actual Tool Output
-              {toolCall.status === "error" && (
-                <span className="ml-2 text-red-400 font-normal">(failed)</span>
-              )}
+              {toolCall.status === "error" && <span className="ml-2 text-red-400 font-normal">(failed)</span>}
             </h4>
             <div
               className={`rounded p-3 max-h-[180px] overflow-y-auto ${
@@ -980,9 +1003,7 @@ function DiffPairCard({ pair, index }: { pair: DiffPair; index: number }) {
               }`}
             >
               {typeof toolCall.output === "string" ? (
-                <pre className="text-zinc-200 text-xs whitespace-pre-wrap break-words font-mono">
-                  {toolCall.output}
-                </pre>
+                <pre className="text-zinc-200 text-xs whitespace-pre-wrap break-words font-mono">{toolCall.output}</pre>
               ) : (
                 <div className="font-mono text-xs">
                   <JsonTree data={toolCall.output} />
@@ -1023,7 +1044,7 @@ export function LogDetailPage() {
     if (!id) return
     setLoading(true)
     setError(null)
-    fetch(`/api/logs/${id}`)
+    fetch(`/log-viewer/api/logs/${id}`)
       .then((res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         return res.json()
@@ -1040,7 +1061,7 @@ export function LogDetailPage() {
   const refreshData = useCallback(() => {
     if (!id) return
     // Lightweight refresh without loading state
-    fetch(`/api/logs/${id}`)
+    fetch(`/log-viewer/api/logs/${id}`)
       .then((res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         return res.json()
@@ -1076,9 +1097,7 @@ export function LogDetailPage() {
           </button>
           <span className="text-zinc-700">/</span>
           <span className="text-sm text-zinc-300 font-mono">{data.id.substring(0, 12)}...</span>
-          <span className={`text-sm font-medium ${statusColors[data.status] ?? "text-zinc-400"}`}>
-            {data.status}
-          </span>
+          <span className={`text-sm font-medium ${statusColors[data.status] ?? "text-zinc-400"}`}>{data.status}</span>
         </div>
         <div className="text-xs text-zinc-500">
           {data.agent} &middot; {data.model} &middot; {formatDuration(data.duration_ms)}

@@ -5,17 +5,20 @@ import { LogDetailPage } from "./pages/LogDetailPage"
 import { StatsPage } from "./pages/StatsPage"
 import { AnalyzePage } from "./pages/AnalyzePage"
 
-const router = createBrowserRouter([
-  {
-    element: <Layout />,
-    children: [
-      { path: "/", element: <LogListPage /> },
-      { path: "/logs/:id", element: <LogDetailPage /> },
-      { path: "/stats", element: <StatsPage /> },
-      { path: "/analyze", element: <AnalyzePage /> },
-    ],
-  },
-])
+const router = createBrowserRouter(
+  [
+    {
+      element: <Layout />,
+      children: [
+        { path: "/", element: <LogListPage /> },
+        { path: "/logs/:id", element: <LogDetailPage /> },
+        { path: "/stats", element: <StatsPage /> },
+        { path: "/analyze", element: <AnalyzePage /> },
+      ],
+    },
+  ],
+  { basename: "/log-viewer/app" },
+)
 
 export function App() {
   return <RouterProvider router={router} />

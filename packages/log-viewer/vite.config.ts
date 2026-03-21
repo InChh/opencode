@@ -5,6 +5,7 @@ import { fileURLToPath } from "url"
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  base: "/log-viewer/app/",
   resolve: {
     alias: {
       "@": fileURLToPath(new URL("./src", import.meta.url)),
@@ -12,7 +13,7 @@ export default defineConfig({
   },
   server: {
     proxy: {
-      "/api": "http://localhost:19836",
+      "/log-viewer/api": "http://localhost:4096",
     },
   },
   build: {

@@ -75,7 +75,16 @@ export const WebCommand = cmd({
       open(displayUrl).catch(() => {})
     }
 
+    UI.println(UI.Style.TEXT_DIM + "  Press Ctrl+C to stop the server")
+    UI.empty()
+
+    const shutdown = async () => {
+      await server.stop()
+      process.exit(0)
+    }
+    process.on("SIGTERM", shutdown)
+    process.on("SIGINT", shutdown)
+
     await new Promise(() => {})
-    await server.stop()
   },
 })

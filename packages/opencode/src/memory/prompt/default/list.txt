@@ -1,0 +1,11 @@
+<!-- This file defines the /memory:list command prompt. -->
+<!-- To customize, create .opencode/memory/list.md in your project. -->
+<!-- No template variables are available in this file. -->
+
+The user wants to see their saved memories.
+
+Your task:
+1. Call the memory_list tool to retrieve all saved memories
+2. Present the results in a clear, organized format
+
+If no memories are found, let the user know they haven't saved any memories yet.

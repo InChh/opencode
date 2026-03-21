@@ -182,9 +182,9 @@ export namespace Memory {
                                   gzip 压缩，通过 LlmLog.get(id) 可还原完整对话
 
 新增：
-  ~/.config/opencode/storage/memory/
+  $XDG_DATA_HOME/opencode/memory/    （~/.local/share/opencode/memory/）
   ├── {projectID}/
-  │   └── personal.json         ← 个人记忆（JSON array，程序化 CRUD）
+  │   └── personal.json         ← 个人记忆（JSON object，程序化 CRUD）
   └── global/
       └── personal.json         ← 跨项目的全局个人记忆
 

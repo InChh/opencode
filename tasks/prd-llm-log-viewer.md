@@ -14,7 +14,7 @@ OpenCode 当前缺乏对 LLM 通信细节的独立追踪能力。开发者在排
 - 提供按 session / agent / model / provider 维度的 token 聚合统计与费用估算
 - 提供 token 优化建议（识别过大 tool output、重复 context、cache 命中率等）
 - 提供 Web 界面查看日志、分析 token、标注幻觉
-- 提供 `opencode log-viewer` CLI 命令快速启动本地 Web 查看器
+- Log Viewer 作为 manager 的子服务运行，不独立启动端口，通过 `/log-viewer/` 路由前缀挂载到主 server
 - 日志存储有上限控制，支持自动清理与数据库平滑升降级
 
 ## User Stories
@@ -24,6 +24,7 @@ OpenCode 当前缺乏对 LLM 通信细节的独立追踪能力。开发者在排
 **Description:** As a developer, I need a database schema to store LLM communication logs so that all request/response data persists reliably.
 
 **Acceptance Criteria:**
+
 - [ ] 在现有 SQLite 数据库中新增以下表（通过 Drizzle migration）：
   - `llm_log` — 每次 LLM 调用的主记录（session_id, agent, model, provider, variant, request_id, time_start, time_end, duration_ms, status）
   - `llm_log_request` — 请求详情（llm_log_id FK, system_prompt BLOB gzip, messages BLOB gzip, tools JSON, options JSON）
@@ -42,6 +43,7 @@ OpenCode 当前缺乏对 LLM 通信细节的独立追踪能力。开发者在排
 **Description:** As a developer, I want log storage to have configurable size limits so that the database doesn't grow unboundedly.
 
 **Acceptance Criteria:**
+
 - [ ] 在 `opencode.json` config 中新增 `llmLog` 配置段：
   ```json
   {
@@ -65,6 +67,7 @@ OpenCode 当前缺乏对 LLM 通信细节的独立追踪能力。开发者在排
 **Description:** As a developer, I want to capture the complete input context before each LLM call so I can analyze what was sent to the model.
 
 **Acceptance Criteria:**
+
 - [ ] 注册 `pre-llm` hook（名称 `llm-log-capture`，priority 999 即最后执行，确保捕获其他 hook 修改后的最终状态）
 - [ ] 捕获并写入 `llm_log` + `llm_log_request`：
   - session_id, agent, model (id + provider), variant
@@ -81,6 +84,7 @@ OpenCode 当前缺乏对 LLM 通信细节的独立追踪能力。开发者在排
 **Description:** As a developer, I want to capture the LLM response and token usage after each call so I can analyze output quality and costs.
 
 **Acceptance Criteria:**
+
 - [ ] 在 `processor.ts` 的 `finish-step` 事件处理完后，emit session-lifecycle 事件 `"step.finished"`，日志系统通过 session-lifecycle hook 监听并写入 `llm_log_response` + `llm_log_tokens`：
   - completion text（完整文本响应）
   - tool calls（名称 + 参数 + ID）
@@ -98,6 +102,7 @@ OpenCode 当前缺乏对 LLM 通信细节的独立追踪能力。开发者在排
 **Description:** As a developer, I want to log every tool call's input/output so I can trace the complete agent loop and identify oversized tool outputs.
 
 **Acceptance Criteria:**
+
 - [ ] 注册 `pre-tool` hook（`llm-log-tool-start`，priority 999）记录 tool call 开始：
   - 关联 `llm_log_id`（通过 session context 中的当前 request_id）
   - tool_name, input args (JSON), time_start
@@ -111,6 +116,7 @@ OpenCode 当前缺乏对 LLM 通信细节的独立追踪能力。开发者在排
 **Description:** As a developer, I want to see how each hook modifies the LLM context so I can debug prompt construction and tool interception.
 
 **Acceptance Criteria:**
+
 - [ ] 在 `HookChain` 执行机制中增加 instrumentation 支持：
   - 记录 hook_name, chain_type, priority, duration_ms
   - 记录 modified_fields：通过浅比较 context 对象在 hook 执行前后的 key，标记哪些字段被修改（如 `["system", "providerOptions"]`）
@@ -123,6 +129,7 @@ OpenCode 当前缺乏对 LLM 通信细节的独立追踪能力。开发者在排
 **Description:** As a developer, I want a query API to retrieve and filter log data so the web viewer can display it.
 
 **Acceptance Criteria:**
+
 - [ ] 在 `packages/opencode` 中新增 `src/log/` 模块，提供以下查询函数：
   - `LlmLog.list(filters)` — 分页列表，支持按 session_id / agent / model / provider / time_range / status 筛选。**仅查询主表字段，不加载压缩大字段**（system_prompt, messages, raw_response）
   - `LlmLog.get(id)` — 获取单条日志完整详情（含 request, response, tokens, tool_calls, hooks, annotations），**此时解压并返回大字段内容**
@@ -135,15 +142,17 @@ OpenCode 当前缺乏对 LLM 通信细节的独立追踪能力。开发者在排
 - [ ] 遵循现有 namespace 模式（`export namespace LlmLog { ... }`）
 - [ ] Typecheck 通过
 
-### US-008: Log Viewer Web 应用 — 独立 Package
+### US-008: Log Viewer Web 应用 — 挂载到 Manager Server
 
-**Description:** As a developer, I want a web application to browse and analyze LLM logs visually.
+**Description:** As a developer, I want a web application to browse and analyze LLM logs visually, served as part of the manager server.
 
 **Acceptance Criteria:**
-- [ ] 新建 `packages/log-viewer/` 包，技术栈：
+
+- [ ] 保留 `packages/log-viewer/` 包，技术栈：
   - 框架：Vite + React（轻量，适合独立工具）
   - 样式：Tailwind CSS
-  - 数据获取：通过本地 HTTP API（由 opencode 进程提供）
+  - 数据获取：通过主 server 的 `/log-viewer/api/` 路由
+- [ ] 构建产物嵌入主 server 二进制（与 memory 的 web 资源同模式），通过 `/log-viewer/app` 路由提供静态资源服务
 - [ ] 包含以下页面/视图：
   - **日志列表页** — 带筛选面板（session / agent / model / provider / time range / status），分页展示
   - **日志详情页** — 完整的请求/响应查看，含 system prompt、messages、completion、tool calls、hook 链
@@ -158,6 +167,7 @@ OpenCode 当前缺乏对 LLM 通信细节的独立追踪能力。开发者在排
 **Description:** As a developer, I want to inspect the full request and response of each LLM call so I can trace exactly what the model saw and produced.
 
 **Acceptance Criteria:**
+
 - [ ] 请求面板：
   - System prompt 以 collapsible section 展示（支持多段）
   - Messages 以聊天气泡样式展示，区分 user/assistant/tool 角色
@@ -178,6 +188,7 @@ OpenCode 当前缺乏对 LLM 通信细节的独立追踪能力。开发者在排
 **Description:** As a developer, I want to select and annotate text in LLM responses as hallucination so I can track and analyze hallucination patterns.
 
 **Acceptance Criteria:**
+
 - [ ] 在日志详情页的响应面板中，支持选中文本后弹出标注菜单
 - [ ] 标注类型：`hallucination`（幻觉）、`quality`（质量问题）、`note`（备注）
 - [ ] 每个标注包含：选中文本、标注类型、自由文本备注、创建时间
@@ -192,6 +203,7 @@ OpenCode 当前缺乏对 LLM 通信细节的独立追踪能力。开发者在排
 **Description:** As a developer, I want to compare what the LLM claimed to do (in its response) versus what actually happened (tool outputs) so I can identify hallucinations.
 
 **Acceptance Criteria:**
+
 - [ ] 在日志详情页新增 "Diff" 标签页
 - [ ] 对于包含文件编辑 tool call 的日志条目：
   - 左侧显示 completion 原文中与该 tool call 相关的段落
@@ -210,6 +222,7 @@ OpenCode 当前缺乏对 LLM 通信细节的独立追踪能力。开发者在排
 **Description:** As a developer, I want visual charts showing token usage and costs across different dimensions so I can identify optimization opportunities.
 
 **Acceptance Criteria:**
+
 - [ ] 按时间维度：折线图展示每小时/每天的 token 用量和费用趋势
 - [ ] 按 model 维度：柱状图对比不同模型的 token 消耗和费用
 - [ ] 按 agent 维度：饼图展示不同 agent 的 token 占比
@@ -225,6 +238,7 @@ OpenCode 当前缺乏对 LLM 通信细节的独立追踪能力。开发者在排
 **Description:** As a developer, I want automated analysis that identifies token optimization opportunities so I can reduce costs.
 
 **Acceptance Criteria:**
+
 - [ ] 分析并展示以下优化建议：
   - **过大 Tool Output** — 列出 top-10 最大的 tool output（按字节），附带 tool 名称、session、压缩建议
   - **Cache 命中率** — 计算 cache_read_tokens / total_input_tokens 比率，低于阈值（如 30%）时建议优化 prompt 稳定性
@@ -236,38 +250,35 @@ OpenCode 当前缺乏对 LLM 通信细节的独立追踪能力。开发者在排
 - [ ] Typecheck 通过
 - [ ] Verify in browser using dev-browser skill
 
-### US-014: Log Viewer HTTP API Server
+### US-014: Log Viewer API 路由 — 挂载到主 Server
 
-**Description:** As a developer, I need an HTTP API server that bridges the web viewer and the log query module.
+**Description:** As a developer, I need API routes for the log viewer, mounted on the main server under the `/log-viewer/` prefix.
 
 **Acceptance Criteria:**
-- [ ] 在 `packages/opencode` 中新增 `src/log/server.ts`，使用 Bun 原生 HTTP server：
-  - `GET /api/logs` — 列表查询（query params 对应 LlmLog.list filters）
-  - `GET /api/logs/:id` — 详情查询
-  - `GET /api/logs/stats` — 聚合统计
-  - `GET /api/logs/analyze` — 优化建议
-  - `POST /api/logs/:id/annotations` — 添加标注
-  - `DELETE /api/logs/annotations/:id` — 删除标注
-  - `POST /api/logs/cleanup` — 手动清理
-  - `GET /api/health` — 健康检查
-- [ ] 静态文件服务：serve `packages/log-viewer/dist/` 目录
-- [ ] CORS 配置：开发模式允许 localhost 跨域
-- [ ] 默认端口 `19836`，支持 `--port` 参数覆盖
+
+- [ ] 在 `packages/opencode` 中新增 `src/log/routes.ts`（或修改现有 `src/log/server.ts`），以 Hono 子路由形式实现：
+  - `GET /log-viewer/api/logs` — 列表查询（query params 对应 LlmLog.list filters）
+  - `GET /log-viewer/api/logs/:id` — 详情查询
+  - `GET /log-viewer/api/logs/stats` — 聚合统计
+  - `GET /log-viewer/api/logs/analyze` — 优化建议
+  - `POST /log-viewer/api/logs/:id/annotations` — 添加标注
+  - `DELETE /log-viewer/api/logs/annotations/:id` — 删除标注
+  - `POST /log-viewer/api/logs/cleanup` — 手动清理
+  - `GET /log-viewer/api/health` — 健康检查
+- [ ] 静态资源通过 `/log-viewer/app` 路由提供，嵌入式资源（与 memory web 同模式）
+- [ ] 不独立监听端口，通过 `.route("/log-viewer", LogViewerRoutes())` 挂载到主 server 的 Hono app
 - [ ] Typecheck 通过
 
-### US-015: `opencode log-viewer` CLI 命令
+### US-015: `opencode manager log-viewer` CLI 入口
 
-**Description:** As a user, I want a CLI command to quickly launch the log viewer so I don't need to set up anything manually.
+**Description:** As a user, I want to launch the manager and directly open the log viewer page without extra setup.
 
 **Acceptance Criteria:**
-- [ ] 新增 CLI 子命令 `opencode log-viewer`，注册在 `src/cli/cmd/` 中
-- [ ] 启动行为：
-  1. 构建/检查 log-viewer 静态资源（优先使用预构建版本）
-  2. 启动 HTTP API server（端口默认 19836）
-  3. 自动打开浏览器访问 `http://localhost:19836`
-  4. 在终端显示访问地址和 Ctrl+C 退出提示
-- [ ] 支持参数：`--port <number>`（自定义端口）、`--no-open`（不自动打开浏览器）
-- [ ] 当端口被占用时自动尝试下一个端口
+
+- [ ] `opencode manager log-viewer` 启动主 server 并自动打开浏览器到 `/log-viewer/app`
+- [ ] 移除独立的 `opencode log-viewer` CLI 子命令（功能合并到 manager）
+- [ ] manager 启动时自动注册 log-viewer 服务到 ManagerState（URL 指向 `/log-viewer/app`）
+- [ ] 保留 `--reset` 功能：`opencode manager --reset-logs` 可清空 log 表数据
 - [ ] Typecheck 通过
 
 ### US-016: 数据库升降级兼容
@@ -275,11 +286,12 @@ OpenCode 当前缺乏对 LLM 通信细节的独立追踪能力。开发者在排
 **Description:** As a developer, I want the log tables to support smooth database migrations so that upgrades and downgrades don't break existing functionality.
 
 **Acceptance Criteria:**
+
 - [ ] Migration 文件独立于现有 session 相关 migration（单独的 migration 文件）
 - [ ] 所有新表使用 `IF NOT EXISTS` 创建
 - [ ] 表结构变更通过增量 migration 文件处理（不修改已有 migration）
 - [ ] Migration 始终无条件执行（只建表改表），`llmLog.enabled` 仅控制运行时采集行为
-- [ ] 提供 `opencode log-viewer --reset` 命令用于清空所有 log 表数据（保留表结构）
+- [ ] 提供 `opencode manager --reset-logs` 命令用于清空所有 log 表数据（保留表结构）
 - [ ] log 表的 schema 变更不影响核心 session/message 表
 - [ ] Typecheck 通过
 
@@ -292,10 +304,10 @@ OpenCode 当前缺乏对 LLM 通信细节的独立追踪能力。开发者在排
 - FR-5: 通过 HookChain instrumentation 采集 hook 元信息（name, chain_type, priority, duration_ms, modified_fields），不存内容快照
 - FR-6: 根据 `Provider.Model.cost` 逐项计算费用（含 >200K context 特殊定价和 cache 定价）
 - FR-7: 提供 `LlmLog` namespace 的查询、统计、分析、标注 API
-- FR-8: 提供 Bun HTTP server 暴露 REST API + 静态资源服务
-- FR-9: 提供独立 `packages/log-viewer` Web 应用（Vite + React + Tailwind）
+- FR-8: Log Viewer API 路由以 Hono 子路由形式挂载到主 server（`/log-viewer/` 前缀），不独立监听端口
+- FR-9: `packages/log-viewer` Web 应用（Vite + React + Tailwind）构建产物嵌入主 server，通过 `/log-viewer/app` 提供服务
 - FR-10: Web 应用包含日志列表、日志详情、token 统计、优化建议、幻觉标注、diff 视图
-- FR-11: 提供 `opencode log-viewer` CLI 命令启动本地查看器
+- FR-11: 通过 `opencode manager log-viewer` 启动 manager 并直接打开 log viewer 页面
 - FR-12: 日志存储有上限控制，支持按记录数和天数自动清理
 - FR-13: 带 annotation 的记录受保护（延长 2x 生命周期）
 - FR-14: 日志写入全部异步执行，不阻塞 LLM 主流程
@@ -319,6 +331,7 @@ OpenCode 当前缺乏对 LLM 通信细节的独立追踪能力。开发者在排
 - **颜色方案**：与 opencode TUI 风格保持一致，深色主题为主，浅色主题可选
 - **标注交互**：类似 Google Docs 的选中标注模式，选中文本后出现浮动工具栏
 - **复用 `packages/ui`**：如果其中有可复用的组件（如 Button, Input），优先复用
+- **服务架构**：Log Viewer 不独立监听端口，而是作为主 server 的子路由（`/log-viewer/`），与 memory（`/memory/`）同架构模式。manager dashboard 中的 log-viewer 链接指向 `/log-viewer/app`
 
 ## Technical Considerations
 
@@ -327,8 +340,8 @@ OpenCode 当前缺乏对 LLM 通信细节的独立追踪能力。开发者在排
 - **日志写入性能**：使用 SQLite WAL 模式（已启用）+ 批量写入（将同一个 step 的多条记录合并为一次事务）
 - **大字段存储**：system_prompt、messages、raw_response 使用 gzip 压缩后以 BLOB 存储（`llm_log_request.messages`、`llm_log_response.raw_response` 等字段）。列表查询不加载压缩字段，仅在详情查询时解压返回
 - **Hook 记录**：仅记录元信息（name, duration, modified_fields），通过浅比较检测修改字段，不做 JSON diff 也不存内容快照
-- **Bun HTTP Server**：使用 `Bun.serve()` 原生 API，无需额外框架
-- **Web 应用构建**：log-viewer build 产物随 opencode CLI 一起打包分发，无需运行时下载
+- **路由挂载**：Log Viewer 的 API 和静态资源以 Hono 子路由挂载到主 server（`/log-viewer/` 前缀），与 memory web（`/memory/`）同模式，不独立启动端口
+- **Web 应用构建**：log-viewer build 产物嵌入主 server 二进制，通过 `/log-viewer/app` 路由提供服务
 - **图表库**：推荐 recharts（React 生态，轻量，声明式 API）
 - **Bus 事件**：新增 `LlmLogEvent` 系列事件，用于解耦日志写入和 UI 通知
 
@@ -338,21 +351,21 @@ OpenCode 当前缺乏对 LLM 通信细节的独立追踪能力。开发者在排
 - 日志写入对 LLM 响应延迟的影响 < 5ms（异步写入）
 - 开发者可在 3 次点击内从日志列表定位到具体的 tool call 输出
 - Token 统计数据与 provider 账单误差 < 1%（基于相同的 cost 数据源）
-- `opencode log-viewer` 命令从执行到浏览器打开 < 3 秒
+- `opencode manager log-viewer` 命令从执行到浏览器打开 < 3 秒
 - 默认配置下，30 天日志存储占用 < 100MB
 
 ## Resolved Decisions
 
 1. **大字段压缩策略** — 使用 gzip 压缩存储为 BLOB（system_prompt, messages, raw_response）。列表查询不加载压缩字段，仅详情查询时解压返回。gzip/gunzip 在 `LlmLog` namespace 的查询/写入函数中手动处理，不自定义 Drizzle column type。
 2. **日志采样** — 不做采样。幻觉追查需要完整数据，存储控制由 max_records + max_age_days + 压缩三重保障。
-3. **log-viewer 分发方式** — 预构建产物嵌入 opencode CLI 二进制（Bun embed），运行时从内存读取，单文件分发。
+3. **log-viewer 分发方式** — 预构建产物嵌入 opencode CLI 二进制（Bun embed），运行时从内存读取，单文件分发。Log Viewer 不独立启动端口，以 Hono 子路由挂载到主 server 的 `/log-viewer/` 前缀下，与 memory web 同模式。
 4. **Hook 快照粒度** — 不做 JSON diff，不存内容快照。仅记录 hook name + chain_type + priority + duration_ms + modified_fields（哪些 context 字段被修改）。`llm_log_hook` 表去掉 `input_snapshot` 和 `output_snapshot`，改为 `modified_fields` JSON 数组。去掉 `hook_detail` 和 `hook_detail_exclude` 配置项。
-5. **与现有 `packages/web` 的关系** — 完全独立的 `packages/log-viewer`，不集成到 `packages/web`。
+5. **与现有 `packages/web` 的关系** — 保留独立的 `packages/log-viewer` 构建包，但运行时通过主 server 的 `/log-viewer/` 路由前缀提供服务，不独立监听端口。与 memory web（`/memory/`）同模式。
 6. **SDK 暴露** — 初期不暴露，外部工具可直接调用 REST API。后续有明确需求再加。
 7. **HookChain 集成（前置工作）** — 现有 HookChain 系统（pre-llm / pre-tool / post-tool）已定义但未接入生产代码。须先完成集成：(a) 在应用启动时调用所有 hook namespace 的 `register()`；(b) `llm.ts` 的 `Plugin.trigger("experimental.chat.system.transform")` 替换为 `HookChain.executePreLLM()`；(c) `prompt.ts` 的 `Plugin.trigger("tool.execute.before/after")` 替换为 `HookChain.executePreTool()` / `executePostTool()`；(d) 重复逻辑（`Truncate.output()`、grep 内建截断）统一迁移到 hook 链路。Security 代码（权限检查、LLMScanner、SecurityRedact）保持在 prompt.ts 中间不动。
 8. **跨 chain type 状态传递** — 各 Context schema 新增 `metadata: z.record().optional()` 字段。同 chain type 内通过 metadata 共享数据。跨 chain type（pre-llm → pre-tool）通过 `Instance.state()` 维护 `Map<sessionID, currentLlmLogId>` 桥接。
 9. **响应采集方式** — 不在 `LLM.stream()` 的 onFinish 回调中采集。在 `processor.ts` 的 `finish-step` 事件处理完后 emit 新的 session-lifecycle 事件 `"step.finished"`，日志系统通过 session-lifecycle hook 监听采集。
-10. **API 路由匹配** — 保持 `/api/logs/` 前缀。`Bun.serve()` 中手动优先匹配静态路径（`/api/logs/stats`、`/api/logs/analyze`）再 fallback 到 `/api/logs/:id`。
+10. **API 路由匹配** — 路由挂载在 `/log-viewer/api/logs/` 前缀下。Hono 子路由中优先匹配静态路径（`/api/logs/stats`、`/api/logs/analyze`）再 fallback 到 `/api/logs/:id`。
 11. **Migration 执行策略** — Migration 始终无条件执行（只建表改表），`llmLog.enabled` 仅控制运行时采集行为。
 12. **Config 段命名** — 配置段使用 `llmLog`（而非 `log`），避免与已有的顶级 `logLevel` 字段混淆。
 13. **Tool call 关联** — `llm_log_tool_call` 表新增 `call_id` 字段，存储 AI SDK 生成的 `toolCallId`，用于区分同一 step 内同一 tool 的多次调用。

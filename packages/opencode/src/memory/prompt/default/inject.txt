@@ -1,0 +1,22 @@
+<!-- This file defines how memories are injected into the system prompt. -->
+<!-- To customize, create .opencode/memory/inject.md in your project. -->
+<!-- Available variables: -->
+<!--   INJECT:MEMORY_ITEMS - Formatted list of relevant memories -->
+<!--   INJECT:CONFLICT_ITEMS - Formatted list of detected conflicts -->
+
+# Memory Injection
+
+<memory>
+The following are your memories about this codebase and user preferences.
+Use them to inform your responses, but do not mention them explicitly unless asked.
+
+<!-- INJECT:MEMORY_ITEMS -->
+</memory>
+
+# Conflict Warning
+
+<memory-conflicts>
+Warning: The following memory conflicts were detected. Ask the user to resolve them.
+
+<!-- INJECT:CONFLICT_ITEMS -->
+</memory-conflicts>

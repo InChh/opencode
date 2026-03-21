@@ -106,7 +106,7 @@ export function LogListPage() {
     if (filters.status) params.set("status", filters.status)
 
     try {
-      const res = await fetch(`/api/logs?${params.toString()}`)
+      const res = await fetch(`/log-viewer/api/logs?${params.toString()}`)
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const json: ListResponse = await res.json()
       setData(json)
@@ -199,11 +199,7 @@ export function LogListPage() {
       </div>
 
       {/* Error */}
-      {error && (
-        <div className="bg-red-950 border border-red-800 rounded-lg p-3 text-red-300 text-sm">
-          {error}
-        </div>
-      )}
+      {error && <div className="bg-red-950 border border-red-800 rounded-lg p-3 text-red-300 text-sm">{error}</div>}
 
       {/* Table */}
       <div className="bg-zinc-900 border border-zinc-800 rounded-lg overflow-hidden">
@@ -241,13 +237,9 @@ export function LogListPage() {
                     onClick={() => navigate(`/logs/${item.id}`)}
                     className="border-b border-zinc-800/50 hover:bg-zinc-800/50 cursor-pointer transition-colors"
                   >
-                    <td className="px-4 py-2.5 text-zinc-300 whitespace-nowrap">
-                      {formatTime(item.time_start)}
-                    </td>
+                    <td className="px-4 py-2.5 text-zinc-300 whitespace-nowrap">{formatTime(item.time_start)}</td>
                     <td className="px-4 py-2.5 text-zinc-300">{item.agent}</td>
-                    <td className="px-4 py-2.5 text-zinc-400 font-mono text-xs">
-                      {item.model}
-                    </td>
+                    <td className="px-4 py-2.5 text-zinc-400 font-mono text-xs">{item.model}</td>
                     <td className="px-4 py-2.5">
                       <span className={`font-medium ${statusColors[item.status] ?? "text-zinc-400"}`}>
                         {item.status}
@@ -259,9 +251,7 @@ export function LogListPage() {
                     <td className="px-4 py-2.5 text-zinc-300 text-right tabular-nums">
                       {formatTokens(item.output_tokens)}
                     </td>
-                    <td className="px-4 py-2.5 text-zinc-300 text-right tabular-nums">
-                      {formatCost(item.cost)}
-                    </td>
+                    <td className="px-4 py-2.5 text-zinc-300 text-right tabular-nums">{formatCost(item.cost)}</td>
                     <td className="px-4 py-2.5 text-zinc-300 text-right tabular-nums">
                       {formatDuration(item.duration_ms)}
                     </td>

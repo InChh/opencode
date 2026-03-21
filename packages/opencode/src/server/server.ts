@@ -48,6 +48,9 @@ import { MDNS } from "./mdns"
 import { Lifecycle } from "./lifecycle"
 import { AuthToken } from "./auth-token"
 import { Client } from "./client"
+import { MemoryRoutes } from "../memory/web/api"
+import { LogViewerRoutes } from "../log/routes"
+import { ManagerRoutes } from "./routes/manager"
 import { TIMEOUT } from "./lifecycle"
 import os from "os"
 
@@ -309,6 +312,9 @@ export namespace Server {
         .route("/", FileRoutes())
         .route("/mcp", McpRoutes())
         .route("/tui", TuiRoutes())
+        .route("/memory", MemoryRoutes())
+        .route("/log-viewer", LogViewerRoutes())
+        .route("/manager", ManagerRoutes())
         .post(
           "/session/:sessionID/typing",
           describeRoute({
@@ -726,7 +732,11 @@ export namespace Server {
             c.header("Cache-Control", "no-store")
             const raw = Server.url()
             const publicURL = new URL(raw.toString().replace(/\/$/, ""))
-            if (publicURL.hostname === "127.0.0.1" || publicURL.hostname === "localhost" || publicURL.hostname === "::1") {
+            if (
+              publicURL.hostname === "127.0.0.1" ||
+              publicURL.hostname === "localhost" ||
+              publicURL.hostname === "::1"
+            ) {
               const ip = getPublicIP()
               if (ip) publicURL.hostname = ip
             }

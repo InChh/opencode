@@ -104,6 +104,7 @@ export namespace LLM {
       options.instructions = SystemPrompt.instructions()
     }
 
+    l.info("[TRACE-REPLACE] llm.ts BEFORE pre-llm hooks", { system: system.map((s) => s.substring(0, 200)) })
     const header = system[0]
     const preLLMCtx: HookChain.PreLLMContext = {
       sessionID: input.sessionID,
@@ -131,6 +132,7 @@ export namespace LLM {
       system.push(header, rest.join("\n"))
     }
 
+    l.info("[TRACE-REPLACE] llm.ts AFTER pre-llm hooks", { system: system.map((s) => s.substring(0, 200)) })
     const params = await Plugin.trigger(
       "chat.params",
       {
@@ -447,7 +449,10 @@ export namespace LLM {
             path: "outgoing-request",
             allowed: false,
             reason: `Protected content detected in LLM request (${violation.match.ruleType} rule)`,
-            rulePattern: "rulePattern" in violation.match.rule ? (violation.match.rule as { rulePattern: string }).rulePattern : undefined,
+            rulePattern:
+              "rulePattern" in violation.match.rule
+                ? (violation.match.rule as { rulePattern: string }).rulePattern
+                : undefined,
             content: violation.text,
           })
         }
@@ -467,9 +472,7 @@ export namespace LLM {
 
         // If there are block violations, throw error
         if (blockViolations.length > 0) {
-          const details = blockViolations
-            .map((v) => `${v.match.ruleType}: "${v.text}..."`)
-            .join(", ")
+          const details = blockViolations.map((v) => `${v.match.ruleType}: "${v.text}..."`).join(", ")
           securityLog.info("blocked LLM request due to protected content", { count: blockViolations.length })
           throw new Error(
             `Security: LLM request blocked - protected content detected (${blockViolations.length} violation(s): ${details})`,

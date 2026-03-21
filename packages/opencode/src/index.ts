@@ -35,7 +35,7 @@ import { JsonMigration } from "./storage/json-migration"
 import { Database } from "./storage/db"
 import { SecurityCommand } from "./cli/cmd/security"
 import { SandboxCommand } from "./cli/cmd/sandbox"
-import { LogViewerCommand } from "./cli/cmd/log-viewer"
+import { ManagerCommand } from "./cli/cmd/manager"
 import { StopCommand } from "./cli/cmd/stop"
 import { registerAllHooks } from "./session/hooks/register"
 
@@ -152,7 +152,7 @@ let cli = yargs(hideBin(process.argv))
   .command(DbCommand)
   .command(SecurityCommand)
   .command(SandboxCommand)
-  .command(LogViewerCommand)
+  .command(ManagerCommand)
   .command(StopCommand)
 
 if (Installation.isLocal()) {

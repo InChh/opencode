@@ -11,8 +11,12 @@ import PROMPT_TEST from "./template/test.txt"
 import PROMPT_EXPLAIN from "./template/explain.txt"
 import PROMPT_RALPH_LOOP from "./template/ralph-loop.txt"
 import PROMPT_ULTRAWORK from "./template/ultrawork.txt"
+import PROMPT_REMEMBER from "./template/remember.txt"
+import PROMPT_FORGET from "./template/forget.txt"
 import { MCP } from "../mcp"
 import { Skill } from "../skill"
+import { load as loadPrompt } from "../memory/prompt/loader"
+import { ConfigPaths } from "../config/paths"
 
 export namespace Command {
   export const Event = {
@@ -66,10 +70,14 @@ export namespace Command {
     EXPLAIN: "explain",
     RALPH_LOOP: "ralph-loop",
     ULTRAWORK: "ultrawork",
+    MEMORY_REMEMBER: "memory:remember",
+    MEMORY_FORGET: "memory:forget",
+    MEMORY_LIST: "memory:list",
   } as const
 
   const state = Instance.state(async () => {
     const cfg = await Config.get()
+    const dirs = ConfigPaths.directories(Instance.directory, Instance.worktree)
 
     const result: Record<string, Info> = {
       [Default.INIT]: {
@@ -144,6 +152,33 @@ export namespace Command {
           return PROMPT_ULTRAWORK
         },
         hints: hints(PROMPT_ULTRAWORK),
+      },
+      [Default.MEMORY_REMEMBER]: {
+        name: Default.MEMORY_REMEMBER,
+        description: "save a memory about preferences or conventions",
+        source: "command",
+        get template() {
+          return dirs.then((d) => loadPrompt("remember", d))
+        },
+        hints: hints(PROMPT_REMEMBER),
+      },
+      [Default.MEMORY_FORGET]: {
+        name: Default.MEMORY_FORGET,
+        description: "delete a saved memory",
+        source: "command",
+        get template() {
+          return dirs.then((d) => loadPrompt("forget", d))
+        },
+        hints: hints(PROMPT_FORGET),
+      },
+      [Default.MEMORY_LIST]: {
+        name: Default.MEMORY_LIST,
+        description: "list all saved memories",
+        source: "command",
+        get template() {
+          return dirs.then((d) => loadPrompt("list", d))
+        },
+        hints: [],
       },
     }
 

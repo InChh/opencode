@@ -31,11 +31,7 @@ async function spawnDetached(cwd: string): Promise<void> {
 }
 
 /** Wait for a NEW lock file to appear (one that didn't exist before). Polls with backoff. */
-async function waitForNewLockfile(
-  dir: string,
-  existingPids: Set<number>,
-  timeout = 10_000,
-): Promise<Lockfile.Data> {
+async function waitForNewLockfile(dir: string, existingPids: Set<number>, timeout = 10_000): Promise<Lockfile.Data> {
   const start = Date.now()
   let delay = 50
   while (Date.now() - start < timeout) {

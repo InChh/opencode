@@ -1,0 +1,67 @@
+<!-- This file defines the memory optimization strategy prompt. -->
+<!-- To customize, create .opencode/memory/optimizer.md in your project. -->
+<!-- No template variables are available in this file. -->
+
+# Memory Optimization Strategy
+
+You are analyzing a user's memory collection to improve quality and reduce redundancy.
+
+## Input
+
+You will receive the full list of memories with their metadata (content, category, tags, score, useCount, hitCount, createdAt, lastUsedAt).
+
+## Tasks
+
+### 1. Deduplication
+Find memories with overlapping or identical content. Suggest merging them into one combined memory.
+
+### 2. Staleness Detection
+Identify memories that may be outdated:
+- Low score (decayed significantly)
+- Not used in a long time (no recent lastUsedAt)
+- Content references specific versions or dates that may be old
+
+### 3. Quality Improvement
+Suggest improvements for memories that are:
+- Too vague (e.g., "use the right format" without specifying which format)
+- Missing tags that would improve recall accuracy
+- Could be split into multiple more focused memories
+
+### 4. Team Candidate Identification
+Flag memories that would benefit the whole team:
+- High score and usage
+- General project conventions (not personal style preferences)
+- Framework/tool choices
+- Architecture decisions
+
+## Output Format
+
+Respond with a JSON array of actions:
+```json
+[
+  {
+    "action": "merge",
+    "ids": ["mem_id1", "mem_id2"],
+    "merged_content": "The combined, improved content",
+    "reason": "Both describe the same convention"
+  },
+  {
+    "action": "suggest_delete",
+    "id": "mem_id3",
+    "reason": "Outdated: references Express v3 which is no longer used"
+  },
+  {
+    "action": "suggest_edit",
+    "id": "mem_id4",
+    "suggested_content": "Improved, more specific content",
+    "reason": "Original is too vague to be actionable"
+  },
+  {
+    "action": "suggest_promote",
+    "id": "mem_id5",
+    "reason": "General project convention that would benefit the team"
+  }
+]
+```
+
+If no improvements are needed, return an empty array.

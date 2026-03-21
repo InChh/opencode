@@ -1,0 +1,10 @@
+The user wants to delete a memory.
+
+User's input: $ARGUMENTS
+
+Your task:
+1. If the user provided a memory ID (e.g., "mem_xxx"), delete that specific memory
+2. If the user described what to forget (e.g., "forget about using Express"), search for matching memories and delete them
+3. Use the memory_forget tool to remove the memory
+
+After deleting, briefly confirm what was removed.

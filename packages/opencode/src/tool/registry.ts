@@ -49,6 +49,9 @@ import { LookAtTool } from "./look-at"
 import { SkillMcpTool } from "./skill-mcp"
 import { InteractiveBashTool } from "./interactive-bash"
 import { PersistentTaskTool } from "./persistent-task-tool"
+import { MemoryRememberTool } from "../memory/tool/remember"
+import { MemoryForgetTool } from "../memory/tool/forget"
+import { MemoryListTool } from "../memory/tool/memory-list"
 
 export namespace ToolRegistry {
   const log = Log.create({ service: "tool.registry" })
@@ -149,6 +152,9 @@ export namespace ToolRegistry {
       ...(Flag.OPENCODE_EXPERIMENTAL_LOOK_AT ? [LookAtTool] : []),
       ...(Flag.OPENCODE_EXPERIMENTAL_INTERACTIVE_BASH ? [InteractiveBashTool] : []),
       ...(Flag.OPENCODE_EXPERIMENTAL_PLAN_MODE && Flag.OPENCODE_CLIENT === "cli" ? [PlanExitTool] : []),
+      MemoryRememberTool,
+      MemoryForgetTool,
+      MemoryListTool,
       ...custom,
     ]
   }

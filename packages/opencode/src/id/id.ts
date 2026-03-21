@@ -13,6 +13,7 @@ export namespace Identifier {
     tool: "tool",
     workspace: "wrk",
     log: "log",
+    memory: "mem",
   } as const
 
   export function schema(prefix: keyof typeof prefixes) {

@@ -1,6 +1,7 @@
 import { Ripgrep } from "../file/ripgrep"
 
 import { Instance } from "../project/instance"
+import { Log } from "../util/log"
 
 import PROMPT_ANTHROPIC from "./prompt/anthropic.txt"
 import PROMPT_ANTHROPIC_WITHOUT_TODO from "./prompt/qwen.txt"
@@ -26,29 +27,31 @@ export namespace SystemPrompt {
     return [PROMPT_ANTHROPIC_WITHOUT_TODO]
   }
 
+  const log = Log.create({ service: "system-prompt" })
+
   export async function environment(model: Provider.Model) {
     const project = Instance.project
-    return [
-      [
-        `You are powered by the model named ${model.api.id}. The exact model ID is ${model.providerID}/${model.api.id}`,
-        `Here is some useful information about the environment you are running in:`,
-        `<env>`,
-        `  Working directory: ${Instance.directory}`,
-        `  Is directory a git repo: ${project.vcs === "git" ? "yes" : "no"}`,
-        `  Platform: ${process.platform}`,
-        `  Today's date: ${new Date().toDateString()}`,
-        `</env>`,
-        `<directories>`,
-        `  ${
-          project.vcs === "git" && false
-            ? await Ripgrep.tree({
-                cwd: Instance.directory,
-                limit: 50,
-              })
-            : ""
-        }`,
-        `</directories>`,
-      ].join("\n"),
-    ]
+    const env = [
+      `You are powered by the model named ${model.api.id}. The exact model ID is ${model.providerID}/${model.api.id}`,
+      `Here is some useful information about the environment you are running in:`,
+      `<env>`,
+      `  Working directory: ${Instance.directory}`,
+      `  Is directory a git repo: ${project.vcs === "git" ? "yes" : "no"}`,
+      `  Platform: ${process.platform}`,
+      `  Today's date: ${new Date().toDateString()}`,
+      `</env>`,
+      `<directories>`,
+      `  ${
+        project.vcs === "git" && false
+          ? await Ripgrep.tree({
+              cwd: Instance.directory,
+              limit: 50,
+            })
+          : ""
+      }`,
+      `</directories>`,
+    ].join("\n")
+    log.info("[TRACE-REPLACE] system.ts environment()", { env: env.substring(0, 300) })
+    return [env]
   }
 }

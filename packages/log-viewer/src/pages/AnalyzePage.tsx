@@ -40,15 +40,41 @@ function formatCost(microdollars: number): string {
 }
 
 const CATEGORY_CONFIG: Record<string, { label: string; color: string; icon: string }> = {
-  oversized_tool_output: { label: "Oversized Tool Output", color: "text-red-400 bg-red-400/10 border-red-400/20", icon: "!" },
-  cache_hit_rate: { label: "Low Cache Hit Rate", color: "text-amber-400 bg-amber-400/10 border-amber-400/20", icon: "%" },
-  repeated_context: { label: "Repeated Context", color: "text-orange-400 bg-orange-400/10 border-orange-400/20", icon: "R" },
-  high_cost_model: { label: "High-Cost Model Usage", color: "text-purple-400 bg-purple-400/10 border-purple-400/20", icon: "$" },
-  reasoning_token_ratio: { label: "High Reasoning Token Ratio", color: "text-blue-400 bg-blue-400/10 border-blue-400/20", icon: "T" },
+  oversized_tool_output: {
+    label: "Oversized Tool Output",
+    color: "text-red-400 bg-red-400/10 border-red-400/20",
+    icon: "!",
+  },
+  cache_hit_rate: {
+    label: "Low Cache Hit Rate",
+    color: "text-amber-400 bg-amber-400/10 border-amber-400/20",
+    icon: "%",
+  },
+  repeated_context: {
+    label: "Repeated Context",
+    color: "text-orange-400 bg-orange-400/10 border-orange-400/20",
+    icon: "R",
+  },
+  high_cost_model: {
+    label: "High-Cost Model Usage",
+    color: "text-purple-400 bg-purple-400/10 border-purple-400/20",
+    icon: "$",
+  },
+  reasoning_token_ratio: {
+    label: "High Reasoning Token Ratio",
+    color: "text-blue-400 bg-blue-400/10 border-blue-400/20",
+    icon: "T",
+  },
 }
 
 function getCategoryConfig(category: string) {
-  return CATEGORY_CONFIG[category] ?? { label: category, color: "text-zinc-400 bg-zinc-400/10 border-zinc-400/20", icon: "?" }
+  return (
+    CATEGORY_CONFIG[category] ?? {
+      label: category,
+      color: "text-zinc-400 bg-zinc-400/10 border-zinc-400/20",
+      icon: "?",
+    }
+  )
 }
 
 export function AnalyzePage() {
@@ -60,7 +86,7 @@ export function AnalyzePage() {
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch("/api/logs/analyze")
+      const res = await fetch("/log-viewer/api/logs/analyze")
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const result = await res.json()
       setData(result)
@@ -123,18 +149,14 @@ export function AnalyzePage() {
       <div className="grid grid-cols-3 gap-4">
         <div className="bg-zinc-800 rounded-lg border border-zinc-700 p-4">
           <div className="text-sm text-zinc-400">Cache Hit Rate</div>
-          <div className="text-2xl font-bold mt-1 tabular-nums">
-            {(data.cache_hit_rate * 100).toFixed(1)}%
-          </div>
+          <div className="text-2xl font-bold mt-1 tabular-nums">{(data.cache_hit_rate * 100).toFixed(1)}%</div>
           <div className="text-xs text-zinc-500 mt-1">
             {data.cache_hit_rate >= 0.3 ? "Good" : "Below 30% threshold"}
           </div>
         </div>
         <div className="bg-zinc-800 rounded-lg border border-zinc-700 p-4">
           <div className="text-sm text-zinc-400">Reasoning Token Ratio</div>
-          <div className="text-2xl font-bold mt-1 tabular-nums">
-            {(data.reasoning_token_ratio * 100).toFixed(1)}%
-          </div>
+          <div className="text-2xl font-bold mt-1 tabular-nums">{(data.reasoning_token_ratio * 100).toFixed(1)}%</div>
           <div className="text-xs text-zinc-500 mt-1">
             {data.reasoning_token_ratio <= 0.5 ? "Normal" : "Above 50% threshold"}
           </div>
@@ -221,10 +243,7 @@ export function AnalyzePage() {
                       ~{formatTokens(Math.round(t.output_bytes / 4))}
                     </td>
                     <td className="px-4 py-2">
-                      <a
-                        href={`/logs/${t.llm_log_id}`}
-                        className="text-blue-400 hover:underline font-mono text-xs"
-                      >
+                      <a href={`/logs/${t.llm_log_id}`} className="text-blue-400 hover:underline font-mono text-xs">
                         {t.llm_log_id.substring(0, 12)}...
                       </a>
                     </td>
