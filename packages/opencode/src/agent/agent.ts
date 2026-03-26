@@ -48,6 +48,7 @@ export namespace Agent {
       prompt: z.string().optional(),
       options: z.record(z.string(), z.any()),
       steps: z.number().int().positive().optional(),
+      lite: z.boolean().optional(),
     })
     .meta({
       ref: "Agent",
@@ -289,6 +290,7 @@ export namespace Agent {
         options: {},
         native: true,
         hidden: true,
+        lite: true,
         temperature: 0,
         permission: PermissionNext.merge(
           defaults,
@@ -305,6 +307,7 @@ export namespace Agent {
         options: {},
         native: true,
         hidden: true,
+        lite: true,
         temperature: 0,
         permission: PermissionNext.merge(
           defaults,

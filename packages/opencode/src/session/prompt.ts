@@ -713,7 +713,12 @@ export namespace SessionPrompt {
       }
 
       // Build system prompt, adding structured output instruction if needed
-      const system = [...(await SystemPrompt.environment(model)), ...(await InstructionPrompt.system())]
+      // Lite agents (e.g. memory-extractor, memory-recall) skip environment
+      // info and instruction files (AGENTS.md etc.) — they only need their
+      // own prompt + caller-provided system content.
+      const system = agent.lite
+        ? []
+        : [...(await SystemPrompt.environment(model)), ...(await InstructionPrompt.system())]
       const format = lastUser.format ?? { type: "text" }
       if (format.type === "json_schema") {
         system.push(STRUCTURED_OUTPUT_SYSTEM_PROMPT)
