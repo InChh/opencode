@@ -104,53 +104,5 @@ describe("MemoryExtractor", () => {
       expect(prompt).toContain("[user]: Write handler")
       expect(prompt).toContain("self-contained")
     })
-
-    test("buildAutoExtractPrompt formats messages and existing memories", () => {
-      const prompt = MemoryExtractor.buildAutoExtractPrompt(
-        [
-          { role: "user", content: "We use Hono" },
-          { role: "assistant", content: "Noted" },
-        ],
-        [],
-      )
-      expect(prompt).toContain("[user]: We use Hono")
-      expect(prompt).toContain("Persistent preferences")
-      expect(prompt).toContain("empty items array")
-    })
-
-    test("buildAutoExtractPrompt includes existing memories", () => {
-      const existing = [
-        {
-          id: "mem_001",
-          content: "Project uses TypeScript",
-          category: "tool" as const,
-          scope: "personal" as const,
-          status: "confirmed" as const,
-          tags: ["typescript"],
-          citations: [],
-          source: { sessionID: "s1", method: "manual" as const },
-          score: 1,
-          baseScore: 1,
-          useCount: 0,
-          hitCount: 0,
-          inject: false,
-          createdAt: Date.now(),
-          updatedAt: Date.now(),
-        },
-      ]
-      const prompt = MemoryExtractor.buildAutoExtractPrompt([{ role: "user", content: "test" }], existing)
-      expect(prompt).toContain("mem_001")
-      expect(prompt).toContain("Project uses TypeScript")
-    })
-
-    test("buildAutoExtractPrompt limits to last 20 messages", () => {
-      const messages = Array.from({ length: 30 }, (_, i) => ({
-        role: "user" as const,
-        content: `Message ${i}`,
-      }))
-      const prompt = MemoryExtractor.buildAutoExtractPrompt(messages, [])
-      expect(prompt).not.toContain("Message 0")
-      expect(prompt).toContain("Message 29")
-    })
   })
 })

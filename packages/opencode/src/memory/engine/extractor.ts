@@ -6,7 +6,6 @@ import { Memory } from "../memory"
 import { Bus } from "@/bus"
 import { MemoryEvent } from "../event"
 import { load, sections } from "../prompt/loader"
-import { render } from "../prompt/template"
 import { ConfigPaths } from "@/config/paths"
 import { Instance } from "@/project/instance"
 import { Session } from "@/session"
@@ -132,7 +131,22 @@ export namespace MemoryExtractor {
       const tpl = await load("extract", await ConfigPaths.directories(Instance.directory, Instance.worktree))
       const parts = sections(tpl)
       const existing = await Memory.list()
-      const prompt = buildAutoExtractPrompt(contextWindow, existing, parts.analysis)
+
+      // System prompt: role definition + existing memories + session conversation
+      const sys = [
+        parts.system,
+        "",
+        "## Existing memories",
+        "",
+        formatExisting(existing),
+        "",
+        "## Session conversation",
+        "",
+        contextSnapshot,
+      ].join("\n")
+
+      // User prompt: analysis task instructions only
+      const task = parts.analysis || buildTaskInstructions()
 
       log.info("extractFromSession: invoking subagent", { sessionID })
 
@@ -145,8 +159,8 @@ export namespace MemoryExtractor {
         sessionID: session.id,
         model: await model(),
         agent: "memory-extractor",
-        system: parts.system,
-        parts: [{ type: "text", text: prompt }],
+        system: sys,
+        parts: [{ type: "text", text: task }],
       })
 
       // Parse JSON from the text response
@@ -257,24 +271,13 @@ export namespace MemoryExtractor {
     return memories.map((m) => `- [${m.id}] (${m.category}) ${m.content}`).join("\n")
   }
 
-  export function buildAutoExtractPrompt(
-    messages: Array<{ role: string; content: string }>,
-    existing: Memory.Info[],
-    tpl?: string,
-  ): string {
-    const conversation = messages
-      .slice(-20)
-      .map((m) => `[${m.role}]: ${m.content}`)
-      .join("\n---\n")
-
-    const memorySummary = formatExisting(existing)
-
-    if (tpl) {
-      return render(tpl, { CONVERSATION: conversation, EXISTING_MEMORIES: memorySummary })
-    }
-
+  /**
+   * Build the user-prompt task instructions for auto-extraction.
+   * Context (conversation, existing memories) is in the system prompt.
+   */
+  function buildTaskInstructions(): string {
     return [
-      "Analyze the following development conversation and extract persistent preferences,",
+      "Analyze the session conversation provided in the system prompt and extract persistent preferences,",
       "code patterns, tool choices, and project conventions worth remembering long-term.",
       "",
       "Distinguish between:",
@@ -283,10 +286,6 @@ export namespace MemoryExtractor {
       '- Project conventions ("API response format: { code, data, message }") → EXTRACT',
       '- Temporary context ("help me look at this bug") → DO NOT extract',
       "",
-      "## Existing memories",
-      "",
-      memorySummary,
-      "",
       "## Rules for action",
       "",
       "For each piece of knowledge worth remembering:",
@@ -294,10 +293,6 @@ export namespace MemoryExtractor {
       "  Merge the old and new information into a single coherent content string.",
       '- If it is genuinely new, use action "create".',
       "- Do NOT create a memory that duplicates or overlaps with an existing one; update it instead.",
-      "",
-      "## Conversation",
-      "",
-      conversation,
       "",
       'If nothing is worth extracting, return an empty items array: { "items": [] }',
       "",

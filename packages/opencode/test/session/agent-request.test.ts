@@ -186,7 +186,8 @@ async function setup() {
 //
 // Replicates extractFromSession call path:
 //   Agent.get("memory-extractor")
-//   → buildAutoExtractPrompt(conversation, existing)
+//   → system: role + existing memories + conversation
+//   → user: task instructions
 //   → LLM.generate({ schema: { items: ExtractedItem[] } })
 // ---------------------------------------------------------------------------
 
@@ -213,15 +214,33 @@ describe("memory-extractor: LLM.generate() real request", () => {
             { role: "user", content: "Always use snake_case for database column names" },
             { role: "assistant", content: "Understood, snake_case for DB columns." },
           ]
-          const prompt = MemoryExtractor.buildAutoExtractPrompt(conversation, [])
-          const msgs: ModelMessage[] = [{ role: "user", content: prompt }]
+          const context = conversation.map((m) => `[${m.role}]: ${m.content}`).join("\n---\n")
+          // System: role + context (no existing memories for this test)
+          const sys = [
+            "You are a memory extraction assistant. Extract persistent preferences and conventions from development conversations.",
+            "",
+            "## Existing memories",
+            "",
+            "No existing memories.",
+            "",
+            "## Session conversation",
+            "",
+            context,
+          ].join("\n")
+          // User: task instructions only
+          const task = [
+            "Analyze the session conversation in the system prompt and extract persistent preferences.",
+            'If nothing is worth extracting, return { "items": [] }.',
+            "Respond ONLY with the JSON object.",
+          ].join("\n")
+          const msgs: ModelMessage[] = [{ role: "user", content: task }]
           const schema = z.object({ items: z.array(MemoryExtractor.ExtractedItem) })
 
           const result = await LLM.generate({
             sessionID,
             model,
             agent: { ...agent!, prompt: agent!.prompt },
-            system: [],
+            system: [sys],
             messages: msgs,
             schema,
           })
@@ -665,15 +684,31 @@ describe("OAuth mcp_ prefix: generateObject json tool", () => {
             { role: "assistant", content: "provider.models comes from models.dev data." },
           ]
 
-          const prompt = MemoryExtractor.buildAutoExtractPrompt(conversation, existing)
-          const msgs: ModelMessage[] = [{ role: "user", content: prompt }]
+          const context = conversation.map((m) => `[${m.role}]: ${m.content}`).join("\n---\n")
+          const sys = [
+            "You are a memory extraction assistant.",
+            "",
+            "## Existing memories",
+            "",
+            existing.map((m) => `- [${m.id}] (${m.category}) ${m.content}`).join("\n"),
+            "",
+            "## Session conversation",
+            "",
+            context,
+          ].join("\n")
+          const task = [
+            "Analyze the session conversation in the system prompt and extract persistent preferences.",
+            'If nothing is worth extracting, return { "items": [] }.',
+            "Respond ONLY with the JSON object.",
+          ].join("\n")
+          const msgs: ModelMessage[] = [{ role: "user", content: task }]
           const schema = z.object({ items: z.array(MemoryExtractor.ExtractedItem) })
 
           const result = await LLM.generate({
             sessionID: "ses_json_tool_repro",
             model,
             agent: { ...agent!, prompt: agent!.prompt },
-            system: [],
+            system: [sys],
             messages: msgs,
             schema,
           })

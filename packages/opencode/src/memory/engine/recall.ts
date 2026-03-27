@@ -71,7 +71,11 @@ export namespace MemoryRecall {
         .map((m) => `[${m.role}]: ${m.content}`)
         .join("\n---\n")
 
-      const prompt = [
+      // System prompt: role definition + candidate memories + conversation context
+      const base = await load("recall", await ConfigPaths.directories(Instance.directory, Instance.worktree))
+      const sys = [
+        base,
+        "",
         "## Candidate Memories",
         "",
         JSON.stringify(candidates, null, 2),
@@ -79,11 +83,15 @@ export namespace MemoryRecall {
         "## Recent Conversation",
         "",
         context,
+      ].join("\n")
+
+      // User prompt: task instruction only
+      const task = [
+        "Filter the candidate memories in the system prompt for relevance to the current conversation.",
+        "Detect any conflicts between memories.",
         "",
         "Respond ONLY with the JSON object. No explanation before or after.",
       ].join("\n")
-
-      const system = await load("recall", await ConfigPaths.directories(Instance.directory, Instance.worktree))
 
       const session = await Session.create({
         parentID: input.sessionID,
@@ -94,8 +102,8 @@ export namespace MemoryRecall {
         sessionID: session.id,
         model: await model(),
         agent: "memory-recall",
-        system,
-        parts: [{ type: "text", text: prompt }],
+        system: sys,
+        parts: [{ type: "text", text: task }],
       })
 
       // Parse JSON from the text response
