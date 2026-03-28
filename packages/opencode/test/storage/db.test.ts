@@ -65,4 +65,38 @@ describe("database migrations", () => {
     expect(row.count).toBe(1)
     expect(cols.filter((item) => item.name === "headers")).toHaveLength(1)
   })
+
+  test("repairs partial add-column migrations before replay", () => {
+    const all = entries()
+    const hit = all.find((item) =>
+      item.sql.includes("ALTER TABLE `message` ADD `update_seq` integer DEFAULT 0 NOT NULL;"),
+    )
+    if (!hit) throw new Error("missing update_seq migration")
+
+    const sqlite = new BunDatabase(Database.Path)
+    migrate(
+      drizzle({ client: sqlite }),
+      all.filter((item) => item.timestamp < hit.timestamp),
+    )
+    sqlite.exec("ALTER TABLE message ADD update_seq integer DEFAULT 0 NOT NULL")
+    sqlite.close()
+
+    const result = Database.repair()
+
+    const check = new BunDatabase(Database.Path, { readonly: true })
+    const row = check
+      .query("select count(*) as count from __drizzle_migrations where created_at = ?")
+      .get(hit.timestamp) as { count: number }
+    const message = check.query("pragma table_info('message')").all() as { name: string }[]
+    const part = check.query("pragma table_info('part')").all() as { name: string }[]
+    const session = check.query("pragma table_info('session')").all() as { name: string }[]
+    check.close()
+
+    expect(result.add.map((item) => `${item.table}.${item.column}`)).toEqual(["part.update_seq", "session.update_seq"])
+    expect(result.journal).toEqual([hit.timestamp])
+    expect(row.count).toBe(1)
+    expect(message.filter((item) => item.name === "update_seq")).toHaveLength(1)
+    expect(part.filter((item) => item.name === "update_seq")).toHaveLength(1)
+    expect(session.filter((item) => item.name === "update_seq")).toHaveLength(1)
+  })
 })

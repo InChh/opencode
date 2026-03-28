@@ -74,6 +74,14 @@ pub struct CommandChild {
     kill: mpsc::Sender<()>,
 }
 
+#[derive(Debug)]
+pub struct CommandOutput {
+    pub code: Option<i32>,
+    pub signal: Option<i32>,
+    pub stdout: String,
+    pub stderr: String,
+}
+
 impl CommandChild {
     pub fn kill(&self) -> std::io::Result<()> {
         self.kill
@@ -536,6 +544,43 @@ pub fn spawn_command(
     let event_stream = sqlite_migration::logs_middleware(app.clone(), event_stream);
 
     Ok((event_stream, CommandChild { kill: kill_tx }))
+}
+
+pub async fn run(
+    app: &tauri::AppHandle,
+    args: &str,
+    extra_env: &[(&str, String)],
+) -> Result<CommandOutput, String> {
+    let (mut events, _) = spawn_command(app, args, extra_env).map_err(|e| e.to_string())?;
+    let mut out = CommandOutput {
+        code: None,
+        signal: None,
+        stdout: String::new(),
+        stderr: String::new(),
+    };
+
+    while let Some(event) = events.next().await {
+        match event {
+            CommandEvent::Stdout(line) => {
+                out.stdout.push_str(&line);
+                out.stdout.push('\n');
+            }
+            CommandEvent::Stderr(line) => {
+                out.stderr.push_str(&line);
+                out.stderr.push('\n');
+            }
+            CommandEvent::Error(err) => {
+                out.stderr.push_str(&err);
+                out.stderr.push('\n');
+            }
+            CommandEvent::Terminated(payload) => {
+                out.code = payload.code;
+                out.signal = payload.signal;
+            }
+        }
+    }
+
+    Ok(out)
 }
 
 fn signal_from_status(status: std::process::ExitStatus) -> Option<i32> {

@@ -32,10 +32,15 @@ export namespace Database {
   type Client = SQLiteBunDatabase<Schema>
 
   type Journal = { sql: string; timestamp: number }[]
-  type Repair = {
+  type Add = {
     timestamp: number
     table: string
     column: string
+    sql: string
+  }
+  type Report = {
+    add: Add[]
+    journal: number[]
   }
 
   const state = {
@@ -74,6 +79,28 @@ export namespace Database {
     return sql.sort((a, b) => a.timestamp - b.timestamp)
   }
 
+  function statements(sql: string) {
+    return sql
+      .split("--> statement-breakpoint")
+      .map((item) => item.trim())
+      .filter(Boolean)
+  }
+
+  function adds(entry: Journal[number]) {
+    return statements(entry.sql)
+      .map((sql) => {
+        const match = /^ALTER TABLE\s+[`"']?([^`"'\s]+)[`"']?\s+ADD(?:\s+COLUMN)?\s+[`"']?([^`"'\s]+)[`"']?/i.exec(sql)
+        if (!match) return
+        return {
+          timestamp: entry.timestamp,
+          table: match[1],
+          column: match[2],
+          sql,
+        }
+      })
+      .filter(Boolean) as Add[]
+  }
+
   function table(sqlite: BunDatabase, name: string) {
     return !!sqlite.query("select 1 from sqlite_master where type = 'table' and name = ? limit 1").get(name)
   }
@@ -91,58 +118,103 @@ export namespace Database {
     return !!sqlite.query("select 1 from __drizzle_migrations where created_at = ? limit 1").get(timestamp)
   }
 
-  function repair(sqlite: BunDatabase, entries: Journal) {
-    if (!table(sqlite, "__drizzle_migrations")) return
-
-    const list: Repair[] = [
-      {
-        timestamp: time("20260324140824"),
-        table: "llm_log_request",
-        column: "headers",
-      },
-    ]
-
-    list
-      .filter((item) => entries.some((entry) => entry.timestamp === item.timestamp))
-      .filter((item) => column(sqlite, item.table, item.column))
-      .filter((item) => !journal(sqlite, item.timestamp))
-      .forEach((item) => {
-        log.warn("repairing migration journal", {
-          table: item.table,
-          column: item.column,
-          timestamp: item.timestamp,
-        })
-        sqlite.query("insert into __drizzle_migrations (hash, created_at) values (?, ?)").run("", item.timestamp)
-      })
-  }
-
-  export const Client = lazy(() => {
-    log.info("opening database", { path: path.join(Global.Path.data, "opencode.db") })
-
-    const sqlite = new BunDatabase(path.join(Global.Path.data, "opencode.db"), { create: true })
-    state.sqlite = sqlite
-
+  function boot(sqlite: BunDatabase) {
     sqlite.run("PRAGMA journal_mode = WAL")
     sqlite.run("PRAGMA synchronous = NORMAL")
     sqlite.run("PRAGMA busy_timeout = 5000")
     sqlite.run("PRAGMA cache_size = -64000")
     sqlite.run("PRAGMA foreign_keys = ON")
     sqlite.run("PRAGMA wal_checkpoint(PASSIVE)")
+  }
+
+  function fix(sqlite: BunDatabase, entries: Journal): Report {
+    const result: Report = {
+      add: [],
+      journal: [],
+    }
+
+    if (!table(sqlite, "__drizzle_migrations")) return result
+
+    entries
+      .map((entry) => adds(entry))
+      .filter((item) => item.length > 0)
+      .filter((item) => !journal(sqlite, item[0].timestamp))
+      .forEach((item) => {
+        const done = item.filter((part) => column(sqlite, part.table, part.column))
+        if (done.length === 0) return
+
+        item
+          .filter((part) => !column(sqlite, part.table, part.column))
+          .forEach((part) => {
+            log.warn("repairing migration column", {
+              table: part.table,
+              column: part.column,
+              timestamp: part.timestamp,
+            })
+            sqlite.run(part.sql)
+            result.add.push(part)
+          })
+
+        if (!item.every((part) => column(sqlite, part.table, part.column))) return
+
+        log.warn("repairing migration journal", {
+          timestamp: item[0].timestamp,
+        })
+        sqlite.query("insert into __drizzle_migrations (hash, created_at) values (?, ?)").run("", item[0].timestamp)
+        result.journal.push(item[0].timestamp)
+      })
+
+    return result
+  }
+
+  function open() {
+    const sqlite = new BunDatabase(Path, { create: true })
+    boot(sqlite)
+    return sqlite
+  }
+
+  function entries() {
+    return typeof OPENCODE_MIGRATIONS !== "undefined"
+      ? OPENCODE_MIGRATIONS
+      : migrations(path.join(import.meta.dirname, "../../migration"))
+  }
+
+  export function repair() {
+    const sqlite = open()
+    try {
+      const db = drizzle({ client: sqlite, schema })
+      const list = entries()
+      const result = fix(sqlite, list)
+      if (list.length > 0) {
+        log.info("applying migrations", {
+          count: list.length,
+          mode: typeof OPENCODE_MIGRATIONS !== "undefined" ? "bundled" : "dev",
+        })
+        migrate(db, list)
+      }
+      return result
+    } finally {
+      sqlite.close()
+    }
+  }
+
+  export const Client = lazy(() => {
+    log.info("opening database", { path: path.join(Global.Path.data, "opencode.db") })
+
+    const sqlite = open()
+    state.sqlite = sqlite
 
     const db = drizzle({ client: sqlite, schema })
 
     // Apply schema migrations
-    const entries =
-      typeof OPENCODE_MIGRATIONS !== "undefined"
-        ? OPENCODE_MIGRATIONS
-        : migrations(path.join(import.meta.dirname, "../../migration"))
-    if (entries.length > 0) {
-      repair(sqlite, entries)
+    const list = entries()
+    if (list.length > 0) {
+      fix(sqlite, list)
       log.info("applying migrations", {
-        count: entries.length,
+        count: list.length,
         mode: typeof OPENCODE_MIGRATIONS !== "undefined" ? "bundled" : "dev",
       })
-      migrate(db, entries)
+      migrate(db, list)
     }
 
     return db

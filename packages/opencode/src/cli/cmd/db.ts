@@ -108,11 +108,41 @@ const MigrateCommand = cmd({
   },
 })
 
+const RepairCommand = cmd({
+  command: "repair",
+  describe: "repair partial SQLite migrations and re-run schema upgrades",
+  handler: async () => {
+    try {
+      const result = Database.repair()
+      if (result.add.length === 0 && result.journal.length === 0) {
+        UI.println("Database is healthy. No repairs were needed.")
+        return
+      }
+
+      result.add.forEach((item) => {
+        UI.println(`Repaired migration ${item.timestamp}: added ${item.table}.${item.column}`)
+      })
+      result.journal.forEach((item) => {
+        UI.println(`Repaired migration journal: ${item}`)
+      })
+      UI.println("Database repair complete.")
+    } catch (err) {
+      UI.error(`Database repair failed: ${err instanceof Error ? err.message : String(err)}`)
+      process.exit(1)
+    }
+  },
+})
+
 export const DbCommand = cmd({
   command: "db",
   describe: "database tools",
   builder: (yargs: Argv) => {
-    return yargs.command(QueryCommand).command(PathCommand).command(MigrateCommand).demandCommand()
+    return yargs
+      .command(QueryCommand)
+      .command(PathCommand)
+      .command(MigrateCommand)
+      .command(RepairCommand)
+      .demandCommand()
   },
   handler: () => {},
 })

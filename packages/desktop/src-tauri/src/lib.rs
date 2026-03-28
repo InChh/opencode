@@ -23,10 +23,12 @@ use std::{
     process::Command,
     sync::{Arc, Mutex},
     time::Duration,
+    time::{SystemTime, UNIX_EPOCH},
 };
 use tauri::{AppHandle, Listener, Manager, RunEvent, State, ipc::Channel};
 #[cfg(any(target_os = "linux", all(debug_assertions, windows)))]
 use tauri_plugin_deep_link::DeepLinkExt;
+use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogResult};
 use tauri_specta::Event;
 use tokio::{
     sync::{oneshot, watch},
@@ -440,6 +442,7 @@ async fn initialize(app: AppHandle) {
     spawn_cli_sync_task(app.clone());
 
     let (server_ready_tx, server_ready_rx) = oneshot::channel();
+    let server_ready_tx = Arc::new(Mutex::new(Some(server_ready_tx)));
     let server_ready_rx = server_ready_rx.shared();
     app.manage(ServerState::new(None, server_ready_rx.clone()));
 
@@ -482,10 +485,19 @@ async fn initialize(app: AppHandle) {
 
     let loading_task = tokio::spawn({
         let app = app.clone();
+        let server_ready_tx = server_ready_tx.clone();
 
         async move {
             tracing::info!("Setting up server connection");
-            let server_connection = setup_server_connection(app.clone()).await;
+            let server_connection = match setup_server_connection(app.clone()).await {
+                Ok(server_connection) => server_connection,
+                Err(err) => {
+                    if let Some(tx) = server_ready_tx.lock().unwrap().take() {
+                        let _ = tx.send(Err(err));
+                    }
+                    return;
+                }
+            };
             tracing::info!("Server connection setup");
 
             // we delay spawning this future so that the timeout is created lazily
@@ -529,17 +541,21 @@ async fn initialize(app: AppHandle) {
                             })
                         }
                         .map(move |res| {
-                            let _ = server_ready_tx.send(res);
+                            if let Some(tx) = server_ready_tx.lock().unwrap().take() {
+                                let _ = tx.send(res);
+                            }
                         }),
                     )
                 }
                 ServerConnection::Existing { url } => {
-                    let _ = server_ready_tx.send(Ok(ServerReadyData {
-                        url: url.to_string(),
-                        username: None,
-                        password: None,
-                        is_sidecar: false,
-                    }));
+                    if let Some(tx) = server_ready_tx.lock().unwrap().take() {
+                        let _ = tx.send(Ok(ServerReadyData {
+                            url: url.to_string(),
+                            username: None,
+                            password: None,
+                            is_sidecar: false,
+                        }));
+                    }
                     None
                 }
             };
@@ -623,7 +639,7 @@ enum ServerConnection {
     },
 }
 
-async fn setup_server_connection(app: AppHandle) -> ServerConnection {
+async fn setup_server_connection(app: AppHandle) -> Result<ServerConnection, String> {
     let custom_url = get_saved_server_url(&app).await;
 
     tracing::info!(?custom_url, "Attempting server connection");
@@ -634,7 +650,7 @@ async fn setup_server_connection(app: AppHandle) -> ServerConnection {
         tracing::info!(%url, "Connected to custom server");
         // If the default server is already local, no need to also spawn a sidecar
         if server::is_localhost_url(url) {
-            return ServerConnection::Existing { url: url.clone() };
+            return Ok(ServerConnection::Existing { url: url.clone() });
         }
         // Remote default server: fall through and also spawn a local sidecar
     }
@@ -646,8 +662,10 @@ async fn setup_server_connection(app: AppHandle) -> ServerConnection {
     tracing::debug!(url = %local_url, "Checking health of local server");
     if server::check_health(&local_url, None).await {
         tracing::info!(url = %local_url, "Health check OK, using existing server");
-        return ServerConnection::Existing { url: local_url };
+        return Ok(ServerConnection::Existing { url: local_url });
     }
+
+    repair_local_db(&app).await?;
 
     let password = uuid::Uuid::new_v4().to_string();
 
@@ -655,13 +673,13 @@ async fn setup_server_connection(app: AppHandle) -> ServerConnection {
     let (child, health_check) =
         server::spawn_local_server(app, hostname.to_string(), local_port, password.clone());
 
-    ServerConnection::CLI {
+    Ok(ServerConnection::CLI {
         url: local_url,
         username: Some("opencode".to_string()),
         password: Some(password),
         child,
         health_check,
-    }
+    })
 }
 
 fn get_sidecar_port() -> u32 {
@@ -687,17 +705,98 @@ fn sqlite_file_exists() -> bool {
 }
 
 fn opencode_db_path() -> Result<PathBuf, &'static str> {
-    let xdg_data_home = env::var_os("XDG_DATA_HOME").filter(|v| !v.is_empty());
+    let data = if cfg!(target_os = "linux") {
+        env::var_os("XDG_DATA_HOME")
+            .filter(|v| !v.is_empty())
+            .map(PathBuf::from)
+            .or_else(dirs::data_dir)
+    } else {
+        dirs::data_dir()
+    }
+    .ok_or("cannot determine data directory")?;
 
-    let data_home = match xdg_data_home {
-        Some(v) => PathBuf::from(v),
-        None => {
-            let home = dirs::home_dir().ok_or("cannot determine home directory")?;
-            home.join(".local").join("share")
+    Ok(data.join("opencode").join("opencode.db"))
+}
+
+fn db_prompt(app: &AppHandle, err: &str) -> bool {
+    const DELETE: &str = "Delete Database";
+
+    let msg = format!(
+        "OpenCode could not repair the local database.\n\n{}\n\nDeleting the local database will reset local history and recreate it on next launch. Delete the database now?",
+        err.trim()
+    );
+
+    matches!(
+        app.dialog()
+            .message(msg)
+            .title("Database Repair Failed")
+            .buttons(MessageDialogButtons::OkCancelCustom(
+                DELETE.to_string(),
+                "Quit".to_string(),
+            ))
+            .blocking_show_with_result(),
+        MessageDialogResult::Custom(name) if name == DELETE
+    )
+}
+
+fn drop_db() -> Result<(), String> {
+    let path = opencode_db_path().map_err(|e| e.to_string())?;
+    let stamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|v| v.as_secs())
+        .unwrap_or_default();
+
+    for suffix in ["", "-shm", "-wal"] {
+        let src = PathBuf::from(format!("{}{}", path.display(), suffix));
+        if !src.exists() {
+            continue;
         }
-    };
 
-    Ok(data_home.join("opencode").join("opencode.db"))
+        let dst = PathBuf::from(format!("{}{}.bak-{}", path.display(), suffix, stamp));
+        std::fs::rename(&src, &dst)
+            .map_err(|e| format!("Failed to move {} aside: {}", src.display(), e))?;
+    }
+
+    Ok(())
+}
+
+fn repair_err(out: &cli::CommandOutput) -> String {
+    let stderr = out.stderr.trim();
+    if !stderr.is_empty() {
+        return stderr.to_string();
+    }
+
+    let stdout = out.stdout.trim();
+    if !stdout.is_empty() {
+        return stdout.to_string();
+    }
+
+    format!(
+        "repair command exited with code {:?} signal {:?}",
+        out.code, out.signal
+    )
+}
+
+async fn repair_local_db(app: &AppHandle) -> Result<(), String> {
+    if !sqlite_file_exists() {
+        return Ok(());
+    }
+
+    let out = cli::run(app, "--log-level WARN db repair", &[]).await?;
+    if out.code == Some(0) {
+        return Ok(());
+    }
+
+    let err = repair_err(&out);
+    tracing::error!(error = %err, "Database repair failed");
+
+    if !db_prompt(app, &err) {
+        return Err(err);
+    }
+
+    drop_db()?;
+    tracing::warn!(path = %opencode_db_path().map_err(|e| e.to_string())?.display(), "Dropped local database after repair failure");
+    Ok(())
 }
 
 // Creates a `once` listener for the specified event and returns a future that resolves
