@@ -32,6 +32,11 @@ export namespace Database {
   type Client = SQLiteBunDatabase<Schema>
 
   type Journal = { sql: string; timestamp: number }[]
+  type Repair = {
+    timestamp: number
+    table: string
+    column: string
+  }
 
   const state = {
     sqlite: undefined as BunDatabase | undefined,
@@ -69,6 +74,48 @@ export namespace Database {
     return sql.sort((a, b) => a.timestamp - b.timestamp)
   }
 
+  function table(sqlite: BunDatabase, name: string) {
+    return !!sqlite.query("select 1 from sqlite_master where type = 'table' and name = ? limit 1").get(name)
+  }
+
+  function column(sqlite: BunDatabase, name: string, col: string) {
+    if (!table(sqlite, name)) return false
+    return sqlite
+      .query(`pragma table_info('${name.replaceAll("'", "''")}')`)
+      .all()
+      .some((row) => typeof row === "object" && row !== null && "name" in row && row.name === col)
+  }
+
+  function journal(sqlite: BunDatabase, timestamp: number) {
+    if (!table(sqlite, "__drizzle_migrations")) return false
+    return !!sqlite.query("select 1 from __drizzle_migrations where created_at = ? limit 1").get(timestamp)
+  }
+
+  function repair(sqlite: BunDatabase, entries: Journal) {
+    if (!table(sqlite, "__drizzle_migrations")) return
+
+    const list: Repair[] = [
+      {
+        timestamp: time("20260324140824"),
+        table: "llm_log_request",
+        column: "headers",
+      },
+    ]
+
+    list
+      .filter((item) => entries.some((entry) => entry.timestamp === item.timestamp))
+      .filter((item) => column(sqlite, item.table, item.column))
+      .filter((item) => !journal(sqlite, item.timestamp))
+      .forEach((item) => {
+        log.warn("repairing migration journal", {
+          table: item.table,
+          column: item.column,
+          timestamp: item.timestamp,
+        })
+        sqlite.query("insert into __drizzle_migrations (hash, created_at) values (?, ?)").run("", item.timestamp)
+      })
+  }
+
   export const Client = lazy(() => {
     log.info("opening database", { path: path.join(Global.Path.data, "opencode.db") })
 
@@ -90,6 +137,7 @@ export namespace Database {
         ? OPENCODE_MIGRATIONS
         : migrations(path.join(import.meta.dirname, "../../migration"))
     if (entries.length > 0) {
+      repair(sqlite, entries)
       log.info("applying migrations", {
         count: entries.length,
         mode: typeof OPENCODE_MIGRATIONS !== "undefined" ? "bundled" : "dev",
