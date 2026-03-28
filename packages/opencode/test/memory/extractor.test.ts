@@ -1,12 +1,13 @@
 import { describe, test, expect } from "bun:test"
 import { Instance } from "../../src/project/instance"
+import type { Config } from "../../src/config/config"
 import { Memory } from "../../src/memory/memory"
 import { MemoryStorage } from "../../src/memory/storage"
 import { MemoryExtractor } from "../../src/memory/engine/extractor"
 import { tmpdir } from "../fixture/fixture"
 
-async function withMemoryEnv<T>(fn: () => Promise<T>): Promise<T> {
-  await using tmp = await tmpdir({ git: true })
+async function withMemoryEnv<T>(fn: () => Promise<T>, config?: Partial<Config.Info>): Promise<T> {
+  await using tmp = await tmpdir({ git: true, config })
   return Instance.provide({
     directory: tmp.path,
     fn: async () => {
@@ -85,15 +86,21 @@ describe("MemoryExtractor", () => {
     })
 
     test("returns empty on LLM failure (no provider configured)", async () => {
-      await withMemoryEnv(async () => {
-        // If a provider is available (e.g. OAuth), extraction may succeed.
-        // This test verifies no crash occurs — result is either empty or valid memories.
-        const result = await MemoryExtractor.extractFromSession("sess_8", [
-          { role: "user", content: "We always use Hono framework" },
-          { role: "assistant", content: "Noted, using Hono." },
-        ])
-        expect(Array.isArray(result)).toBe(true)
-      })
+      await withMemoryEnv(
+        async () => {
+          // If a provider is available (e.g. OAuth), extraction may succeed.
+          // This test verifies no crash occurs — result is either empty or valid memories.
+          const result = await MemoryExtractor.extractFromSession("sess_8", [
+            { role: "user", content: "We always use Hono framework" },
+            { role: "assistant", content: "Noted, using Hono." },
+          ])
+          expect(Array.isArray(result)).toBe(true)
+        },
+        {
+          // Fixed: force a fast provider failure instead of depending on ambient auth/config.
+          model: "missing/model",
+        },
+      )
     }, 15000)
   })
 

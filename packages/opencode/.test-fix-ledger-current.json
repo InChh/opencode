@@ -1,0 +1,62 @@
+{
+  "session_id": "test-fix-20260327-memory",
+  "created_at": "2026-03-27T12:11:34Z",
+  "updated_at": "2026-03-27T14:48:20Z",
+  "initial_failure_count": 3,
+  "entries": [
+    {
+      "id": "F-001",
+      "file": "test/memory/tools.test.ts",
+      "test": "Memory Tools > MemoryRememberTool > should save a memory via tool execute",
+      "priority": "P2",
+      "status": "fixed",
+      "attempt_count": 1,
+      "max_attempts": 3,
+      "error_type": "runtime",
+      "error_message": "TypeError: undefined is not an object (evaluating 'msg.info.role')",
+      "stack_trace": "at <anonymous> (/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/src/memory/tool/remember.ts:19:17)\nat execute (/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/src/memory/tool/remember.ts:18:52)\nat <anonymous> (/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/src/tool/tool.ts:69:32)\nat <anonymous> (/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/memory/tools.test.ts:24:39)",
+      "source_file": "src/memory/tool/remember.ts",
+      "source_line": 19,
+      "diagnosis": "Source bug: MemoryRememberTool assumed every context message used the full MessageV2 shape with info/parts fields. The tool should also accept flat { role, content } messages, which lightweight tool contexts and tests already provide.",
+      "fix_applied": "Normalized recent messages in MemoryRememberTool so it accepts both MessageV2 and flat role/content inputs before building memory context.",
+      "escalation_reason": null,
+      "modified_files": ["packages/opencode/src/memory/tool/remember.ts"]
+    },
+    {
+      "id": "F-002",
+      "file": "test/memory/prompt-integration.test.ts",
+      "test": "prompt integration > override/fallback chain > extract.md missing Analysis heading falls back per-section",
+      "priority": "P3",
+      "status": "fixed",
+      "attempt_count": 1,
+      "max_attempts": 3,
+      "error_type": "assertion",
+      "error_message": "error: expect(received).toContain(expected)",
+      "stack_trace": "at <anonymous> (/Users/bytedance/GithubWorkspace/@Naixor/opencode/packages/opencode/test/memory/prompt-integration.test.ts:168:30)",
+      "source_file": null,
+      "source_line": null,
+      "diagnosis": "API change: the default extractor analysis prompt was intentionally updated to reference conversation context in the system prompt. This test still expected the older \"Analyze the following\" wording, so its fallback assertion no longer matched the current prompt contract.",
+      "fix_applied": "Updated the fallback assertion in prompt-integration to match the current extractor analysis prompt wording.",
+      "escalation_reason": null,
+      "modified_files": ["packages/opencode/test/memory/prompt-integration.test.ts"]
+    },
+    {
+      "id": "F-003",
+      "file": "test/memory/extractor.test.ts",
+      "test": "MemoryExtractor > extractFromSession > returns empty on LLM failure (no provider configured)",
+      "priority": "P4",
+      "status": "fixed",
+      "attempt_count": 1,
+      "max_attempts": 3,
+      "error_type": "timeout",
+      "error_message": "^ this test timed out after 15000ms.",
+      "stack_trace": "",
+      "source_file": null,
+      "source_line": null,
+      "diagnosis": "Test bug: the timeout case relied on ambient provider availability, so it could invoke a real model and run past the 15s per-test budget under suite contention. The test should force an immediate model resolution failure to verify the extractor returns an empty result on LLM failure.",
+      "fix_applied": "Configured the timeout test with an invalid model so extractFromSession fails fast and deterministically without waiting on provider auth or network calls.",
+      "escalation_reason": null,
+      "modified_files": ["packages/opencode/test/memory/extractor.test.ts"]
+    }
+  ]
+}

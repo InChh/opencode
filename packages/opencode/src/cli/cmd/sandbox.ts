@@ -2,7 +2,7 @@ import { cmd } from "./cmd"
 import { runDoctorChecks } from "../../sandbox/doctor"
 import { getActiveSandbox, getSandboxStatus } from "../../sandbox"
 import { Instance } from "../../project/instance"
-import { initSandbox } from "../../sandbox/init"
+import { initSandbox, refreshSandboxPolicy } from "../../sandbox/init"
 import { SecurityConfig } from "../../security/config"
 import { SecurityAccess } from "../../security/access"
 
@@ -27,7 +27,34 @@ const DoctorCommand = cmd({
   },
 })
 
-const StatusCommand = cmd({
+export async function loadSandboxStatus(dir: string, force: boolean) {
+  SecurityAccess.setProjectRoot(dir)
+  await SecurityConfig.loadSecurityConfig(dir, force ? { forceWalk: true } : undefined)
+  const init = await initSandbox()
+  if (force && init.status === "active") {
+    await refreshSandboxPolicy()
+  }
+
+  const { status, error } = getSandboxStatus()
+  if (status !== "active") {
+    return { status, error, policyPath: undefined, profile: undefined }
+  }
+
+  const sandbox = getActiveSandbox() as { getPolicyPath?: () => string | null } | null
+  const policyPath = sandbox?.getPolicyPath?.()
+  if (!policyPath) {
+    return { status, error, policyPath: undefined, profile: undefined }
+  }
+
+  return {
+    status,
+    error,
+    policyPath,
+    profile: await Bun.file(policyPath).text(),
+  }
+}
+
+export const StatusCommand = cmd({
   command: "status",
   describe: "show current sandbox status",
   builder: (yargs) => yargs,
@@ -35,28 +62,48 @@ const StatusCommand = cmd({
     await Instance.provide({
       directory: process.cwd(),
       async fn() {
-        // Load security config and initialize sandbox (same as InstanceBootstrap)
-        SecurityAccess.setProjectRoot(Instance.directory)
-        await SecurityConfig.loadSecurityConfig(Instance.directory)
-        await initSandbox()
-
-        const { status, error } = getSandboxStatus()
+        const result = await loadSandboxStatus(Instance.directory, false)
         console.log("Sandbox Status\n")
         console.log(`  Platform:  ${process.platform}`)
-        console.log(`  Status:    ${status}`)
-        if (error) {
-          console.log(`  Error:     ${error}`)
+        console.log(`  Status:    ${result.status}`)
+        if (result.error) {
+          console.log(`  Error:     ${result.error}`)
         }
 
         // Show generated profile if sandbox is active
-        if (status === "active") {
-          const sandbox = getActiveSandbox() as { getPolicyPath?: () => string | null } | null
-          const policyPath = sandbox?.getPolicyPath?.()
-          if (policyPath) {
-            const profile = await Bun.file(policyPath).text()
-            console.log(`  Policy:    ${policyPath}`)
+        if (result.status === "active") {
+          if (result.policyPath && result.profile !== undefined) {
+            console.log(`  Policy:    ${result.policyPath}`)
             console.log(`\nSBPL Profile:\n`)
-            console.log(profile)
+            console.log(result.profile)
+          }
+        }
+      },
+    })
+  },
+})
+
+export const RefreshCommand = cmd({
+  command: "refresh",
+  describe: "force refresh sandbox policy and security config cache",
+  builder: (yargs) => yargs,
+  async handler() {
+    await Instance.provide({
+      directory: process.cwd(),
+      async fn() {
+        const result = await loadSandboxStatus(Instance.directory, true)
+        console.log("Sandbox Refresh\n")
+        console.log(`  Platform:  ${process.platform}`)
+        console.log(`  Status:    ${result.status}`)
+        if (result.error) {
+          console.log(`  Error:     ${result.error}`)
+        }
+
+        if (result.status === "active") {
+          if (result.policyPath && result.profile !== undefined) {
+            console.log(`  Policy:    ${result.policyPath}`)
+            console.log(`\nSBPL Profile:\n`)
+            console.log(result.profile)
           }
         }
       },
@@ -67,6 +114,6 @@ const StatusCommand = cmd({
 export const SandboxCommand = cmd({
   command: "sandbox",
   describe: "manage OS-native sandbox",
-  builder: (yargs) => yargs.command(DoctorCommand).command(StatusCommand).demandCommand(),
+  builder: (yargs) => yargs.command(DoctorCommand).command(StatusCommand).command(RefreshCommand).demandCommand(),
   handler() {},
 })

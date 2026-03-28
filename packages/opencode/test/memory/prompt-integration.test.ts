@@ -165,7 +165,7 @@ describe("prompt integration", () => {
       // System should use custom content
       expect(parts.system).toBe("Custom system only")
       // Analysis should fallback to default
-      expect(parts.analysis).toContain("Analyze the following")
+      expect(parts.analysis).toContain("Analyze the session conversation provided in the system prompt")
     })
   })
 

@@ -3,6 +3,38 @@ import { Tool } from "@/tool/tool"
 import { Memory } from "../memory"
 import { MemoryExtractor } from "../engine/extractor"
 
+function flat(raw: unknown[]) {
+  return raw.flatMap((msg) => {
+    if (!msg || typeof msg !== "object") return []
+
+    const item = msg as Record<string, unknown>
+    if (item.info && Array.isArray(item.parts)) {
+      const role = (item.info as Record<string, unknown>).role
+      if (typeof role !== "string") return []
+
+      const content = item.parts
+        .flatMap((part) => {
+          if (!part || typeof part !== "object") return []
+          const item = part as Record<string, unknown>
+          if (item.type !== "text" || item.ignored || typeof item.text !== "string") return []
+          return [item.text]
+        })
+        .join("\n")
+
+      if (!content) return []
+      return [{ role, content }]
+    }
+
+    if (typeof item.role !== "string" || item.content === undefined) return []
+    return [
+      {
+        role: item.role,
+        content: typeof item.content === "string" ? item.content : JSON.stringify(item.content),
+      },
+    ]
+  })
+}
+
 export const MemoryRememberTool = Tool.define("memory_remember", {
   description: [
     "Save a memory about user preferences, coding patterns, project conventions, or tool choices.",
@@ -15,11 +47,7 @@ export const MemoryRememberTool = Tool.define("memory_remember", {
     tags: z.array(z.string()).optional().describe("Keywords for future recall"),
   }),
   async execute(args, ctx) {
-    // Extract recent messages for context
-    const recentMessages = (ctx.messages ?? []).slice(-10).map((m) => ({
-      role: m.role,
-      content: typeof m.content === "string" ? m.content : JSON.stringify(m.content),
-    }))
+    const recentMessages = flat((ctx.messages as unknown[]).slice(-10))
 
     const memory = await MemoryExtractor.rememberWithContext(ctx.sessionID, args.content, recentMessages, {
       category: args.category,

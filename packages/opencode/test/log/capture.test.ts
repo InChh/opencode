@@ -4,10 +4,13 @@ import { Instance } from "../../src/project/instance"
 import { HookChain } from "../../src/session/hooks"
 import { registerAllHooks } from "../../src/session/hooks/register"
 import { Database, eq } from "../../src/storage/db"
-import { LlmLogTable } from "../../src/log/log.sql"
+import { LlmLogResponseTable, LlmLogTable } from "../../src/log/log.sql"
 import { SessionTable } from "../../src/session/session.sql"
 import { currentLlmLogState } from "../../src/log/log-state"
 import { count, sql } from "drizzle-orm"
+import { Session } from "../../src/session"
+import { Identifier } from "../../src/id/id"
+import { MessageV2 } from "../../src/session/message-v2"
 
 describe("LLM Log Capture", () => {
   function ensureSession(sessionID: string) {
@@ -220,6 +223,115 @@ describe("LLM Log Capture", () => {
       expect(record!.variant).toBe("max")
       expect(record!.status).toBe("pending")
       expect(record!.time_start).toBeGreaterThan(0)
+    })
+  })
+
+  test("response capture reads persisted assistant parts when message metadata has no parts", async () => {
+    await withInstance(async () => {
+      const session = await Session.create({})
+      const now = Date.now()
+      const msg = await Session.updateMessage({
+        id: Identifier.ascending("message"),
+        parentID: "msg-parent",
+        role: "assistant",
+        mode: "memory-extractor",
+        agent: "memory-extractor",
+        path: {
+          cwd: Instance.directory,
+          root: Instance.worktree,
+        },
+        cost: 0,
+        tokens: {
+          input: 0,
+          output: 0,
+          reasoning: 0,
+          cache: { read: 0, write: 0 },
+        },
+        modelID: "test/model",
+        providerID: "test",
+        time: {
+          created: now,
+        },
+        sessionID: session.id,
+      } satisfies MessageV2.Assistant)
+
+      await Session.updatePart({
+        id: Identifier.ascending("part"),
+        messageID: msg.id,
+        sessionID: session.id,
+        type: "text",
+        text: '{"items":[]}',
+      } satisfies MessageV2.TextPart)
+
+      await Session.updatePart({
+        id: Identifier.ascending("part"),
+        messageID: msg.id,
+        sessionID: session.id,
+        type: "tool",
+        callID: "call-1",
+        tool: "read",
+        state: {
+          status: "completed",
+          input: { filePath: "foo.txt" },
+          output: "ok",
+          title: "Reads file",
+          metadata: {},
+          time: {
+            start: now,
+            end: now + 1,
+          },
+        },
+      } satisfies MessageV2.ToolPart)
+
+      await HookChain.execute("pre-llm", {
+        sessionID: session.id,
+        system: ["prompt"],
+        agent: "memory-extractor",
+        model: "test/model",
+        messages: [{ role: "user", content: "hello" }],
+      })
+
+      await HookChain.execute("session-lifecycle", {
+        sessionID: session.id,
+        event: "step.finished",
+        data: {
+          usage: {
+            cost: 0,
+            tokens: {
+              total: 3,
+              input: 1,
+              output: 2,
+              reasoning: 0,
+              cache: { read: 0, write: 0 },
+            },
+          },
+          finishReason: "stop",
+          model: { id: "test/model" },
+          assistantMessage: msg,
+          response: {
+            id: "res_1",
+            modelId: "test/model",
+            timestamp: new Date(now),
+            headers: { "x-test": "1" },
+          },
+        },
+      })
+
+      const logId = currentLlmLogState().get(session.id)?.logId
+      expect(logId).toBeDefined()
+
+      const row = Database.use((db) =>
+        db.select().from(LlmLogResponseTable).where(eq(LlmLogResponseTable.llm_log_id, logId!)).get(),
+      )
+
+      expect(row?.completion_text).toBe('{"items":[]}')
+      expect(row?.tool_calls).toEqual([
+        {
+          id: "call-1",
+          name: "read",
+          args: { filePath: "foo.txt" },
+        },
+      ])
     })
   })
 })

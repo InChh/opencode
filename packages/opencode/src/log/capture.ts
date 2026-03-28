@@ -7,9 +7,60 @@ import { Identifier } from "../id/id"
 import { Config } from "../config/config"
 import { eq, and } from "drizzle-orm"
 import { currentLlmLogState, getCurrentLogId as getCurrentLogId_impl } from "./log-state"
+import { MessageV2 } from "../session/message-v2"
 
 export namespace LlmLogCapture {
   const log = Log.create({ service: "llm-log-capture" })
+
+  function parseParts(parts: unknown[]) {
+    let text = ""
+    const calls: Array<{ id: string; name: string; args: unknown }> = []
+
+    for (const part of parts) {
+      if (!part || typeof part !== "object") continue
+
+      const type = "type" in part && typeof part.type === "string" ? part.type : ""
+      if (type === "text") {
+        if ("text" in part && typeof part.text === "string") text += part.text
+        continue
+      }
+
+      if (type === "tool") {
+        calls.push({
+          id: "callID" in part && typeof part.callID === "string" ? part.callID : "",
+          name: "tool" in part && typeof part.tool === "string" ? part.tool : "",
+          args:
+            "state" in part && part.state && typeof part.state === "object" && "input" in part.state
+              ? part.state.input
+              : {},
+        })
+        continue
+      }
+
+      if (type === "tool-invocation" || type === "tool-call") {
+        calls.push({
+          id:
+            "toolCallId" in part && typeof part.toolCallId === "string"
+              ? part.toolCallId
+              : "id" in part && typeof part.id === "string"
+                ? part.id
+                : "",
+          name:
+            "toolName" in part && typeof part.toolName === "string"
+              ? part.toolName
+              : "name" in part && typeof part.name === "string"
+                ? part.name
+                : "",
+          args: "args" in part ? part.args : {},
+        })
+      }
+    }
+
+    return {
+      text,
+      calls,
+    }
+  }
 
   // Per-instance state: Map<"sessionID:callID", timeStart> for tool call duration tracking
   const toolCallStartState = Instance.state(() => new Map<string, number>())
@@ -201,30 +252,14 @@ export namespace LlmLogCapture {
         }
         finishReason: string
         model: { id: string; cost?: Record<string, any> }
-        assistantMessage: { id: string; parts?: any[] }
+        assistantMessage: { id: string; parts?: unknown[] }
         response?: { id?: string; timestamp?: Date; modelId?: string; headers?: Record<string, string> }
       }
 
       const now = Date.now()
 
       try {
-        // Extract completion text and tool calls from assistant message parts
-        let completionText = ""
-        const toolCalls: Array<{ id: string; name: string; args: any }> = []
-
-        if (data.assistantMessage.parts) {
-          for (const part of data.assistantMessage.parts) {
-            if (part.type === "text") {
-              completionText += part.text ?? ""
-            } else if (part.type === "tool-invocation" || part.type === "tool-call") {
-              toolCalls.push({
-                id: part.toolCallId ?? part.id ?? "",
-                name: part.toolName ?? part.name ?? "",
-                args: part.args ?? {},
-              })
-            }
-          }
-        }
+        const parsed = parseParts(data.assistantMessage.parts ?? (await MessageV2.parts(data.assistantMessage.id)))
 
         const status = data.finishReason === "error" ? "error" : data.finishReason === "abort" ? "aborted" : "success"
 
@@ -242,8 +277,8 @@ export namespace LlmLogCapture {
             .values({
               id: Identifier.ascending("log"),
               llm_log_id: llmLogId,
-              completion_text: completionText || null,
-              tool_calls: toolCalls.length > 0 ? toolCalls : null,
+              completion_text: parsed.text || null,
+              tool_calls: parsed.calls.length > 0 ? parsed.calls : null,
               raw_response: rawResponse,
               error: status === "error" ? { finishReason: data.finishReason } : null,
             })

@@ -83,6 +83,10 @@ export namespace MemoryExtractor {
    */
   async function model() {
     const cfg = await Config.get()
+    const agent = cfg.agent?.["memory-extractor"]
+    if (agent?.model) {
+      return Provider.parseModel(agent.model)
+    }
     return cfg.memory?.recallProvider && cfg.memory?.recallModel
       ? { providerID: cfg.memory.recallProvider, modelID: cfg.memory.recallModel }
       : await Provider.defaultModel()
