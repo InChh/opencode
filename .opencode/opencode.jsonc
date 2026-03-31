@@ -10,4 +10,23 @@
     "github-triage": false,
     "github-pr-search": false,
   },
+  "agent": {
+    // Test-Runner — 测试验证 Agent，跑测试 + 检查结果，不改代码
+    "test-runner": {
+      "model": "bytedance_ark/ep-20250704114927-l5l54",
+      "mode": "subagent",
+      "description": "Run tests and verify code changes. Use build-verify and test-analyze skills first.",
+      "permission": {
+        "bash": "allow",
+        "read": "allow",
+        "grep": "allow",
+        "glob": "allow",
+        "memory_remember": "allow",
+        "memory_list": "allow",
+        "memory_forget": "allow",
+        "edit": "deny",
+        "write": "deny",
+      },
+    }
+  }
 }
