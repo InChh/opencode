@@ -713,13 +713,18 @@ export namespace SessionPrompt {
         }
       }
 
-      // Build system prompt, adding structured output instruction if needed
-      // Lite agents (e.g. memory-extractor, memory-recall) skip environment
-      // info and instruction files (AGENTS.md etc.) — they only need their
-      // own prompt + caller-provided system content.
-      const system = agent.lite
-        ? []
-        : [...(await SystemPrompt.environment(model)), ...(await InstructionPrompt.system())]
+      // Build system prompt based on agent's prompt_level:
+      //   full:   environment info + instruction files (AGENTS.md etc.)
+      //   medium: environment info only (skip AGENTS.md — saves tokens for subagents)
+      //   lite:   empty (memory-extractor, memory-recall — only need their own prompt)
+      // Backward compat: agent.lite === true is treated as prompt_level 'lite'.
+      const level = agent.prompt_level ?? (agent.lite ? "lite" : "full")
+      const system =
+        level === "lite"
+          ? []
+          : level === "medium"
+            ? [...(await SystemPrompt.environment(model))]
+            : [...(await SystemPrompt.environment(model)), ...(await InstructionPrompt.system())]
       const format = lastUser.format ?? { type: "text" }
       if (format.type === "json_schema") {
         system.push(STRUCTURED_OUTPUT_SYSTEM_PROMPT)
@@ -814,6 +819,15 @@ export namespace SessionPrompt {
     return Provider.defaultModel()
   }
 
+  function denied(agent: Agent.Info, tool: string): boolean {
+    const rules = agent.permission.filter((r) => r.permission === tool || r.permission === "*")
+    if (rules.length === 0) return false
+    // If any rule allows or asks, the tool is not fully denied
+    if (rules.some((r) => r.action === "allow" || r.action === "ask")) return false
+    // All matching rules are deny
+    return rules.some((r) => r.action === "deny")
+  }
+
   /** @internal Exported for testing */
   export async function resolveTools(input: {
     agent: Agent.Info
@@ -825,6 +839,21 @@ export namespace SessionPrompt {
     messages: MessageV2.WithParts[]
   }) {
     using _ = log.time("resolveTools")
+
+    // Apply tools_include whitelist if specified
+    const included = (tool: string): boolean => {
+      if (!input.agent.tools_include) return true
+      for (const entry of input.agent.tools_include) {
+        if (entry.endsWith("/*")) {
+          const prefix = entry.slice(0, -2) + "_"
+          if (tool.startsWith(prefix)) return true
+        } else if (tool === entry) {
+          return true
+        }
+      }
+      return false
+    }
+
     const tools: Record<string, AITool> = {}
 
     const context = (args: any, options: ToolCallOptions): Tool.Context => ({
@@ -866,6 +895,8 @@ export namespace SessionPrompt {
       { modelID: input.model.api.id, providerID: input.model.providerID },
       input.agent,
     )) {
+      if (!included(item.id)) continue
+      if (denied(input.agent, item.id)) continue
       const schema = ProviderTransform.schema(input.model, z.toJSONSchema(item.parameters))
       tools[item.id] = tool({
         id: item.id as any,
@@ -928,6 +959,8 @@ export namespace SessionPrompt {
     const securityLog = Log.create({ service: "security-mcp" })
 
     for (const [key, item] of Object.entries(await MCP.tools())) {
+      if (!included(key)) continue
+      if (denied(input.agent, key)) continue
       const execute = item.execute
       if (!execute) continue
 

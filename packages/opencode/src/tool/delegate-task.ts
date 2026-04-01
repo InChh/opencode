@@ -23,8 +23,16 @@ const log = Log.create({ service: "delegate-task" })
 const delegateParameters = z.object({
   description: z.string().describe("A short (3-5 words) description of the task"),
   prompt: z.string().describe("The detailed task for the agent to perform"),
-  run_in_background: z.boolean().default(false).describe("If true, returns task_id immediately without waiting for completion"),
-  category: z.string().optional().describe("Task category for model routing (e.g., 'quick', 'deep', 'ultrabrain'). Cannot be used with subagent_type"),
+  run_in_background: z
+    .boolean()
+    .default(false)
+    .describe("If true, returns task_id immediately without waiting for completion"),
+  category: z
+    .string()
+    .optional()
+    .describe(
+      "Task category for model routing (e.g., 'quick', 'deep', 'ultrabrain'). Cannot be used with subagent_type",
+    ),
   subagent_type: z.string().optional().describe("The type of specialized agent to use. Cannot be used with category"),
   session_id: z.string().optional().describe("Existing session ID to continue"),
   load_skills: z.array(z.string()).optional().describe("Skill names to inject into sub-agent context"),
@@ -45,19 +53,20 @@ export const DelegateTaskTool = Tool.define("delegate_task", async (ctx) => {
   const categories = await Categories.resolve()
   const categoriesSection = Categories.buildDelegationTable(categories)
 
-  const description = DESCRIPTION
-    .replace(
-      "{agents}",
-      accessibleAgents
-        .map((a) => `- ${a.name}: ${a.description ?? "This subagent should only be called manually by the user."}`)
-        .join("\n"),
-    )
-    .replace("{categories}", categoriesSection)
+  const description = DESCRIPTION.replace(
+    "{agents}",
+    accessibleAgents
+      .map((a) => `- ${a.name}: ${a.description ?? "This subagent should only be called manually by the user."}`)
+      .join("\n"),
+  ).replace("{categories}", categoriesSection)
 
   return {
     description,
     parameters: delegateParameters,
-    async execute(params: z.infer<typeof delegateParameters>, ctx): Promise<{ title: string; metadata: DelegateMetadata; output: string }> {
+    async execute(
+      params: z.infer<typeof delegateParameters>,
+      ctx,
+    ): Promise<{ title: string; metadata: DelegateMetadata; output: string }> {
       // Block sub-agents from calling delegate_task (prevent recursion)
       if (ctx.extra?.isSubagent) {
         return {
@@ -72,7 +81,8 @@ export const DelegateTaskTool = Tool.define("delegate_task", async (ctx) => {
         return {
           title: "Error",
           metadata: { error: true },
-          output: "Cannot specify both 'category' and 'subagent_type'. Use one or the other:\n- 'category' for automatic model routing based on task type\n- 'subagent_type' for a specific agent",
+          output:
+            "Cannot specify both 'category' and 'subagent_type'. Use one or the other:\n- 'category' for automatic model routing based on task type\n- 'subagent_type' for a specific agent",
         }
       }
 
@@ -112,7 +122,12 @@ export const DelegateTaskTool = Tool.define("delegate_task", async (ctx) => {
           log.warn("unknown category", { category: params.category })
           return undefined
         }
-        if (!cat.model) return undefined
+        if (!cat.model) {
+          log.warn(
+            `category ${params.category} has no model, using primary. Configure via config.categories.${params.category}.model`,
+          )
+          return undefined
+        }
         const [providerID, ...rest] = cat.model.split("/")
         const modelID = rest.join("/")
         if (!providerID || !modelID) return undefined
@@ -182,10 +197,11 @@ export const DelegateTaskTool = Tool.define("delegate_task", async (ctx) => {
       const msg = await MessageV2.get({ sessionID: ctx.sessionID, messageID: ctx.messageID })
       if (msg.info.role !== "assistant") throw new Error("Not an assistant message")
 
-      const model = categoryModel ?? agent.model ?? {
-        modelID: msg.info.modelID,
-        providerID: msg.info.providerID,
-      }
+      const model = categoryModel ??
+        agent.model ?? {
+          modelID: msg.info.modelID,
+          providerID: msg.info.providerID,
+        }
 
       // Background execution
       if (params.run_in_background) {
@@ -369,7 +385,9 @@ type OutputMetadata = {
 export const BackgroundOutputTool = Tool.define("background_output", {
   description: BACKGROUND_OUTPUT_DESC,
   parameters: outputParameters,
-  async execute(params: z.infer<typeof outputParameters>): Promise<{ title: string; metadata: OutputMetadata; output: string }> {
+  async execute(
+    params: z.infer<typeof outputParameters>,
+  ): Promise<{ title: string; metadata: OutputMetadata; output: string }> {
     const task = BackgroundManager.get(params.task_id)
     if (!task) {
       return {
@@ -379,11 +397,7 @@ export const BackgroundOutputTool = Tool.define("background_output", {
       }
     }
 
-    const lines: string[] = [
-      `Task: ${task.id}`,
-      `Status: ${task.status}`,
-      `Description: ${task.description ?? "N/A"}`,
-    ]
+    const lines: string[] = [`Task: ${task.id}`, `Status: ${task.status}`, `Description: ${task.description ?? "N/A"}`]
 
     if (task.createdAt) lines.push(`Created: ${new Date(task.createdAt).toISOString()}`)
     if (task.startedAt) lines.push(`Started: ${new Date(task.startedAt).toISOString()}`)
@@ -426,7 +440,9 @@ type CancelMetadata = {
 export const BackgroundCancelTool = Tool.define("background_cancel", {
   description: BACKGROUND_CANCEL_DESC,
   parameters: cancelParameters,
-  async execute(params: z.infer<typeof cancelParameters>): Promise<{ title: string; metadata: CancelMetadata; output: string }> {
+  async execute(
+    params: z.infer<typeof cancelParameters>,
+  ): Promise<{ title: string; metadata: CancelMetadata; output: string }> {
     const task = BackgroundManager.get(params.task_id)
     if (!task) {
       return {

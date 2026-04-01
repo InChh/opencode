@@ -2,7 +2,14 @@ import { Log } from "../util/log"
 import { HookChain } from "../session/hooks"
 import { Instance } from "../project/instance"
 import { Database } from "../storage/db"
-import { LlmLogTable, LlmLogRequestTable, LlmLogResponseTable, LlmLogTokensTable, LlmLogToolCallTable } from "./log.sql"
+import {
+  LlmLogTable,
+  LlmLogRequestTable,
+  LlmLogResponseTable,
+  LlmLogTokensTable,
+  LlmLogToolCallTable,
+  LlmLogAnnotationTable,
+} from "./log.sql"
 import { Identifier } from "../id/id"
 import { Config } from "../config/config"
 import { eq, and } from "drizzle-orm"
@@ -137,6 +144,27 @@ export namespace LlmLogCapture {
           sessionID: ctx.sessionID,
         })
       }
+
+      // Record prompt prefix hash for cache stability analysis
+      try {
+        const prefix = ctx.system.join("\n").slice(0, 2000)
+        if (prefix.length > 0) {
+          const hash = Bun.hash(prefix).toString(16)
+          Database.use((db) => {
+            db.insert(LlmLogAnnotationTable)
+              .values({
+                id: Identifier.ascending("log"),
+                llm_log_id: llmLogId,
+                type: "prompt_prefix_hash",
+                content: hash,
+                marked_text: null,
+                time_created: now,
+                time_updated: now,
+              })
+              .run()
+          })
+        }
+      } catch {}
     })
 
     HookChain.register("llm-log-tool-start", "pre-tool", 999, async (ctx) => {

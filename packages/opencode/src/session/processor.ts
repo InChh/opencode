@@ -280,6 +280,8 @@ export namespace SessionProcessor {
                     sessionID: input.sessionID,
                     messageID: input.assistantMessage.parentID,
                   })
+                  // Prune before checking overflow to free up space
+                  await SessionCompaction.prune({ sessionID: input.sessionID })
                   if (
                     !input.assistantMessage.summary &&
                     (await SessionCompaction.isOverflow({ tokens: usage.tokens, model: input.model }))

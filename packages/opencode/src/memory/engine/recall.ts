@@ -3,6 +3,8 @@ import { Log } from "@/util/log"
 import { Config } from "@/config/config"
 import { Provider } from "@/provider/provider"
 import { Memory } from "../memory"
+import { Bus } from "@/bus"
+import { MemoryEvent } from "../event"
 import { load } from "../prompt/loader"
 import { ConfigPaths } from "@/config/paths"
 import { Instance } from "@/project/instance"
@@ -11,6 +13,9 @@ import { SessionPrompt } from "@/session/prompt"
 
 export namespace MemoryRecall {
   const log = Log.create({ service: "memory.recall" })
+
+  // Track whether we've warned this session about primary model usage
+  const warned = new Set<string>()
 
   export const Result = z.object({
     relevant: z.array(z.string()),
@@ -33,9 +38,20 @@ export namespace MemoryRecall {
     if (agent?.model) {
       return Provider.parseModel(agent.model)
     }
-    return cfg.memory?.recallProvider && cfg.memory?.recallModel
-      ? { providerID: cfg.memory.recallProvider, modelID: cfg.memory.recallModel }
-      : await Provider.defaultModel()
+    if (cfg.memory?.recallProvider && cfg.memory?.recallModel) {
+      return { providerID: cfg.memory.recallProvider, modelID: cfg.memory.recallModel }
+    }
+    const primary = await Provider.defaultModel()
+    if (!warned.has("recall")) {
+      warned.add("recall")
+      log.warn("memory-recall using primary model, consider config.agent.memory-recall.model")
+      Bus.publish(MemoryEvent.Warning, {
+        type: "memory_model_cost",
+        agent: "memory-recall",
+        model: `${primary.providerID}/${primary.modelID}`,
+      })
+    }
+    return primary
   }
 
   /**

@@ -338,6 +338,7 @@ export namespace MessageV2 {
     tool: z.string(),
     state: ToolState,
     metadata: z.record(z.string(), z.any()).optional(),
+    retain: z.boolean().optional(),
   }).meta({
     ref: "ToolPart",
   })
@@ -498,7 +499,7 @@ export namespace MessageV2 {
   export function toModelMessages(
     input: WithParts[],
     model: Provider.Model,
-    options?: { stripMedia?: boolean },
+    options?: { stripMedia?: boolean; stripSynthetic?: boolean },
   ): ModelMessage[] {
     const result: UIMessage[] = []
     const toolNames = new Set<string>()
@@ -567,11 +568,13 @@ export namespace MessageV2 {
         }
         result.push(userMessage)
         for (const part of msg.parts) {
-          if (part.type === "text" && !part.ignored)
+          if (part.type === "text" && !part.ignored) {
+            if (options?.stripSynthetic && part.synthetic) continue
             userMessage.parts.push({
               type: "text",
               text: part.text,
             })
+          }
           // text/plain and directory files are converted into text parts, ignore them
           if (part.type === "file" && part.mime !== "text/plain" && part.mime !== "application/x-directory") {
             if (options?.stripMedia && isMedia(part.mime)) {
@@ -636,7 +639,11 @@ export namespace MessageV2 {
           if (part.type === "tool") {
             toolNames.add(part.tool)
             if (part.state.status === "completed") {
-              const outputText = part.state.time.compacted ? "[Old tool result content cleared]" : part.state.output
+              const outputText = part.state.time.compacted
+                ? options?.stripSynthetic
+                  ? `[${part.tool}: ${JSON.stringify(part.state.input).slice(0, 200)}]`
+                  : "[Old tool result content cleared]"
+                : part.state.output
               const attachments = part.state.time.compacted || options?.stripMedia ? [] : (part.state.attachments ?? [])
 
               // For providers that don't support media in tool results, extract media files
@@ -754,45 +761,51 @@ export namespace MessageV2 {
             .offset(offset)
             .all(),
         )
-      if (rows.length === 0) break
+        if (rows.length === 0) break
 
-      const ids = rows.map((row) => row.id)
-      const partsByMessage = new Map<string, MessageV2.Part[]>()
-      if (ids.length > 0) {
-        const partRows = Database.use((db) =>
-          db
-            .select()
-            .from(PartTable)
-            .where(inArray(PartTable.message_id, ids))
-            .orderBy(PartTable.message_id, PartTable.id)
-            .all(),
-        )
-        for (const row of partRows) {
-          const part = {
+        const ids = rows.map((row) => row.id)
+        const partsByMessage = new Map<string, MessageV2.Part[]>()
+        if (ids.length > 0) {
+          const partRows = Database.use((db) =>
+            db
+              .select()
+              .from(PartTable)
+              .where(inArray(PartTable.message_id, ids))
+              .orderBy(PartTable.message_id, PartTable.id)
+              .all(),
+          )
+          for (const row of partRows) {
+            const part = {
+              ...row.data,
+              id: row.id,
+              sessionID: row.session_id,
+              messageID: row.message_id,
+              updateSeq: row.update_seq,
+            } as MessageV2.Part
+            const list = partsByMessage.get(row.message_id)
+            if (list) list.push(part)
+            else partsByMessage.set(row.message_id, [part])
+          }
+        }
+
+        for (const row of rows) {
+          const info = {
             ...row.data,
             id: row.id,
             sessionID: row.session_id,
-            messageID: row.message_id,
             updateSeq: row.update_seq,
-          } as MessageV2.Part
-          const list = partsByMessage.get(row.message_id)
-          if (list) list.push(part)
-          else partsByMessage.set(row.message_id, [part])
+          } as MessageV2.Info
+          yield {
+            info,
+            parts: partsByMessage.get(row.id) ?? [],
+          }
         }
-      }
 
-      for (const row of rows) {
-        const info = { ...row.data, id: row.id, sessionID: row.session_id, updateSeq: row.update_seq } as MessageV2.Info
-        yield {
-          info,
-          parts: partsByMessage.get(row.id) ?? [],
-        }
+        offset += rows.length
+        if (rows.length < size) break
       }
-
-      offset += rows.length
-      if (rows.length < size) break
-    }
-  })
+    },
+  )
 
   export const parts = fn(Identifier.schema("message"), async (message_id) => {
     const rows = Database.use((db) =>

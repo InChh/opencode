@@ -49,6 +49,8 @@ export namespace Agent {
       options: z.record(z.string(), z.any()),
       steps: z.number().int().positive().optional(),
       lite: z.boolean().optional(),
+      prompt_level: z.enum(["full", "medium", "lite"]).optional(),
+      tools_include: z.array(z.string()).optional(),
     })
     .meta({
       ref: "Agent",
@@ -151,6 +153,7 @@ export namespace Agent {
         options: {},
         mode: "subagent",
         native: true,
+        prompt_level: "medium",
       },
       explore: {
         name: "explore",
@@ -178,6 +181,7 @@ export namespace Agent {
         options: {},
         mode: "subagent",
         native: true,
+        prompt_level: "medium",
       },
       "omo-explore": {
         name: "omo-explore",
@@ -207,6 +211,7 @@ export namespace Agent {
         options: {},
         mode: "subagent",
         native: true,
+        prompt_level: "medium",
       },
       oracle: {
         name: "oracle",
@@ -236,12 +241,14 @@ export namespace Agent {
         options: {},
         mode: "subagent",
         native: true,
+        prompt_level: "medium",
       },
       compaction: {
         name: "compaction",
         mode: "primary",
         native: true,
         hidden: true,
+        prompt_level: "lite",
         prompt: PROMPT_COMPACTION,
         permission: PermissionNext.merge(
           defaults,
@@ -258,6 +265,7 @@ export namespace Agent {
         options: {},
         native: true,
         hidden: true,
+        prompt_level: "lite",
         temperature: 0.5,
         permission: PermissionNext.merge(
           defaults,
@@ -274,6 +282,7 @@ export namespace Agent {
         options: {},
         native: true,
         hidden: true,
+        prompt_level: "lite",
         permission: PermissionNext.merge(
           defaults,
           PermissionNext.fromConfig({
@@ -352,6 +361,9 @@ export namespace Agent {
       item.hidden = value.hidden ?? item.hidden
       item.name = value.name ?? item.name
       item.steps = value.steps ?? item.steps
+      item.tools_include = value.tools_include ?? item.tools_include
+      item.prompt_level =
+        ((value as Record<string, unknown>).prompt_level as Agent.Info["prompt_level"]) ?? item.prompt_level
       item.options = mergeDeep(item.options, value.options ?? {})
       item.permission = PermissionNext.merge(item.permission, PermissionNext.fromConfig(value.permission ?? {}))
     }

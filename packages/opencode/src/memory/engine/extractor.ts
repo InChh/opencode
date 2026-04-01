@@ -78,6 +78,9 @@ export namespace MemoryExtractor {
     return memory
   }
 
+  // Track whether we've warned this session about primary model usage
+  const warned = new Set<string>()
+
   /**
    * Resolve the model ref for memory agents from config or default.
    */
@@ -87,9 +90,20 @@ export namespace MemoryExtractor {
     if (agent?.model) {
       return Provider.parseModel(agent.model)
     }
-    return cfg.memory?.recallProvider && cfg.memory?.recallModel
-      ? { providerID: cfg.memory.recallProvider, modelID: cfg.memory.recallModel }
-      : await Provider.defaultModel()
+    if (cfg.memory?.recallProvider && cfg.memory?.recallModel) {
+      return { providerID: cfg.memory.recallProvider, modelID: cfg.memory.recallModel }
+    }
+    const primary = await Provider.defaultModel()
+    if (!warned.has("extractor")) {
+      warned.add("extractor")
+      log.warn("memory-extractor using primary model, consider config.agent.memory-extractor.model")
+      Bus.publish(MemoryEvent.Warning, {
+        type: "memory_model_cost",
+        agent: "memory-extractor",
+        model: `${primary.providerID}/${primary.modelID}`,
+      })
+    }
+    return primary
   }
 
   /**

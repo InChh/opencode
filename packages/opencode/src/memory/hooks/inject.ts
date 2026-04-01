@@ -14,6 +14,11 @@ const log = Log.create({ service: "memory.hooks.inject" })
  *
  * Priority 130: runs after agents (100) and rules (120) injection.
  *
+ * IMPORTANT: Priority 130 ensures memory is appended LAST in system prompt.
+ * This is critical for Anthropic prompt caching — cache is prefix-based,
+ * so dynamic content (memory) must be at the end to avoid invalidating
+ * the cache for stable prefix content (provider prompt, env, AGENTS.md).
+ *
  * Phase 1 (early conversation): inject entire candidate pool
  * Phase 2 (after RECALL_THRESHOLD): use recall agent for precision filtering
  */

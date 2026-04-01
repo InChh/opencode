@@ -12,7 +12,7 @@ export namespace HookChain {
 
   // --- Schemas & Types ---
 
-  export const ChainType = z.enum(["pre-llm", "pre-tool", "post-tool", "session-lifecycle"])
+  export const ChainType = z.enum(["pre-llm", "pre-tool", "post-tool", "session-lifecycle", "prune"])
   export type ChainType = z.infer<typeof ChainType>
 
   export const PreLLMContext = z.object({
@@ -71,11 +71,27 @@ export namespace HookChain {
   })
   export type SessionLifecycleContext = z.infer<typeof SessionLifecycleContext>
 
+  export const PruneContext = z.object({
+    sessionID: z.string(),
+    part: z.any(),
+    retain: z.boolean().optional(),
+    toolName: z.string(),
+    outputBytes: z.number(),
+    result: z
+      .object({
+        retain: z.boolean().optional(),
+        trimmed: z.string().optional(),
+      })
+      .optional(),
+  })
+  export type PruneContext = z.infer<typeof PruneContext>
+
   export type ContextMap = {
     "pre-llm": PreLLMContext
     "pre-tool": PreToolContext
     "post-tool": PostToolContext
     "session-lifecycle": SessionLifecycleContext
+    prune: PruneContext
   }
 
   // --- Hook Definition ---

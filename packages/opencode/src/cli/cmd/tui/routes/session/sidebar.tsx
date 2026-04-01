@@ -62,6 +62,22 @@ export function Sidebar(props: { sessionID: string; overlay?: boolean }) {
     }
   })
 
+  const cacheRate = createMemo(() => {
+    const assistants = messages().filter((x) => x.role === "assistant") as AssistantMessage[]
+    if (assistants.length === 0) return null
+    let input = 0
+    let read = 0
+    let write = 0
+    for (const msg of assistants) {
+      input += msg.tokens.input
+      read += msg.tokens.cache.read
+      write += msg.tokens.cache.write
+    }
+    const total = input + read + write
+    if (total === 0) return null
+    return Math.round((read / total) * 100)
+  })
+
   const directory = useDirectory()
   const kv = useKV()
 
@@ -111,6 +127,9 @@ export function Sidebar(props: { sessionID: string; overlay?: boolean }) {
               </text>
               <text fg={theme.textMuted}>{context()?.tokens ?? 0} tokens</text>
               <text fg={theme.textMuted}>{context()?.percentage ?? 0}% used</text>
+              <Show when={cacheRate() !== null}>
+                <text fg={theme.textMuted}>Cache: {cacheRate()}%</text>
+              </Show>
               <text fg={theme.textMuted}>{cost()} spent</text>
             </box>
             <Show when={mcpEntries().length > 0}>

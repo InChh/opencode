@@ -717,6 +717,8 @@ export namespace Config {
         .describe("Maximum number of agentic iterations before forcing text-only response"),
       maxSteps: z.number().int().positive().optional().describe("@deprecated Use 'steps' field instead."),
       permission: Permission.optional(),
+      tools_include: z.array(z.string()).optional(),
+      prompt_level: z.enum(["full", "medium", "lite"]).optional(),
     })
     .catchall(z.any())
     .transform((agent, ctx) => {
@@ -737,6 +739,8 @@ export namespace Config {
         "permission",
         "disable",
         "tools",
+        "tools_include",
+        "prompt_level",
       ])
 
       // Extract unknown properties into options
@@ -1184,6 +1188,26 @@ export namespace Config {
             .min(0)
             .optional()
             .describe("Token buffer for compaction. Leaves enough window to avoid overflow during compaction."),
+          buffer: z
+            .number()
+            .int()
+            .min(0)
+            .optional()
+            .describe("Token buffer for compaction trigger (default: 20000). Mutually exclusive with trigger_ratio."),
+          trigger_ratio: z
+            .number()
+            .min(0)
+            .max(1)
+            .optional()
+            .describe(
+              "Context usage ratio (0.0-1.0) at which compaction triggers. E.g. 0.7 = trigger at 70% context usage. Mutually exclusive with buffer.",
+            ),
+          tool_weights: z
+            .record(z.string(), z.number())
+            .optional()
+            .describe(
+              "Per-tool importance weights for heuristic retain inference (0.0-1.0). E.g., { read: 0.8, bash: 0.3 }",
+            ),
         })
         .optional(),
       hooks: z
@@ -1304,6 +1328,24 @@ export namespace Config {
             .positive()
             .optional()
             .describe("Number of LLM steps between periodic memory extractions (default: 10)"),
+          extract_interval: z
+            .number()
+            .int()
+            .positive()
+            .optional()
+            .describe("Number of LLM steps between periodic memory extractions (default: 20)"),
+          extract_min_messages: z
+            .number()
+            .int()
+            .positive()
+            .optional()
+            .describe("Minimum messages required before memory extraction (default: 6)"),
+          recovery_max_age_days: z
+            .number()
+            .int()
+            .positive()
+            .optional()
+            .describe("Maximum age in days for recovery extraction (default: 7)"),
           autoOptimize: z
             .boolean()
             .optional()

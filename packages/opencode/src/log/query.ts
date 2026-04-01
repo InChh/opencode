@@ -45,6 +45,8 @@ export namespace LlmLog {
     duration_ms: number | null
     input_tokens: number | null
     output_tokens: number | null
+    cache_read_tokens: number | null
+    cache_write_tokens: number | null
     cost: number | null
     time_created: number
     time_updated: number
@@ -79,6 +81,8 @@ export namespace LlmLog {
           duration_ms: LlmLogTable.duration_ms,
           input_tokens: LlmLogTokensTable.input_tokens,
           output_tokens: LlmLogTokensTable.output_tokens,
+          cache_read_tokens: LlmLogTokensTable.cache_read_tokens,
+          cache_write_tokens: LlmLogTokensTable.cache_write_tokens,
           cost: LlmLogTokensTable.cost,
           time_created: LlmLogTable.time_created,
           time_updated: LlmLogTable.time_updated,
@@ -160,6 +164,9 @@ export namespace LlmLog {
       marked_text: string | null
       time_created: number
     }>
+    system_prompt_tokens: number | null
+    tool_count: number | null
+    message_count: number | null
   }
 
   export function get(id: string): Detail {
@@ -231,6 +238,14 @@ export namespace LlmLog {
           }
         : null
 
+      const promptTokens = request ? Math.round(Buffer.byteLength(request.system_prompt, "utf-8") / 4) : null
+      const toolCount = request?.tools
+        ? Array.isArray(request.tools)
+          ? request.tools.length
+          : Object.keys(request.tools).length
+        : null
+      const msgCount = request ? request.messages.length : null
+
       const toolCalls = db
         .select()
         .from(LlmLogToolCallTable)
@@ -296,6 +311,9 @@ export namespace LlmLog {
         tool_calls: toolCalls,
         hooks,
         annotations,
+        system_prompt_tokens: promptTokens,
+        tool_count: toolCount,
+        message_count: msgCount,
       }
     })
   }
@@ -323,6 +341,7 @@ export namespace LlmLog {
     total_reasoning_tokens: number
     total_cache_read_tokens: number
     total_cache_write_tokens: number
+    total_tokens: number
     total_cost: number
     avg_duration_ms: number
     avg_input_tokens: number
@@ -337,6 +356,7 @@ export namespace LlmLog {
     reasoning_tokens: number
     cost: number
     avg_duration_ms: number
+    cache_hit_rate?: number
   }
 
   export interface StatsResult {
@@ -385,6 +405,12 @@ export namespace LlmLog {
         total_reasoning_tokens: summaryRow?.total_reasoning_tokens ?? 0,
         total_cache_read_tokens: summaryRow?.total_cache_read_tokens ?? 0,
         total_cache_write_tokens: summaryRow?.total_cache_write_tokens ?? 0,
+        total_tokens:
+          (summaryRow?.total_input_tokens ?? 0) +
+          (summaryRow?.total_output_tokens ?? 0) +
+          (summaryRow?.total_reasoning_tokens ?? 0) +
+          (summaryRow?.total_cache_read_tokens ?? 0) +
+          (summaryRow?.total_cache_write_tokens ?? 0),
         total_cost: summaryRow?.total_cost ?? 0,
         avg_duration_ms: Math.round(summaryRow?.avg_duration_ms ?? 0),
         avg_input_tokens: Math.round(summaryRow?.avg_input_tokens ?? 0),
@@ -414,6 +440,8 @@ export namespace LlmLog {
             input_tokens: sql<number>`coalesce(sum(${LlmLogTokensTable.input_tokens}), 0)`,
             output_tokens: sql<number>`coalesce(sum(${LlmLogTokensTable.output_tokens}), 0)`,
             reasoning_tokens: sql<number>`coalesce(sum(${LlmLogTokensTable.reasoning_tokens}), 0)`,
+            cache_read_tokens: sql<number>`coalesce(sum(${LlmLogTokensTable.cache_read_tokens}), 0)`,
+            cache_write_tokens: sql<number>`coalesce(sum(${LlmLogTokensTable.cache_write_tokens}), 0)`,
             cost: sql<number>`coalesce(sum(${LlmLogTokensTable.cost}), 0)`,
             avg_duration_ms: sql<number>`coalesce(avg(${LlmLogTable.duration_ms}), 0)`,
           })
@@ -427,6 +455,13 @@ export namespace LlmLog {
             ...r,
             group: String(r.group),
             avg_duration_ms: Math.round(r.avg_duration_ms),
+            cache_hit_rate:
+              groupBy === "session"
+                ? Math.round(
+                    (r.cache_read_tokens / Math.max(r.input_tokens + r.cache_read_tokens + r.cache_write_tokens, 1)) *
+                      10000,
+                  ) / 10000
+                : undefined,
           }))
       }
 
@@ -609,6 +644,124 @@ export namespace LlmLog {
           recommended_action:
             "Consider reducing think mode budget for straightforward tasks, or switching to a non-reasoning model when deep thinking isn't needed.",
         })
+      }
+
+      // 6. Memory agent using expensive models
+      const memoryAgentCosts = db
+        .select({
+          agent: LlmLogTable.agent,
+          request_count: sql<number>`count(*)`,
+          avg_input_cost: sql<number>`coalesce(avg(${LlmLogTokensTable.cost}), 0)`,
+          total_cost: sql<number>`coalesce(sum(${LlmLogTokensTable.cost}), 0)`,
+        })
+        .from(LlmLogTable)
+        .innerJoin(LlmLogTokensTable, eq(LlmLogTable.id, LlmLogTokensTable.llm_log_id))
+        .where(
+          where
+            ? and(where, sql`${LlmLogTable.agent} IN ('memory-extractor', 'memory-recall')`)
+            : sql`${LlmLogTable.agent} IN ('memory-extractor', 'memory-recall')`,
+        )
+        .groupBy(LlmLogTable.agent)
+        .all()
+
+      for (const entry of memoryAgentCosts) {
+        if (entry.request_count > 2 && entry.avg_input_cost > 3000) {
+          suggestions.push({
+            category: "memory_model_cost",
+            description: `Agent "${entry.agent}" has ${entry.request_count} requests with high avg cost. Consider using a cheaper model for memory operations.`,
+            impact: { cost: Math.round(entry.total_cost * 0.7) },
+            recommended_action:
+              "Configure a cheaper model for memory agents via config.agent.memory-extractor.model (e.g., anthropic/claude-haiku or google/gemini-flash).",
+          })
+        }
+      }
+
+      // 7. High tool count detection
+      const toolCounts = db
+        .select({
+          llm_log_id: LlmLogToolCallTable.llm_log_id,
+          tool_count: sql<number>`count(*)`,
+        })
+        .from(LlmLogToolCallTable)
+        .innerJoin(LlmLogTable, eq(LlmLogToolCallTable.llm_log_id, LlmLogTable.id))
+        .where(where)
+        .groupBy(LlmLogToolCallTable.llm_log_id)
+        .all()
+
+      if (toolCounts.length > 0) {
+        const avg = toolCounts.reduce((sum, r) => sum + r.tool_count, 0) / toolCounts.length
+        if (avg > 30) {
+          suggestions.push({
+            category: "tool_count_high",
+            description: `Average tool count per request is ${Math.round(avg)}. Each tool definition consumes ~200-400 tokens in the prompt.`,
+            impact: { tokens: Math.round((avg - 20) * 300 * toolCounts.length) },
+            recommended_action:
+              "Use agent permission rules to deny unused tools, or configure tools_include whitelist to reduce registered tools.",
+          })
+        }
+      }
+
+      // 8. Category without dedicated model
+      const categoryLogs = db
+        .select({
+          variant: LlmLogTable.variant,
+          model: LlmLogTable.model,
+          request_count: sql<number>`count(*)`,
+        })
+        .from(LlmLogTable)
+        .where(where)
+        .groupBy(LlmLogTable.variant, LlmLogTable.model)
+        .having(sql`${LlmLogTable.variant} IS NOT NULL AND ${LlmLogTable.variant} != ''`)
+        .all()
+
+      if (categoryLogs.length > 0) {
+        const primaryModel = modelCosts.length > 0 ? modelCosts[0].model : null
+        for (const entry of categoryLogs) {
+          if (primaryModel && entry.model === primaryModel && entry.request_count > 2) {
+            suggestions.push({
+              category: "category_no_model",
+              description: `Category "${entry.variant}" uses primary model "${entry.model}" for ${entry.request_count} requests. A cheaper model may suffice.`,
+              impact: {},
+              recommended_action: `Configure a dedicated model via config.categories.${entry.variant}.model for cost savings.`,
+            })
+          }
+        }
+      }
+
+      // 9. Prompt prefix instability detection
+      const prefixAnnotations = db
+        .select({
+          session_id: LlmLogTable.session_id,
+          hash: LlmLogAnnotationTable.content,
+        })
+        .from(LlmLogAnnotationTable)
+        .innerJoin(LlmLogTable, eq(LlmLogAnnotationTable.llm_log_id, LlmLogTable.id))
+        .where(
+          where
+            ? and(where, eq(LlmLogAnnotationTable.type, "prompt_prefix_hash"))
+            : eq(LlmLogAnnotationTable.type, "prompt_prefix_hash"),
+        )
+        .all()
+
+      if (prefixAnnotations.length > 3) {
+        const sessions = new Map<string, Set<string>>()
+        for (const row of prefixAnnotations) {
+          const set = sessions.get(row.session_id) ?? new Set<string>()
+          set.add(row.hash)
+          sessions.set(row.session_id, set)
+        }
+        for (const [sid, hashes] of sessions) {
+          const counts = prefixAnnotations.filter((r) => r.session_id === sid).length
+          if (counts > 3 && hashes.size / counts > 0.5) {
+            suggestions.push({
+              category: "prompt_prefix_unstable",
+              description: `Session ${sid.substring(0, 8)}... has ${hashes.size} distinct prompt prefixes across ${counts} requests. Unstable prefixes hurt cache hit rates.`,
+              impact: {},
+              recommended_action:
+                "Keep system prompt prefix stable across calls. Move dynamic content (model name, memory) to the end of system prompt.",
+            })
+          }
+        }
       }
 
       return {

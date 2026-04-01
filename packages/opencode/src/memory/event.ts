@@ -69,4 +69,13 @@ export namespace MemoryEvent {
       candidates: z.array(Memory.Info),
     }),
   )
+
+  export const Warning = BusEvent.define(
+    "memory.warning",
+    z.object({
+      type: z.string(),
+      agent: z.string(),
+      model: z.string(),
+    }),
+  )
 }

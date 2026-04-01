@@ -15,6 +15,7 @@ import { Plugin } from "@/plugin"
 import { Config } from "@/config/config"
 import { ProviderTransform } from "@/provider/transform"
 import { HookChain } from "./hooks"
+import { infer as inferRetain } from "./prune-heuristic"
 
 export namespace SessionCompaction {
   const log = Log.create({ service: "session.compaction" })
@@ -39,6 +40,14 @@ export namespace SessionCompaction {
     const count =
       input.tokens.total ||
       input.tokens.input + input.tokens.output + input.tokens.cache.read + input.tokens.cache.write
+
+    const ratio = config.compaction?.trigger_ratio
+    if (ratio !== undefined && ratio > 0 && ratio <= 1) {
+      if (config.compaction?.reserved !== undefined) {
+        log.warn("both trigger_ratio and reserved are set; preferring trigger_ratio")
+      }
+      return count >= context * ratio
+    }
 
     const reserved =
       config.compaction?.reserved ?? Math.min(COMPACTION_BUFFER, ProviderTransform.maxOutputTokens(input.model))
@@ -77,6 +86,15 @@ export namespace SessionCompaction {
           if (part.state.status === "completed") {
             if (PRUNE_PROTECTED_TOOLS.includes(part.tool)) continue
 
+            // Check retain field: false means always prune, true means always keep
+            if (part.retain === false) {
+              const estimate = Token.estimate(part.state.output)
+              pruned += estimate
+              toPrune.push(part)
+              continue
+            }
+            if (part.retain === true) continue
+
             if (part.state.time.compacted) break loop
             const estimate = Token.estimate(part.state.output)
             total += estimate
@@ -87,15 +105,54 @@ export namespace SessionCompaction {
           }
       }
     }
-    log.info("found", { pruned, total })
+    // Run heuristic inference for parts with retain === undefined (US-012)
+    for (let i = toPrune.length - 1; i >= 0; i--) {
+      const part = toPrune[i]
+      if (part.retain !== undefined) continue
+      // Find the next assistant message after this tool part
+      const idx = msgs.findIndex((m) => m.parts.includes(part))
+      const next = idx >= 0 ? msgs.slice(idx + 1).find((m) => m.info.role === "assistant") : undefined
+      const keep = await inferRetain(part, next)
+      if (keep) {
+        toPrune.splice(i, 1)
+        pruned -= part.state.status === "completed" ? Token.estimate(part.state.output) : 0
+      }
+    }
+
+    log.info("found", { pruned, total, retain_info: toPrune.map((p) => ({ tool: p.tool, retain: p.retain })) })
     if (pruned > PRUNE_MINIMUM) {
+      let retained = 0
       for (const part of toPrune) {
         if (part.state.status === "completed") {
-          part.state.time.compacted = Date.now()
+          // Execute prune hook chain — hooks can override retain or provide trimmed output
+          const ctx: import("./hooks").HookChain.PruneContext = {
+            sessionID: input.sessionID,
+            part,
+            retain: part.retain,
+            toolName: part.tool,
+            outputBytes: Buffer.byteLength(part.state.output, "utf-8"),
+          }
+          try {
+            await Promise.race([
+              HookChain.execute("prune", ctx),
+              new Promise((_, reject) => setTimeout(() => reject(new Error("prune hook timeout")), 100)),
+            ])
+          } catch {}
+
+          if (ctx.result?.retain === true) {
+            retained++
+            continue
+          }
+          if (ctx.result?.trimmed) {
+            part.state.output = ctx.result.trimmed
+            part.state.time.compacted = Date.now()
+          } else {
+            part.state.time.compacted = Date.now()
+          }
           await Session.updatePart(part)
         }
       }
-      log.info("pruned", { count: toPrune.length })
+      log.info("pruned", { count: toPrune.length - retained, retained, saved_tokens: pruned })
     }
   }
 
@@ -217,7 +274,7 @@ When constructing the summary, try to stick to this template:
       tools: {},
       system: [],
       messages: [
-        ...MessageV2.toModelMessages(messages, model, { stripMedia: true }),
+        ...MessageV2.toModelMessages(messages, model, { stripMedia: true, stripSynthetic: true }),
         {
           role: "user",
           content: [
