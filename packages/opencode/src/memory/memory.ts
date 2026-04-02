@@ -44,7 +44,7 @@ export namespace Memory {
   export const Info = z.object({
     id: z.string(),
     content: z.string(),
-    category: Category,
+    categories: z.array(Category).min(1),
     scope: Scope,
     status: Status.default("confirmed"),
     tags: z.array(z.string()).default([]),
@@ -115,7 +115,7 @@ export namespace Memory {
     }
     const validated = Info.parse(memory)
     await MemoryStorage.save(validated)
-    log.info("created", { id: validated.id, category: validated.category, scope: validated.scope })
+    log.info("created", { id: validated.id, categories: validated.categories, scope: validated.scope })
     return validated
   }
 
@@ -160,7 +160,7 @@ export namespace Memory {
   export async function list(filter?: {
     scope?: Scope
     status?: Status
-    category?: Category
+    category?: Category // filter: matches any memory whose categories includes this value
     method?: Source["method"]
   }): Promise<Info[]> {
     const all = await MemoryStorage.loadAll()
@@ -173,7 +173,7 @@ export namespace Memory {
       .filter((m) => {
         if (filter?.scope && m.scope !== filter.scope) return false
         if (filter?.status && m.status !== filter.status) return false
-        if (filter?.category && m.category !== filter.category) return false
+        if (filter?.category && !m.categories.includes(filter.category)) return false
         if (filter?.method && m.source.method !== filter.method) return false
         return true
       })

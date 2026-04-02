@@ -93,7 +93,7 @@ async function detectTeamCandidates(config: Config.Info): Promise<void> {
   for (const memory of personal) {
     if (memory.teamCandidateAt) continue // Already detected
     if (memory.teamSubmittedAt) continue // Already submitted
-    if (memory.category === "correction") continue // Corrections don't promote
+    if (memory.categories.includes("correction")) continue // Corrections don't promote
 
     const ageInDays = (now - memory.createdAt) / (1000 * 60 * 60 * 24)
     if (memory.score >= minScore && memory.useCount >= minUseCount && ageInDays >= minAgeInDays) {

@@ -24,7 +24,7 @@ describe("Memory Tools", () => {
         const result = await toolInfo.execute(
           {
             content: "Always use Hono framework for HTTP",
-            category: "tool",
+            categories: ["tool"],
             tags: ["framework", "http"],
           },
           {
@@ -44,7 +44,7 @@ describe("Memory Tools", () => {
         const memories = await Memory.list()
         expect(memories.length).toBe(1)
         expect(memories[0].content).toBe("Always use Hono framework for HTTP")
-        expect(memories[0].category).toBe("tool")
+        expect(memories[0].categories).toEqual(["tool"])
         expect(memories[0].tags).toEqual(["framework", "http"])
       })
     })
@@ -56,14 +56,14 @@ describe("Memory Tools", () => {
         const result = await toolInfo.execute(
           {
             content: "No semicolons in the project",
-            category: "style",
+            categories: ["style"],
           },
           { sessionID: "ses_style", messages: [] } as any,
         )
 
         expect(result.title).toContain("style")
         const memories = await Memory.list()
-        expect(memories[0].category).toBe("style")
+        expect(memories[0].categories).toEqual(["style"])
       })
     })
   })
@@ -73,7 +73,7 @@ describe("Memory Tools", () => {
       await withInstance(async () => {
         const mem = await Memory.create({
           content: "Old preference",
-          category: "style",
+          categories: ["style"],
           scope: "personal",
           tags: ["old"],
           source: { sessionID: "ses_old", method: "manual" },
@@ -81,10 +81,7 @@ describe("Memory Tools", () => {
 
         const { MemoryForgetTool } = await import("../../src/memory/tool/forget")
         const toolInfo = await MemoryForgetTool.init()
-        const result = await toolInfo.execute(
-          { id: mem.id },
-          { sessionID: "ses_forget" } as any,
-        )
+        const result = await toolInfo.execute({ id: mem.id }, { sessionID: "ses_forget" } as any)
 
         expect(result.output).toContain("Deleted memory")
         expect(result.output).toContain(mem.id)
@@ -98,7 +95,7 @@ describe("Memory Tools", () => {
       await withInstance(async () => {
         await Memory.create({
           content: "Use Express for routing",
-          category: "tool",
+          categories: ["tool"],
           scope: "personal",
           tags: ["express"],
           source: { sessionID: "ses1", method: "manual" },
@@ -106,10 +103,7 @@ describe("Memory Tools", () => {
 
         const { MemoryForgetTool } = await import("../../src/memory/tool/forget")
         const toolInfo = await MemoryForgetTool.init()
-        const result = await toolInfo.execute(
-          { search: "Express" },
-          { sessionID: "ses_forget" } as any,
-        )
+        const result = await toolInfo.execute({ search: "Express" }, { sessionID: "ses_forget" } as any)
 
         expect(result.output).toContain("Deleted memory")
         const remaining = await Memory.list()
@@ -121,14 +115,14 @@ describe("Memory Tools", () => {
       await withInstance(async () => {
         await Memory.create({
           content: "Use React for frontend",
-          category: "tool",
+          categories: ["tool"],
           scope: "personal",
           tags: ["react"],
           source: { sessionID: "ses1", method: "manual" },
         })
         await Memory.create({
           content: "Use React Testing Library for tests",
-          category: "tool",
+          categories: ["tool"],
           scope: "personal",
           tags: ["react", "testing"],
           source: { sessionID: "ses2", method: "manual" },
@@ -136,10 +130,7 @@ describe("Memory Tools", () => {
 
         const { MemoryForgetTool } = await import("../../src/memory/tool/forget")
         const toolInfo = await MemoryForgetTool.init()
-        const result = await toolInfo.execute(
-          { search: "React" },
-          { sessionID: "ses_forget" } as any,
-        )
+        const result = await toolInfo.execute({ search: "React" }, { sessionID: "ses_forget" } as any)
 
         expect(result.title).toContain("2 matches")
         expect(result.output).toContain("Please specify the memory ID")
@@ -153,10 +144,7 @@ describe("Memory Tools", () => {
       await withInstance(async () => {
         const { MemoryForgetTool } = await import("../../src/memory/tool/forget")
         const toolInfo = await MemoryForgetTool.init()
-        const result = await toolInfo.execute(
-          { id: "mem_nonexistent" },
-          { sessionID: "ses_forget" } as any,
-        )
+        const result = await toolInfo.execute({ id: "mem_nonexistent" }, { sessionID: "ses_forget" } as any)
 
         expect(result.title).toBe("Memory not found")
       })
@@ -166,10 +154,7 @@ describe("Memory Tools", () => {
       await withInstance(async () => {
         const { MemoryForgetTool } = await import("../../src/memory/tool/forget")
         const toolInfo = await MemoryForgetTool.init()
-        const result = await toolInfo.execute(
-          { search: "doesnotexist" },
-          { sessionID: "ses_forget" } as any,
-        )
+        const result = await toolInfo.execute({ search: "doesnotexist" }, { sessionID: "ses_forget" } as any)
 
         expect(result.title).toBe("No matches")
       })
@@ -179,10 +164,7 @@ describe("Memory Tools", () => {
       await withInstance(async () => {
         const { MemoryForgetTool } = await import("../../src/memory/tool/forget")
         const toolInfo = await MemoryForgetTool.init()
-        const result = await toolInfo.execute(
-          {},
-          { sessionID: "ses_forget" } as any,
-        )
+        const result = await toolInfo.execute({}, { sessionID: "ses_forget" } as any)
 
         expect(result.title).toBe("Missing input")
       })
@@ -194,14 +176,14 @@ describe("Memory Tools", () => {
       await withInstance(async () => {
         await Memory.create({
           content: "Use Hono",
-          category: "tool",
+          categories: ["tool"],
           scope: "personal",
           tags: [],
           source: { sessionID: "ses1", method: "manual" },
         })
         await Memory.create({
           content: "No semicolons",
-          category: "style",
+          categories: ["style"],
           scope: "personal",
           tags: [],
           source: { sessionID: "ses2", method: "manual" },
@@ -222,14 +204,14 @@ describe("Memory Tools", () => {
       await withInstance(async () => {
         await Memory.create({
           content: "Use Hono",
-          category: "tool",
+          categories: ["tool"],
           scope: "personal",
           tags: [],
           source: { sessionID: "ses1", method: "manual" },
         })
         await Memory.create({
           content: "No semicolons",
-          category: "style",
+          categories: ["style"],
           scope: "personal",
           tags: [],
           source: { sessionID: "ses2", method: "manual" },

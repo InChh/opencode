@@ -12,7 +12,7 @@ import { Instance } from "@/project/instance"
 export interface MemoryRecord {
   id: string
   content: string
-  category: string
+  categories: string[]
   scope: string
   status: string
   tags: string[]

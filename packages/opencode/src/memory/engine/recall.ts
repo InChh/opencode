@@ -82,7 +82,7 @@ export namespace MemoryRecall {
       const candidates = input.memories.map((m) => ({
         id: m.id,
         content: m.content,
-        category: m.category,
+        categories: m.categories,
         tags: m.tags,
       }))
 

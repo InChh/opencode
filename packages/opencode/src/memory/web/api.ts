@@ -42,7 +42,9 @@ export const MemoryRoutes = lazy(() =>
 
         const breakdown: Record<string, number> = {}
         for (const m of all) {
-          breakdown[m.category] = (breakdown[m.category] || 0) + 1
+          for (const cat of m.categories) {
+            breakdown[cat] = (breakdown[cat] || 0) + 1
+          }
         }
 
         return c.json({
@@ -171,7 +173,7 @@ export const MemoryRoutes = lazy(() =>
         "json",
         z.object({
           content: z.string().optional(),
-          category: Memory.Category.optional(),
+          categories: z.array(Memory.Category).min(1).optional(),
           tags: z.array(z.string()).optional(),
           status: Memory.Status.optional(),
           inject: z.boolean().optional(),

@@ -19,7 +19,7 @@ async function withMemoryEnv<T>(fn: () => Promise<T>): Promise<T> {
 function makeInput(content: string) {
   return {
     content,
-    category: "pattern" as const,
+    categories: ["pattern"] as ("pattern" | "context" | "tool" | "style" | "domain" | "workflow" | "correction")[],
     scope: "personal" as const,
     source: { sessionID: "ses_test", method: "manual" as const },
   }

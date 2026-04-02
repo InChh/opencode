@@ -23,7 +23,7 @@ export namespace MemoryExtractor {
     action: z.enum(["create", "update"]).default("create"),
     targetID: z.string().optional(),
     content: z.string(),
-    category: Memory.Category,
+    categories: z.array(Memory.Category).min(1),
     tags: z.array(z.string()).default([]),
     citations: z.array(z.string()).default([]),
   })
@@ -40,7 +40,7 @@ export namespace MemoryExtractor {
     recentMessages: Array<{ role: string; content: string }>,
     options?: {
       llmLogID?: string
-      category?: Memory.Category
+      categories?: Memory.Category[]
       tags?: string[]
     },
   ): Promise<Memory.Info> {
@@ -48,12 +48,12 @@ export namespace MemoryExtractor {
     const contextSnapshot = contextWindow.map((m) => `[${m.role}]: ${m.content}`).join("\n---\n")
 
     const content = userInput
-    const category = options?.category ?? "context"
+    const categories = options?.categories ?? ["context"]
     const tags = options?.tags ?? []
 
     const memory = await Memory.create({
       content,
-      category,
+      categories,
       scope: "personal",
       status: "confirmed",
       tags,
@@ -205,7 +205,7 @@ export namespace MemoryExtractor {
           if (target) {
             const updated = await Memory.update(target.id, {
               content: item.content,
-              category: item.category,
+              categories: item.categories,
               tags: [...new Set([...target.tags, ...item.tags])],
               citations: [...new Set([...(target.citations ?? []), ...item.citations])],
               source: {
@@ -228,7 +228,7 @@ export namespace MemoryExtractor {
 
         const memory = await Memory.create({
           content: item.content,
-          category: item.category,
+          categories: item.categories,
           scope: "personal",
           status: "pending",
           tags: item.tags,
@@ -289,7 +289,7 @@ export namespace MemoryExtractor {
 
   function formatExisting(memories: Memory.Info[]): string {
     if (memories.length === 0) return "No existing memories."
-    return memories.map((m) => `- [${m.id}] (${m.category}) ${m.content}`).join("\n")
+    return memories.map((m) => `- [${m.id}] (${m.categories.join(",")}) ${m.content}`).join("\n")
   }
 
   /**

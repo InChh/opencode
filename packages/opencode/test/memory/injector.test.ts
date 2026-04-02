@@ -7,7 +7,7 @@ function makeMemory(overrides?: Partial<Memory.Info>): Memory.Info {
   return {
     id: "mem_" + Math.random().toString(36).slice(2),
     content: "test content",
-    category: "pattern",
+    categories: ["pattern"],
     scope: "personal",
     status: "confirmed",
     tags: [],
@@ -101,7 +101,7 @@ describe("MemoryInject", () => {
     })
 
     test("formats memories with category tags", () => {
-      const m = makeMemory({ content: "Always use semicolons", category: "style", tags: ["formatting"] })
+      const m = makeMemory({ content: "Always use semicolons", categories: ["style"], tags: ["formatting"] })
       const result = MemoryInject.formatMemoriesForPrompt([m])
       expect(result).toContain("<memory>")
       expect(result).toContain("style:")

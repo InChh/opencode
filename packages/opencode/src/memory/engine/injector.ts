@@ -13,9 +13,15 @@ export namespace MemoryInject {
   const RE_RECALL_INTERVAL = 5
   const MAX = 160
   const TAGS = 3
-  const order = ["style", "pattern", "tool", "workflow", "domain", "correction", "context"] satisfies Array<
-    Memory.Info["category"]
-  >
+  const order = [
+    "style",
+    "pattern",
+    "tool",
+    "workflow",
+    "domain",
+    "correction",
+    "context",
+  ] satisfies Array<Memory.Category>
 
   // --- Recall cache ---
 
@@ -280,7 +286,7 @@ export namespace MemoryInject {
 
   function block(memories: Memory.Info[]): string[] {
     return order.flatMap((category) => {
-      const group = memories.filter((m) => m.category === category)
+      const group = memories.filter((m) => m.categories[0] === category)
       if (group.length === 0) return []
       return [`${category}:`, ...group.map((m) => item(m)), ""]
     })

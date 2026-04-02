@@ -48,7 +48,7 @@ describe("MemoryRecall", () => {
       return {
         id,
         content: "test",
-        category: "context",
+        categories: ["context"],
         scope: "personal",
         status: "confirmed",
         tags: [],

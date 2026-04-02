@@ -22,7 +22,7 @@ describe("Memory", () => {
       const result = Memory.Info.safeParse({
         id: "mem_test123",
         content: "Use Hono for HTTP routing",
-        category: "tool",
+        categories: ["tool"],
         scope: "personal",
         status: "confirmed",
         tags: ["framework"],
@@ -45,7 +45,7 @@ describe("Memory", () => {
       const result = Memory.Info.parse({
         id: "mem_test123",
         content: "No semicolons",
-        category: "style",
+        categories: ["style"],
         scope: "personal",
         source: {
           sessionID: "ses_abc",
@@ -67,7 +67,7 @@ describe("Memory", () => {
       const result = Memory.Info.safeParse({
         id: "mem_test",
         content: "test",
-        category: "invalid_category",
+        categories: ["invalid_category"],
         scope: "personal",
         source: { sessionID: "ses_1", method: "manual" },
         createdAt: now,
@@ -128,13 +128,13 @@ describe("Memory", () => {
       await withInstance(async () => {
         const mem = await Memory.create({
           content: "Always use vitest for testing",
-          category: "tool",
+          categories: ["tool"],
           scope: "personal",
           source: { sessionID: "ses_1", method: "manual" },
         })
         expect(mem.id).toMatch(/^mem_/)
         expect(mem.content).toBe("Always use vitest for testing")
-        expect(mem.category).toBe("tool")
+        expect(mem.categories).toEqual(["tool"])
         expect(mem.scope).toBe("personal")
         expect(mem.status).toBe("confirmed")
         expect(mem.score).toBe(1.0)
@@ -147,7 +147,7 @@ describe("Memory", () => {
       await withInstance(async () => {
         const mem = await Memory.create({
           content: "Auto-extracted preference",
-          category: "style",
+          categories: ["style"],
           scope: "personal",
           status: "pending",
           source: { sessionID: "ses_1", method: "auto" },
@@ -160,7 +160,7 @@ describe("Memory", () => {
       await withInstance(async () => {
         const created = await Memory.create({
           content: "Use namespace pattern",
-          category: "pattern",
+          categories: ["pattern"],
           scope: "personal",
           source: { sessionID: "ses_1", method: "manual" },
         })
@@ -182,7 +182,7 @@ describe("Memory", () => {
       await withInstance(async () => {
         const created = await Memory.create({
           content: "Original content",
-          category: "style",
+          categories: ["style"],
           scope: "personal",
           source: { sessionID: "ses_1", method: "manual" },
         })
@@ -210,7 +210,7 @@ describe("Memory", () => {
       await withInstance(async () => {
         const created = await Memory.create({
           content: "To be removed",
-          category: "context",
+          categories: ["context"],
           scope: "personal",
           source: { sessionID: "ses_1", method: "manual" },
         })
@@ -232,13 +232,13 @@ describe("Memory", () => {
       await withInstance(async () => {
         await Memory.create({
           content: "Memory 1",
-          category: "style",
+          categories: ["style"],
           scope: "personal",
           source: { sessionID: "ses_1", method: "manual" },
         })
         await Memory.create({
           content: "Memory 2",
-          category: "tool",
+          categories: ["tool"],
           scope: "personal",
           source: { sessionID: "ses_1", method: "auto" },
         })
@@ -251,13 +251,13 @@ describe("Memory", () => {
       await withInstance(async () => {
         await Memory.create({
           content: "Personal memory",
-          category: "style",
+          categories: ["style"],
           scope: "personal",
           source: { sessionID: "ses_1", method: "manual" },
         })
         await Memory.create({
           content: "Team memory",
-          category: "style",
+          categories: ["style"],
           scope: "team",
           source: { sessionID: "ses_1", method: "pulled" },
         })
@@ -275,14 +275,14 @@ describe("Memory", () => {
       await withInstance(async () => {
         await Memory.create({
           content: "Confirmed",
-          category: "style",
+          categories: ["style"],
           scope: "personal",
           status: "confirmed",
           source: { sessionID: "ses_1", method: "manual" },
         })
         await Memory.create({
           content: "Pending",
-          category: "style",
+          categories: ["style"],
           scope: "personal",
           status: "pending",
           source: { sessionID: "ses_1", method: "auto" },
@@ -297,19 +297,19 @@ describe("Memory", () => {
       await withInstance(async () => {
         await Memory.create({
           content: "Style pref",
-          category: "style",
+          categories: ["style"],
           scope: "personal",
           source: { sessionID: "ses_1", method: "manual" },
         })
         await Memory.create({
           content: "Tool pref",
-          category: "tool",
+          categories: ["tool"],
           scope: "personal",
           source: { sessionID: "ses_1", method: "manual" },
         })
         const tools = await Memory.list({ category: "tool" })
         expect(tools.length).toBe(1)
-        expect(tools[0].category).toBe("tool")
+        expect(tools[0].categories).toEqual(["tool"])
       })
     })
 
@@ -317,13 +317,13 @@ describe("Memory", () => {
       await withInstance(async () => {
         await Memory.create({
           content: "Manual",
-          category: "style",
+          categories: ["style"],
           scope: "personal",
           source: { sessionID: "ses_1", method: "manual" },
         })
         await Memory.create({
           content: "Auto",
-          category: "style",
+          categories: ["style"],
           scope: "personal",
           source: { sessionID: "ses_1", method: "auto" },
         })
@@ -339,7 +339,7 @@ describe("Memory", () => {
         const mem: Memory.Info = {
           id: "team_remote_1",
           content: "Team convention",
-          category: "workflow",
+          categories: ["workflow"],
           scope: "team",
           status: "confirmed",
           tags: [],
@@ -366,7 +366,7 @@ describe("Memory", () => {
       await withInstance(async () => {
         await Memory.create({
           content: "Use Hono for routing",
-          category: "tool",
+          categories: ["tool"],
           scope: "personal",
           source: { sessionID: "ses_1", method: "manual" },
         })

@@ -19,19 +19,19 @@ async function withInstance<T>(fn: () => Promise<T>): Promise<T> {
 describe("Memory Hooks (unit-level)", () => {
   describe("inject hook logic — MemoryInject", () => {
     test("formatMemoriesForPrompt generates correct XML block", () => {
-      const memories = [
+      const memories: Memory.Info[] = [
         {
           id: "mem_1",
           content: "Use Hono for HTTP",
-          category: "tool" as const,
-          scope: "personal" as const,
+          categories: ["tool"],
+          scope: "personal",
           tags: ["framework"],
-          status: "confirmed" as const,
+          status: "confirmed",
           score: 5.0,
           baseScore: 5.0,
           useCount: 3,
           hitCount: 1,
-          source: { sessionID: "s1", method: "manual" as const },
+          source: { sessionID: "s1", method: "manual" },
           citations: [],
           createdAt: Date.now(),
           updatedAt: Date.now(),
@@ -52,19 +52,19 @@ describe("Memory Hooks (unit-level)", () => {
     })
 
     test("formatMemoriesForPrompt shows team scope", () => {
-      const memories = [
+      const memories: Memory.Info[] = [
         {
           id: "mem_team1",
           content: "API convention: snake_case",
-          category: "pattern" as const,
-          scope: "team" as const,
+          categories: ["pattern"],
+          scope: "team",
           tags: [],
-          status: "confirmed" as const,
+          status: "confirmed",
           score: 3.0,
           baseScore: 3.0,
           useCount: 0,
           hitCount: 0,
-          source: { sessionID: "s1", method: "pulled" as const },
+          source: { sessionID: "s1", method: "pulled" },
           citations: [],
           createdAt: Date.now(),
           updatedAt: Date.now(),
@@ -78,8 +78,8 @@ describe("Memory Hooks (unit-level)", () => {
 
     test("formatMemoriesForPrompt groups memories by category", () => {
       const memories = [
-        makeMemory({ id: "mem_tool", category: "tool", content: "Use Bun" }),
-        makeMemory({ id: "mem_style", category: "style", content: "No semicolons" }),
+        makeMemory({ id: "mem_tool", categories: ["tool"], content: "Use Bun" }),
+        makeMemory({ id: "mem_style", categories: ["style"], content: "No semicolons" }),
       ]
 
       const result = MemoryInject.formatMemoriesForPrompt(memories)
@@ -217,7 +217,7 @@ function makeMemory(overrides: Partial<Memory.Info> & { id: string }): Memory.In
   const now = Date.now()
   return {
     content: "test memory",
-    category: "context",
+    categories: ["context"],
     scope: "personal",
     status: "confirmed",
     tags: [],

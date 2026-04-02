@@ -33,17 +33,13 @@ export const MemoryListTool = Tool.define("memory_list", {
         const statusIcon = m.status === "pending" ? "⏳" : "✓"
         const scopeTag = m.scope === "team" ? " [team]" : ""
         const tags = m.tags.length > 0 ? ` (${m.tags.join(", ")})` : ""
-        return `${statusIcon} ${m.id}: [${m.category}]${scopeTag} ${m.content}${tags}  (score: ${m.score.toFixed(1)}, uses: ${m.useCount})`
+        return `${statusIcon} ${m.id}: [${m.categories.join(",")}]${scopeTag} ${m.content}${tags}  (score: ${m.score.toFixed(1)}, uses: ${m.useCount})`
       })
 
     return {
       title: `${memories.length} memories`,
       metadata: { count: memories.length },
-      output: [
-        `Found ${memories.length} memories:`,
-        "",
-        ...lines,
-      ].join("\n"),
+      output: [`Found ${memories.length} memories:`, "", ...lines].join("\n"),
     }
   },
 })

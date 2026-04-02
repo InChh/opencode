@@ -43,23 +43,26 @@ export const MemoryRememberTool = Tool.define("memory_remember", {
   ].join(" "),
   parameters: z.object({
     content: z.string().describe("Clear, self-contained description of the preference or convention"),
-    category: Memory.Category.describe("Category: style, pattern, tool, domain, workflow, correction, context"),
+    categories: z
+      .array(Memory.Category)
+      .min(1)
+      .describe("Categories: style, pattern, tool, domain, workflow, correction, context"),
     tags: z.array(z.string()).optional().describe("Keywords for future recall"),
   }),
   async execute(args, ctx) {
     const recentMessages = flat((ctx.messages as unknown[]).slice(-10))
 
     const memory = await MemoryExtractor.rememberWithContext(ctx.sessionID, args.content, recentMessages, {
-      category: args.category,
+      categories: args.categories,
       tags: args.tags,
     })
 
     return {
-      title: `Remembered: ${args.category}`,
+      title: `Remembered: ${args.categories.join(",")}`,
       metadata: { memoryID: memory.id },
       output: [
         `Memory saved (${memory.id}):`,
-        `  Category: ${memory.category}`,
+        `  Categories: ${memory.categories.join(",")}`,
         `  Content: ${memory.content}`,
         memory.tags.length > 0 ? `  Tags: ${memory.tags.join(", ")}` : "",
       ]

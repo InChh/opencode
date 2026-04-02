@@ -42,7 +42,7 @@ async function withInstance(fn: () => Promise<void>) {
 async function addMemory(content: string) {
   return Memory.create({
     content,
-    category: "context",
+    categories: ["context"],
     scope: "personal",
     source: { sessionID: "ses_memory", method: "manual" },
   })

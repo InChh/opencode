@@ -12,96 +12,129 @@
         "Memory.Info: field `category` replaced by `categories: z.array(Memory.Category).min(1)`",
         "Memory.CreateInput updated: `categories` is required, accepts array",
         "MemoryRecord in storage.ts: field `category: string` replaced by `categories: string[]`",
-        "All TypeScript compilation errors from the rename are resolved across the codebase (fix all files that reference `category` on Memory.Info or MemoryRecord to use `categories`)",
+        "All TypeScript compilation errors from the rename are resolved across the codebase",
         "Typecheck passes"
       ],
       "priority": 1,
       "passes": false,
-      "notes": "Phase 1: Category Array Refactor. This is the foundation — all other stories depend on it. Focus on type definitions and fixing compile errors. Do NOT change storage read/write logic, prompts, tools, or tests yet — those are separate stories."
+      "notes": "Phase 1: Category Array Refactor. This is the foundation — all other stories depend on it. Focus only on type definitions, not migration or consumer updates."
     },
     {
       "id": "US-002",
-      "title": "Storage migration: read-time normalization, dual-field write, and bootstrap bulk migration",
+      "title": "Storage migration: read-time normalization and dual-field write",
       "description": "As a user with existing memories, I need my personal.json data to be seamlessly migrated so nothing breaks on upgrade or downgrade.",
       "acceptanceCriteria": [
-        "Read-time normalization in storage loadAll() and Memory.get()/list(): if raw record has `category` (string) and no `categories` (array), set `categories = [category]`",
+        "Read-time normalization in Memory.get(), Memory.list(), and storage loadAll(): if raw record has `category` (string) and no `categories` (array), set `categories = [category]`",
         "Mixed-format resilience: if a record has both `category` and `categories`, prefer `categories`",
-        "Write-time: MemoryStorage.save() always writes `categories` array field and also writes `category: categories[0]` as deprecated compatibility field for downgrade safety",
-        "A migrateCategories() function bulk-converts all records in personal.json: for each record, converts category → categories: [category], writes both fields",
-        "Bulk migration called during InstanceBootstrap (alongside existing recovery logic), guarded by meta key `categoriesMigratedAt` to run only once",
-        "Idempotent — running migrateCategories() twice produces identical output, no data loss",
+        "Write-time: MemoryStorage.save() always writes `categories` array field, also writes `category: categories[0]` as deprecated compatibility field for downgrade safety",
         "Typecheck passes"
       ],
       "priority": 2,
       "passes": false,
-      "notes": "This enables the code to read old-format personal.json without breaking. Combines US-CAT-002 from the PRD appendix."
+      "notes": "This enables the code to read old-format personal.json without breaking. The bulk migration is a separate story."
     },
     {
       "id": "US-003",
-      "title": "Optimizer hook and injector: categories array compat",
-      "description": "As a developer, I need the optimizer hook's correction guard and the injector's grouping logic to work with the categories array.",
+      "title": "Bootstrap bulk migration for categories",
+      "description": "As a user, I need a one-time bulk migration so that repeated per-read normalization is eliminated after first startup.",
       "acceptanceCriteria": [
-        "optimizer-hook.ts: `memory.category === 'correction'` changed to `memory.categories.includes('correction')`",
-        "No other optimizer logic depends on category field directly",
-        "injector.ts block(): group by `categories[0]` (primary) — a memory appears in exactly one group",
-        "Injector output format unchanged for single-category memories",
-        "Injector `order` array unchanged",
+        "A migrateCategories() function bulk-converts all records in personal.json: for each record, converts category → categories: [category], writes both fields",
+        "Called during InstanceBootstrap (alongside existing recovery logic), guarded by meta key `categoriesMigratedAt` to run only once",
+        "Idempotent — running twice produces identical output, no data loss",
         "Typecheck passes"
       ],
       "priority": 3,
       "passes": false,
-      "notes": "Small, focused changes in two files. Optimizer hook runs on session.created so this must happen early. Injector grouping is a straightforward change from m.category to m.categories[0]."
+      "notes": ""
     },
     {
       "id": "US-004",
-      "title": "Extractor and recall prompts: output categories array",
-      "description": "As a developer, I need the extractor to output and parse categories arrays, and the recall prompt to show categories arrays.",
+      "title": "Optimizer hook: categories.includes('correction') guard",
+      "description": "As a developer, I need the optimizer hook's correction guard and team candidate logic to work with the categories array.",
       "acceptanceCriteria": [
-        "ExtractedItem schema in extractor.ts: accepts both `categories` (array, primary) and `category` (string, legacy fallback). Zod .transform() normalizes to `categories`",
-        "Extract prompt (extract.txt): instructs LLM to output `\"categories\": [\"style\", \"pattern\"]` instead of `\"category\": \"style\"`",
+        "optimizer-hook.ts: `memory.category === 'correction'` changed to `memory.categories.includes('correction')`",
+        "No other optimizer logic depends on category field directly",
+        "Typecheck passes"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": "Small, focused change. Must happen early because optimizer runs on session.created."
+    },
+    {
+      "id": "US-005",
+      "title": "Injection grouping: group by categories[0]",
+      "description": "As a user, I want the <memory> block in system prompts to still be grouped by category, with multi-category memories appearing under their primary (first) category.",
+      "acceptanceCriteria": [
+        "injector.ts block(): group by `categories[0]` (primary) — a memory appears in exactly one group",
+        "Output format unchanged for single-category memories",
+        "`order` array unchanged",
+        "Typecheck passes"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-006",
+      "title": "Extractor schema and prompt: output categories array",
+      "description": "As a developer, I need the extractor to output and parse categories arrays, with backward compat for old-format LLM responses.",
+      "acceptanceCriteria": [
+        "ExtractedItem schema: accepts both `categories` (array, primary) and `category` (string, legacy fallback). Zod .transform() normalizes to `categories`",
+        "Extract prompt (extract.txt): instructs LLM to output `\"categories\": [\"style\", \"pattern\"]`",
         "Memory.create() calls in extractor use `categories` field",
-        "formatExisting() in extractor.ts updated to show categories: `- [id] (style, pattern) content`",
+        "formatExisting() updated: `- [id] (style, pattern) content`",
+        "Typecheck passes"
+      ],
+      "priority": 6,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-007",
+      "title": "Recall prompt: pass categories array to LLM",
+      "description": "As a developer, I need the recall prompt to show categories arrays so the recall LLM can filter correctly.",
+      "acceptanceCriteria": [
         "recall.ts: passes `categories: m.categories` instead of `category: m.category` to recall LLM",
         "Recall prompt (recall.txt): input format shows categories array",
         "Remember prompt (remember.txt): updated wording to show categories parameter",
         "Typecheck passes"
       ],
-      "priority": 4,
+      "priority": 7,
       "passes": false,
-      "notes": "Updates extractor.ts, recall.ts, and the three prompt text files (extract.txt, recall.txt, remember.txt)."
+      "notes": ""
     },
     {
-      "id": "US-005",
+      "id": "US-008",
       "title": "Tool interface: memory_remember, memory_list, memory_forget support categories",
       "description": "As a user (or LLM calling tools), I want memory tools to support multi-category with backward compat for old category parameter.",
       "acceptanceCriteria": [
-        "memory_remember (remember.ts): accepts `categories` (array, primary) and `category` (string, deprecated). Normalized internally to categories array via .refine() or .transform()",
-        "memory_list (memory-list.ts): `category` filter param unchanged (single value) — matches any memory where categories.includes(value)",
+        "memory_remember: accepts `categories` (array, primary) and `category` (string, deprecated). Normalized internally to categories array",
+        "memory_list: `category` filter param unchanged (single value) — matches any memory where categories.includes(value)",
         "memory_list display: `[style,pattern]` for multi-category, `[style]` for single",
-        "memory_forget (forget.ts) display: shows categories as `style,pattern` or `categories.join(',')`",
+        "memory_forget display: `Forgot: style,pattern` or `Forgot: ${categories.join(',')}`",
         "Typecheck passes"
       ],
-      "priority": 5,
+      "priority": 8,
       "passes": false,
-      "notes": "Three small tool files: remember.ts (~70 lines), memory-list.ts (~49 lines), forget.ts (~86 lines)."
+      "notes": ""
     },
     {
-      "id": "US-006",
+      "id": "US-009",
       "title": "REST API backward compat: accept both category and categories",
       "description": "As an external SDK consumer, I need the API to continue working during the transition so my integration doesn't break on upgrade.",
       "acceptanceCriteria": [
         "REST API GET / (list): accepts query param `category` (string, deprecated) and `categories` (string, comma-separated). Both filter by categories.includes(value)",
         "REST API PUT /:id (update): accepts body field `category` (string, deprecated) and `categories` (array). If both present, categories wins",
         "REST API response body: includes both `category: categories[0]` (deprecated) and `categories: [...]`",
-        "REST API GET /stats: categoryBreakdown counts each memory once per category it belongs to (a memory in ['style','pattern'] increments both counters)",
+        "REST API GET /stats: categoryBreakdown counts each memory once per category it belongs to",
         "Typecheck passes"
       ],
-      "priority": 6,
+      "priority": 9,
       "passes": false,
-      "notes": "Changes to memory/web/api.ts (~202 lines). Keep deprecated `category` field in responses for one version cycle."
+      "notes": ""
     },
     {
-      "id": "US-007",
+      "id": "US-010",
       "title": "Web UI: multi-category badges and filter",
       "description": "As a user of the Memory Manager web UI, I want to see and filter by multiple categories.",
       "acceptanceCriteria": [
@@ -111,122 +144,121 @@
         "Typecheck passes",
         "Verify in browser using dev-browser skill"
       ],
-      "priority": 7,
+      "priority": 10,
       "passes": false,
-      "notes": "Changes to memory/web/app.html (~304 lines). The UI is Alpine.js-based single-file HTML."
+      "notes": ""
     },
     {
-      "id": "US-008",
+      "id": "US-011",
       "title": "Regenerate JS SDK after schema change",
       "description": "As a developer, I need the SDK types regenerated so external consumers get updated TypeScript definitions.",
       "acceptanceCriteria": [
         "Run ./packages/sdk/js/script/build.ts successfully",
-        "Generated types in sdk/js include both `category` (deprecated) and `categories` fields in memory-related types",
+        "Generated types in sdk/js/src/v2/gen/types.gen.ts include both `category` (deprecated) and `categories` fields",
         "Typecheck passes"
       ],
-      "priority": 8,
+      "priority": 11,
       "passes": false,
-      "notes": "Run the SDK build script and verify the generated types include the new categories field."
+      "notes": ""
     },
     {
-      "id": "US-009",
+      "id": "US-012",
       "title": "Test suite update for categories array",
-      "description": "As a developer, I need all existing tests to pass after the category → categories migration.",
+      "description": "As a developer, I need all existing tests to pass after the category→categories migration.",
       "acceptanceCriteria": [
         "test/memory/web-api.test.ts: all `category: '...'` in test data changed to `categories: ['...']`; filter and stats assertions updated",
         "test/memory/tools.test.ts: all `category:` changed to `categories:`, all `m.category` assertions changed to `m.categories`",
         "test/session/agent-request.test.ts: `Category.options.toContain(item.category)` updated to validate against categories array",
         "test/session/hooks/ralph-loop.test.ts: test helper `category:` changed to `categories:`",
-        "Any other test files that reference `category` on memory objects updated to use `categories`",
         "All tests pass: `bun test` in packages/opencode",
         "Typecheck passes"
       ],
-      "priority": 9,
+      "priority": 12,
       "passes": false,
-      "notes": "Mechanical changes across multiple test files. Search for `.category` and `category:` in test files to find all occurrences."
+      "notes": ""
     },
     {
-      "id": "US-010",
-      "title": "Config schema: consolidation section in config.memory",
-      "description": "As a user, I want to configure consolidation behavior through the standard config file.",
-      "acceptanceCriteria": [
-        "Add `consolidation` section to config.memory schema in config.ts with fields: enabled (bool, default true), interval (number ms, default 14400000 = 4h), similarity (number, default 0.8), prune_threshold (number, default 0.1), prune_age (number days, default 60), reset_day (1-28, default 1), days_before_reset (number, default 3), min_spare_credits (number USD, default 0.50)",
-        "All fields optional with sensible defaults",
-        "Existing config.memory.autoOptimize: false also disables consolidation (document this in notes)",
-        "Typecheck passes"
-      ],
-      "priority": 10,
-      "passes": false,
-      "notes": "Phase 2: Memory Consolidation. Starting here, stories build on the categories array foundation. Changes to config.ts only."
-    },
-    {
-      "id": "US-011",
-      "title": "MemoryEvent.Consolidated and ConsolidationEligible event definitions",
-      "description": "As a developer, I want events to summarize consolidation actions so downstream systems can display consolidation activity.",
+      "id": "US-013",
+      "title": "MemoryEvent.Consolidated event definition",
+      "description": "As a developer, I want a single event summarizing all consolidation actions so downstream systems can display consolidation activity.",
       "acceptanceCriteria": [
         "Define MemoryEvent.Consolidated in event.ts with schema: { deduped: number, expired: number, pruned: number, total_removed: number }",
         "Define MemoryEvent.ConsolidationEligible in event.ts with schema: { credits: number, provider: string }",
-        "Events follow existing event definition patterns in event.ts",
+        "Published once at end of consolidation run if total_removed > 0",
         "Typecheck passes"
       ],
-      "priority": 11,
+      "priority": 13,
       "passes": false,
-      "notes": "Small addition to memory/event.ts (~81 lines). Just type/event definitions, no logic."
+      "notes": "Phase 2: Memory Consolidation. Starting here, stories build on the categories array foundation."
     },
     {
-      "id": "US-012",
+      "id": "US-014",
+      "title": "Config schema: consolidation section in config.memory",
+      "description": "As a user, I want to configure consolidation behavior through the standard config file.",
+      "acceptanceCriteria": [
+        "Add `consolidation` section to config.memory schema in config.ts with fields: enabled (bool, default true), interval (number ms, default 14400000), similarity (number, default 0.8), prune_threshold (number, default 0.1), prune_age (number days, default 60), reset_day (1-28, default 1), days_before_reset (number, default 3), min_spare_credits (number USD, default 0.50)",
+        "All fields optional with sensible defaults",
+        "Existing config.memory.autoOptimize: false also disables consolidation",
+        "Typecheck passes"
+      ],
+      "priority": 14,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-015",
       "title": "Heuristic deduplication logic",
       "description": "As a user, I want duplicate memories to be automatically merged so my memory pool stays clean without manual effort.",
       "acceptanceCriteria": [
-        "Implement consolidate() function in a new file (e.g. memory/engine/consolidate.ts or extend existing optimizer code) that scans all personal memories for near-duplicate pairs using Jaccard similarity >= config.memory.consolidation.similarity (default 0.8)",
-        "For each duplicate group: keep the entry with higher score, merge useCount, hitCount, tags (union, deduplicated), and categories (union, deduplicated) from removed entries into the kept entry, then batch delete the duplicates",
+        "Implement consolidate() function (in decay.ts or new optimizer.ts alongside maintain()) that scans all personal memories for near-duplicate pairs using Jaccard similarity >= config.memory.consolidation.similarity (default 0.8)",
+        "For each duplicate group: keep the entry with higher score, merge useCount, hitCount, tags (union), and categories (union) from removed entries into the kept entry, then batch delete the duplicates",
         "Dedup runs across category boundaries — comparison is content-only, ignores categories",
         "Log each merge: { kept: id, removed: [ids], reason: 'dedup', similarity: number }",
         "Consolidation is idempotent — running twice in a row produces no changes on the second run",
         "Typecheck passes"
       ],
-      "priority": 12,
+      "priority": 15,
       "passes": false,
-      "notes": "Core dedup algorithm. Sort by score descending, compare pairs with Jaccard, keep highest score, merge metadata. O(n²) is fine for memory pool sizes (typically < 200)."
+      "notes": ""
     },
     {
-      "id": "US-013",
+      "id": "US-016",
       "title": "Expired memory cleanup and low-score pruning",
       "description": "As a user, I want expired and low-value memories to be automatically removed so the pool doesn't fill with dead entries.",
       "acceptanceCriteria": [
         "During consolidation, delete all memories where expiresAt is set and expiresAt < Date.now(). Log each: { id, reason: 'expired', expiresAt }",
-        "After dedup, delete memories matching ALL of: score < prune_threshold (default 0.1), useCount === 0, hitCount === 0, age > prune_age days (default 60)",
+        "After decay score update, delete memories matching ALL of: score < prune_threshold (default 0.1), useCount === 0, hitCount === 0, age > prune_age days (default 60)",
         "Do NOT prune memories with inject: true (manually pinned)",
         "Do NOT prune memories with scope: 'team'",
         "Do NOT prune memories whose categories includes 'correction' (correction memories are exempt regardless of score)",
         "Do NOT prune memories with status: 'confirmed' and hitCount > 0",
         "Log each removal: { id, reason: 'low-score', score, age }",
-        "All removal operations use Memory.batchRemove() or equivalent for atomic persistence",
+        "All removal operations use Memory.batchRemove() for atomic persistence",
         "Typecheck passes"
       ],
-      "priority": 13,
+      "priority": 16,
       "passes": false,
-      "notes": "Adds expire and prune steps to the consolidate() function from US-012. Each step has independent try/catch so failures don't block other steps."
+      "notes": ""
     },
     {
-      "id": "US-014",
+      "id": "US-017",
       "title": "Unified consolidation trigger via Scheduler",
-      "description": "As a user, I want consolidation to run periodically via the Scheduler, rate-limited to at most once per configured interval.",
+      "description": "As a user, I want consolidation to have multiple trigger points but be rate-limited to run at most once per interval, so idle periods are utilized without excessive execution.",
       "acceptanceCriteria": [
         "Register a Scheduler task 'memory-consolidation' with scope 'instance' and interval from config.memory.consolidation.interval (default 4h)",
-        "The Scheduler task is the sole executor of consolidation logic (dedup + expire + prune). It calls the consolidate() function from US-012/US-013",
+        "The Scheduler task is the sole executor of consolidation logic (dedup + expire + prune). It calls the consolidate() function from US-015/US-016",
         "Rate-limited via single shared meta key Memory.getMeta('lastConsolidateAt') — skip if last run was within consolidation.interval",
         "The existing optimizer-hook.ts (session.created) no longer runs consolidation directly. It only ensures the Scheduler task is registered (idempotent). Optimizer hook continues to run decay, confirmation, and team-candidate detection independently",
         "Consolidation failures in one step (e.g. dedup) do not block subsequent steps (e.g. expire, prune) — each step has independent try/catch",
         "Publish MemoryEvent.Consolidated with counts at end of run if total_removed > 0",
         "Typecheck passes"
       ],
-      "priority": 14,
+      "priority": 17,
       "passes": false,
-      "notes": "Wire the consolidate() function into the Scheduler. Refactor optimizer-hook to not run consolidation directly."
+      "notes": ""
     },
     {
-      "id": "US-015",
+      "id": "US-018",
       "title": "Provider.balance() for OpenRouter credit query",
       "description": "As a developer, I need a generic interface to query the user's remaining credit balance from their LLM provider.",
       "acceptanceCriteria": [
@@ -237,24 +269,24 @@
         "Balance query failures (network error, auth error) are logged and treated as undefined — never block consolidation",
         "Typecheck passes"
       ],
-      "priority": 15,
+      "priority": 18,
       "passes": false,
-      "notes": "Independent of consolidation logic. Adds to provider.ts (~1381 lines). Only OpenRouter has a public balance API."
+      "notes": ""
     },
     {
-      "id": "US-016",
+      "id": "US-019",
       "title": "Balance-aware consolidation trigger (log only)",
       "description": "As a user with a subscription that resets monthly, I want the system to detect spare credits near billing reset and log the opportunity for future LLM-based consolidation.",
       "acceptanceCriteria": [
-        "In the Scheduler task from US-014, after heuristic consolidation, check provider balance via Provider.balance()",
+        "In the Scheduler task from US-017, after heuristic consolidation, check provider balance via Provider.balance()",
         "If balance is available AND credits > config.memory.consolidation.min_spare_credits (default 0.50 USD) AND today is within config.memory.consolidation.days_before_reset days of the configured reset_day: log 'spare credits detected, consolidation eligible'",
         "Publish MemoryEvent.ConsolidationEligible event with { credits, provider }",
         "Phase 1 only: no actual LLM consolidation is triggered — this is observability prep for future phase",
         "Typecheck passes"
       ],
-      "priority": 16,
+      "priority": 19,
       "passes": false,
-      "notes": "Final story. Adds balance check at the end of the consolidation scheduler task. Prepares the hook point for future LLM-based consolidation but does not invoke it."
+      "notes": "This is the final story. It prepares the hook point for future LLM-based consolidation but does not invoke it."
     }
   ]
 }

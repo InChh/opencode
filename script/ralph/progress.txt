@@ -1,18 +1,7 @@
 # Ralph Progress Log
-Started: Wed Apr 01 2026
+Started: Thu Apr 02 2026
 ---
 
 ## Codebase Patterns
 
-- Loop child memory inheritance lives in `MemoryInject` state, and only `RalphLoop.startNewIteration()` opts sessions into sticky reuse; verification sessions explicitly opt out.
-
----
-
-## 2026-04-01 00:00 UTC - US-001 to US-006
-- Implemented session-scoped resolved memory storage, sticky loop-child reuse, loop inheritance wiring, verification opt-out, and regression coverage for Ralph/Ultrawork child sessions.
-- Files changed: `packages/opencode/src/memory/engine/injector.ts`, `packages/opencode/src/memory/hooks/inject.ts`, `packages/opencode/src/session/hooks/ralph-loop.ts`, `packages/opencode/test/session/hooks/ralph-loop.test.ts`, `script/ralph/prd.json`, `script/ralph/progress.txt`
-- **Learnings for future iterations:**
-  - Loop memory inheritance should reuse the exact rendered prompt block, not re-run recall on the first child turn.
-  - Sticky inherited memory needs its own refresh bookkeeping for early-turn sessions, because the normal full-phase path recomputes on every turn.
-  - Ultrawork verification sessions must bypass inheritance or Oracle can accidentally inherit worker-only context.
 ---

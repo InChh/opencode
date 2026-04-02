@@ -252,7 +252,11 @@ describe("memory-extractor: LLM.generate() real request", () => {
           for (const item of result.object.items) {
             expect(["create", "update"]).toContain(item.action)
             expect(item.content.length).toBeGreaterThan(0)
-            expect(Memory.Category.options).toContain(item.category)
+            expect(item.categories).toBeInstanceOf(Array)
+            expect(item.categories.length).toBeGreaterThan(0)
+            for (const cat of item.categories) {
+              expect(Memory.Category.options).toContain(cat)
+            }
             expect(item.tags).toBeInstanceOf(Array)
           }
 
@@ -299,7 +303,7 @@ describe("memory-recall: LLM.generate() real request", () => {
             {
               id: "mem_hono",
               content: "Project uses Hono for HTTP routing",
-              category: "tool",
+              categories: ["tool"],
               scope: "personal",
               status: "confirmed",
               tags: ["framework", "hono"],
@@ -316,7 +320,7 @@ describe("memory-recall: LLM.generate() real request", () => {
             {
               id: "mem_vitest",
               content: "Use vitest for unit testing",
-              category: "tool",
+              categories: ["tool"],
               scope: "personal",
               status: "confirmed",
               tags: ["testing"],
@@ -333,7 +337,7 @@ describe("memory-recall: LLM.generate() real request", () => {
             {
               id: "mem_python",
               content: "Use black for Python formatting",
-              category: "style",
+              categories: ["style"],
               scope: "personal",
               status: "confirmed",
               tags: ["python", "formatting"],
@@ -352,7 +356,7 @@ describe("memory-recall: LLM.generate() real request", () => {
           const candidates = memories.map((m) => ({
             id: m.id,
             content: m.content,
-            category: m.category,
+            categories: m.categories,
             tags: m.tags,
           }))
 
@@ -504,7 +508,11 @@ describe("MemoryExtractor.extractFromSession: full E2E", () => {
           for (const mem of result) {
             expect(mem.id).toMatch(/^mem_/)
             expect(mem.content.length).toBeGreaterThan(0)
-            expect(Memory.Category.options).toContain(mem.category)
+            expect(mem.categories).toBeInstanceOf(Array)
+            expect(mem.categories.length).toBeGreaterThan(0)
+            for (const cat of mem.categories) {
+              expect(Memory.Category.options).toContain(cat)
+            }
             expect(mem.source.sessionID).toBe(sessionID)
             expect(mem.source.method).toBe("auto")
           }
@@ -514,7 +522,7 @@ describe("MemoryExtractor.extractFromSession: full E2E", () => {
 
           console.log("✅ extractFromSession: %d memories", result.length)
           for (const mem of result) {
-            console.log("   [%s] %s", mem.category, mem.content.slice(0, 80))
+            console.log("   [%s] %s", mem.categories.join(","), mem.content.slice(0, 80))
           }
         },
       })
@@ -541,7 +549,7 @@ describe("MemoryRecall.invoke: full E2E", () => {
             {
               id: "mem_bun",
               content: "Always use Bun APIs instead of Node.js equivalents",
-              category: "tool",
+              categories: ["tool"],
               scope: "personal",
               status: "confirmed",
               tags: ["bun"],
@@ -558,7 +566,7 @@ describe("MemoryRecall.invoke: full E2E", () => {
             {
               id: "mem_django",
               content: "Django project uses class-based views with DRF serializers",
-              category: "pattern",
+              categories: ["pattern"],
               scope: "personal",
               status: "confirmed",
               tags: ["django", "python"],
@@ -662,7 +670,7 @@ describe("OAuth mcp_ prefix: generateObject json tool", () => {
             {
               id: "mem_log_1",
               content: "All LLM calls must be captured by log-viewer.",
-              category: "workflow",
+              categories: ["workflow"],
               scope: "personal",
               status: "confirmed",
               tags: ["log-viewer"],
@@ -690,7 +698,7 @@ describe("OAuth mcp_ prefix: generateObject json tool", () => {
             "",
             "## Existing memories",
             "",
-            existing.map((m) => `- [${m.id}] (${m.category}) ${m.content}`).join("\n"),
+            existing.map((m) => `- [${m.id}] (${m.categories.join(",")}) ${m.content}`).join("\n"),
             "",
             "## Session conversation",
             "",

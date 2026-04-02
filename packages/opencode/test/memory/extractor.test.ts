@@ -29,13 +29,13 @@ describe("MemoryExtractor", () => {
         ]
 
         const memory = await MemoryExtractor.rememberWithContext("sess_1", "Use Hono for API handlers", messages, {
-          category: "tool",
+          categories: ["tool"],
           tags: ["hono", "api"],
         })
 
         expect(memory.id).toMatch(/^mem_/)
         expect(memory.content).toBe("Use Hono for API handlers")
-        expect(memory.category).toBe("tool")
+        expect(memory.categories).toEqual(["tool"])
         expect(memory.scope).toBe("personal")
         expect(memory.status).toBe("confirmed")
         expect(memory.tags).toEqual(["hono", "api"])
@@ -72,7 +72,7 @@ describe("MemoryExtractor", () => {
     test("defaults to context category when none specified", async () => {
       await withMemoryEnv(async () => {
         const memory = await MemoryExtractor.rememberWithContext("sess_4", "Remember this", [])
-        expect(memory.category).toBe("context")
+        expect(memory.categories).toEqual(["context"])
       })
     })
   })

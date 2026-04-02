@@ -27,7 +27,7 @@ async function withInstance<T>(fn: () => Promise<T>): Promise<T> {
 async function createTestMemories() {
   const m1 = await Memory.create({
     content: "Use Hono framework",
-    category: "tool",
+    categories: ["tool"],
     scope: "personal",
     status: "confirmed",
     tags: ["framework"],
@@ -35,7 +35,7 @@ async function createTestMemories() {
   })
   const m2 = await Memory.create({
     content: "No semicolons",
-    category: "style",
+    categories: ["style"],
     scope: "personal",
     status: "pending",
     tags: ["formatting"],
@@ -184,7 +184,9 @@ describe("Memory Web API", () => {
 
         const categoryBreakdown: Record<string, number> = {}
         for (const m of all) {
-          categoryBreakdown[m.category] = (categoryBreakdown[m.category] || 0) + 1
+          for (const cat of m.categories) {
+            categoryBreakdown[cat] = (categoryBreakdown[cat] || 0) + 1
+          }
         }
 
         expect(categoryBreakdown.tool).toBe(1)
