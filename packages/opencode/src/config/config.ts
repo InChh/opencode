@@ -254,6 +254,12 @@ export namespace Config {
 
     result.plugin = deduplicatePlugins(result.plugin ?? [])
 
+    // Inject global env into process.env so the entire process (providers,
+    // plugins, etc.) can read them — not just spawned subprocesses.
+    for (const [k, v] of Object.entries(result.env ?? {})) {
+      if (process.env[k] === undefined) process.env[k] = v
+    }
+
     return {
       config: result,
       directories,
