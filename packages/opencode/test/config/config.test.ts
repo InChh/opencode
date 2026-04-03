@@ -2147,3 +2147,59 @@ describe("lark-opencode config priority", () => {
     })
   })
 })
+
+// --- config.env injection into process.env ---
+
+describe("config.env process.env injection", () => {
+  test("config.env values are injected into process.env", async () => {
+    const key = `OPENCODE_TEST_ENV_${Date.now()}`
+    await using tmp = await tmpdir({
+      init: async (dir) => {
+        await writeConfig(dir, { env: { [key]: "injected" } })
+      },
+    })
+    await Instance.provide({
+      directory: tmp.path,
+      fn: async () => {
+        await Config.get()
+        expect(process.env[key]).toBe("injected")
+        delete process.env[key]
+      },
+    })
+  })
+
+  test("config.env does not overwrite existing process.env values", async () => {
+    const key = `OPENCODE_TEST_EXISTING_${Date.now()}`
+    process.env[key] = "original"
+    await using tmp = await tmpdir({
+      init: async (dir) => {
+        await writeConfig(dir, { env: { [key]: "overwritten" } })
+      },
+    })
+    await Instance.provide({
+      directory: tmp.path,
+      fn: async () => {
+        await Config.get()
+        expect(process.env[key]).toBe("original")
+        delete process.env[key]
+      },
+    })
+  })
+
+  test("config.env() returns the env record", async () => {
+    const key = `OPENCODE_TEST_RECORD_${Date.now()}`
+    await using tmp = await tmpdir({
+      init: async (dir) => {
+        await writeConfig(dir, { env: { [key]: "value" } })
+      },
+    })
+    await Instance.provide({
+      directory: tmp.path,
+      fn: async () => {
+        const env = await Config.env()
+        expect(env[key]).toBe("value")
+        delete process.env[key]
+      },
+    })
+  })
+})

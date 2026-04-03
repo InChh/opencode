@@ -2,6 +2,7 @@ import { test, expect, beforeAll } from "bun:test"
 import { isGlobPattern, globToSbplRegex } from "../../src/sandbox/glob-to-regex"
 import fs from "fs/promises"
 import path from "path"
+import os from "os"
 
 const RAW_PROJECT_ROOT = "/tmp/test-glob-project"
 let PROJECT_ROOT = RAW_PROJECT_ROOT
@@ -139,4 +140,32 @@ test("projectRoot joining produces absolute path regex", async () => {
   const regex = await globToSbplRegex("*.txt", RAW_PROJECT_ROOT)
   // Should start with ^/
   expect(regex).toMatch(/^\^\//)
+})
+
+// --- Tilde expansion tests ---
+
+test("~/dir/** expands ~ to home directory", async () => {
+  const home = os.homedir()
+  const regex = await globToSbplRegex(`${home}/.agents/**/*.md`, RAW_PROJECT_ROOT)
+  const re = new RegExp(regex)
+  expect(re.test(`${home}/.agents/skill/SKILL.md`)).toBe(true)
+  expect(re.test(`${home}/.agents/a/b/README.md`)).toBe(true)
+})
+
+test("tilde prefix in fixed segments resolves to homedir", async () => {
+  const home = os.homedir()
+  // Pre-expanded path (as profile.ts does expand before calling globToSbplRegex)
+  const regex = await globToSbplRegex(`${home}/.config/**`, RAW_PROJECT_ROOT)
+  const re = new RegExp(regex)
+  expect(re.test(`${home}/.config/opencode/config.json`)).toBe(true)
+  expect(re.test(`${home}/.config/anything`)).toBe(true)
+})
+
+test("tilde-only fixed prefix resolves correctly", async () => {
+  // globToSbplRegex receives expanded path from profile.ts
+  const home = os.homedir()
+  const regex = await globToSbplRegex(`${home}/**/*.key`, RAW_PROJECT_ROOT)
+  const re = new RegExp(regex)
+  expect(re.test(`${home}/certs/private.key`)).toBe(true)
+  expect(re.test(`${home}/.ssh/id_rsa.key`)).toBe(true)
 })

@@ -97,11 +97,7 @@ describe.if(IS_MACOS)("sandbox-exec integration", () => {
 
   test("sandboxed python cannot read denied files", async () => {
     const secretFile = path.join(deniedDir, "secret.txt")
-    const cmd = sandbox.wrap([
-      "python3",
-      "-c",
-      `open('${secretFile}').read()`,
-    ])
+    const cmd = sandbox.wrap(["python3", "-c", `open('${secretFile}').read()`])
     const proc = Bun.spawn(cmd, { stdout: "pipe", stderr: "pipe" })
     const stderr = await new Response(proc.stderr).text()
     const code = await proc.exited
@@ -245,5 +241,45 @@ describe.if(IS_MACOS)("SBPL profile generation", () => {
     })
     expect(profile).toContain("/dev/null")
     expect(profile).toContain("/dev/urandom")
+  })
+
+  test("full profile includes opencode internal directories", async () => {
+    const { Global } = await import("../../src/global")
+    const profile = await generateFullProfile({
+      projectRoot: testDir,
+      allowlist: [],
+      deny: [],
+      extraPaths: [],
+    })
+    const resolvedTestDir = await fs.realpath(testDir)
+
+    // Project-level internal dirs
+    expect(profile).toContain("opencode internal directories")
+    for (const dir of [".opencode", ".claude", ".agents"]) {
+      expect(profile).toContain(`(subpath "${path.join(resolvedTestDir, dir)}")`)
+    }
+
+    // Global home internal dirs — realpath resolves symlinks (e.g. /var → /private/var on macOS)
+    const resolvedHome = await fs.realpath(Global.Path.home).catch(() => Global.Path.home)
+    for (const dir of [".opencode", ".claude", ".agents"]) {
+      const global = path.join(resolvedHome, dir)
+      if (global !== path.join(resolvedTestDir, dir)) {
+        expect(profile).toContain(`(subpath "${global}")`)
+      }
+    }
+  })
+
+  test("full profile includes XDG data/config/state/cache directories", async () => {
+    const { Global } = await import("../../src/global")
+    const profile = await generateFullProfile({
+      projectRoot: testDir,
+      allowlist: [],
+      deny: [],
+      extraPaths: [],
+    })
+    for (const dir of [Global.Path.data, Global.Path.config, Global.Path.state, Global.Path.cache]) {
+      const resolved = await fs.realpath(dir).catch(() => dir)
+      expect(profile).toContain(`(subpath "${resolved}")`)
+    }
   })
 })

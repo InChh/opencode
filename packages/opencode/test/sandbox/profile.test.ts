@@ -115,6 +115,121 @@ test("extra paths added as write allow rules", async () => {
   expect(profile).toContain(`(subpath "/custom/path")`)
 })
 
+// --- Tilde expansion tests ---
+
+test("extra paths with ~ expand to home directory", async () => {
+  const profile = await generateProfile(
+    makeInput({
+      extraPaths: ["~/.config"],
+    }),
+  )
+  expect(profile).toContain(`(subpath "${path.join(os.homedir(), ".config")}")`)
+  expect(profile).not.toContain("~")
+})
+
+test("extra paths strip trailing /** glob", async () => {
+  const profile = await generateProfile(
+    makeInput({
+      extraPaths: ["~/.agents/**"],
+    }),
+  )
+  expect(profile).toContain(`(subpath "${path.join(os.homedir(), ".agents")}")`)
+  expect(profile).not.toContain("**")
+})
+
+test("extra paths strip trailing /* glob", async () => {
+  const profile = await generateProfile(
+    makeInput({
+      extraPaths: ["/custom/path/*"],
+    }),
+  )
+  expect(profile).toContain(`(subpath "/custom/path")`)
+  expect(profile).not.toContain("/*")
+})
+
+test("extra paths with ~ and /** combined", async () => {
+  const profile = await generateProfile(
+    makeInput({
+      extraPaths: ["~/.config/**"],
+    }),
+  )
+  const home = os.homedir()
+  expect(profile).toContain(`(subpath "${path.join(home, ".config")}")`)
+  expect(profile).not.toContain("~")
+  expect(profile).not.toContain("**")
+})
+
+test("allowlist directory with ~ expands to home directory", async () => {
+  const home = os.homedir()
+  const profile = await generateProfile(
+    makeInput({
+      allowlist: [{ pattern: "~/.agents", type: "directory" }],
+    }),
+  )
+  expect(profile).toContain(`(subpath "${path.join(home, ".agents")}")`)
+  expect(profile).not.toContain("~/.agents")
+})
+
+test("allowlist file with ~ expands to home directory", async () => {
+  const home = os.homedir()
+  const profile = await generateProfile(
+    makeInput({
+      allowlist: [{ pattern: "~/.env", type: "file" }],
+    }),
+  )
+  expect(profile).toContain(`(literal "${path.join(home, ".env")}")`)
+})
+
+test("allowlist glob with ~ expands in regex", async () => {
+  const home = os.homedir()
+  const profile = await generateProfile(
+    makeInput({
+      allowlist: [{ pattern: "~/.agents/**/*.md", type: "file" }],
+    }),
+  )
+  // The comment preserves the original pattern
+  expect(profile).toContain(";; glob: ~/.agents/**/*.md")
+  // The regex should contain the resolved home path, not ~
+  const match = profile.match(/\(regex "([^"]+)"\)/)
+  expect(match).not.toBeNull()
+  const re = new RegExp(match![1])
+  expect(re.test(`${home}/.agents/skill/SKILL.md`)).toBe(true)
+})
+
+test("deny directory with ~ expands to home directory", async () => {
+  const home = os.homedir()
+  const profile = await generateProfile(
+    makeInput({
+      deny: [{ pattern: "~/.secret", type: "directory", deniedOperations: ["read", "write"], allowedRoles: [] }],
+    }),
+  )
+  expect(profile).toContain(`(subpath "${path.join(home, ".secret")}")`)
+})
+
+test("deny glob with ~ expands in regex", async () => {
+  const home = os.homedir()
+  const profile = await generateProfile(
+    makeInput({
+      deny: [{ pattern: "~/.secret/**/*.key", type: "file", deniedOperations: ["read"], allowedRoles: [] }],
+    }),
+  )
+  expect(profile).toContain(";; glob: ~/.secret/**/*.key")
+  const match = profile.match(/\(regex "([^"]+)"\)/)
+  expect(match).not.toBeNull()
+  const re = new RegExp(match![1])
+  expect(re.test(`${home}/.secret/certs/private.key`)).toBe(true)
+})
+
+test("paths without ~ are not affected by tilde expansion", async () => {
+  const profile = await generateProfile(
+    makeInput({
+      extraPaths: ["/absolute/path", "relative/path"],
+    }),
+  )
+  expect(profile).toContain(`(subpath "/absolute/path")`)
+  expect(profile).toContain(`(subpath "${path.join(PROJECT_ROOT, "relative/path")}")`)
+})
+
 test("full profile .git rule resolves to git repo root when projectRoot is a subdirectory", async () => {
   // Create a temp dir structure: repoRoot/.git + repoRoot/subdir/
   const tmpBase = await fs.mkdtemp(path.join(os.tmpdir(), "sandbox-git-root-"))
