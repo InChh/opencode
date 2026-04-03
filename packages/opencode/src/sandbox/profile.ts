@@ -95,8 +95,9 @@ export async function generateProfile(input: ProfileInput): Promise<string> {
     lines.push("")
     lines.push(";; --- User-configured extra paths (rw) ---")
     for (const p of input.extraPaths) {
-      const expanded = expand(p)
-      const resolved = await realpath(path.isAbsolute(expanded) ? expanded : path.resolve(input.projectRoot, expanded))
+      // Strip trailing glob (/** or /*) — subpath is already recursive
+      const clean = expand(p.replace(/\/\*\*$/, "").replace(/\/\*$/, ""))
+      const resolved = await realpath(path.isAbsolute(clean) ? clean : path.resolve(input.projectRoot, clean))
       lines.push(allowWrite(sbplSubpath(resolved)))
     }
   }
