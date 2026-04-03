@@ -1,6 +1,7 @@
 import fs from "fs/promises"
 import path from "path"
 import os from "os"
+import { Global } from "@/global"
 
 async function realpath(p: string): Promise<string> {
   const resolved = await fs.realpath(p).catch(() => null)
@@ -61,6 +62,25 @@ export async function generateBuiltins(projectRoot: string): Promise<string> {
   const runtimeTmp = await realpath(os.tmpdir())
   if (runtimeTmp !== resolvedTmp) {
     lines.push(`(allow file-write* ${subpath(runtimeTmp)})`)
+  }
+  lines.push("")
+
+  // --- Writable: opencode internal directories ---
+  // Config/skill directories that opencode needs read-write access to:
+  // project-level: .opencode/, .claude/, .agents/
+  // global home: ~/.opencode/, ~/.claude/, ~/.agents/
+  // XDG dirs: data, config, state, cache (DB, auth, plans, logs, etc.)
+  lines.push(";; --- opencode internal directories (rw) ---")
+  const home = Global.Path.home
+  for (const dir of [".opencode", ".claude", ".agents"]) {
+    lines.push(`(allow file-write* ${subpath(await realpath(path.join(resolvedRoot, dir)))})`)
+    const global = path.join(home, dir)
+    if (global !== path.join(resolvedRoot, dir)) {
+      lines.push(`(allow file-write* ${subpath(await realpath(global))})`)
+    }
+  }
+  for (const dir of [Global.Path.data, Global.Path.config, Global.Path.state, Global.Path.cache]) {
+    lines.push(`(allow file-write* ${subpath(await realpath(dir))})`)
   }
   lines.push("")
 
