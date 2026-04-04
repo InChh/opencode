@@ -116,10 +116,11 @@ export const TaskTool = Tool.define("task", async (ctx) => {
         return { providerID, modelID }
       })
 
-      const model = categoryModel ?? agent.model ?? {
-        modelID: msg.info.modelID,
-        providerID: msg.info.providerID,
-      }
+      const model = categoryModel ??
+        agent.model ?? {
+          modelID: msg.info.modelID,
+          providerID: msg.info.providerID,
+        }
 
       ctx.metadata({
         title: params.description,
@@ -155,7 +156,7 @@ export const TaskTool = Tool.define("task", async (ctx) => {
         parts: promptParts,
       })
 
-      const text = result.parts.findLast((x) => x.type === "text")?.text ?? ""
+      const text = result.parts.findLast((x: { type: string }) => x.type === "text")?.text ?? ""
 
       const output = [
         `task_id: ${session.id} (for resuming to continue this task if needed)`,

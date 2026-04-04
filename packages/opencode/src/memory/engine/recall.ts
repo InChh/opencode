@@ -128,8 +128,8 @@ export namespace MemoryRecall {
 
       // Parse JSON from the text response
       const text = result.parts
-        .filter((p) => p.type === "text")
-        .map((p) => (p as any).text ?? "")
+        .filter((p: { type: string }) => p.type === "text")
+        .map((p: { text?: string }) => p.text ?? "")
         .join("")
       const parsed = parse(text)
 

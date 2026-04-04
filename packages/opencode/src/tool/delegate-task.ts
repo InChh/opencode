@@ -384,7 +384,7 @@ export const DelegateTaskTool = Tool.define("delegate_task", async (ctx) => {
             title: part.state.status === "completed" ? part.state.title : undefined,
           },
         }))
-      const text = result.parts.findLast((x) => x.type === "text")?.text ?? ""
+      const text = result.parts.findLast((x: { type: string }) => x.type === "text")?.text ?? ""
 
       const output = text + "\n\n" + ["<task_metadata>", `session_id: ${session.id}`, "</task_metadata>"].join("\n")
 
@@ -434,7 +434,7 @@ async function executeInBackground(
     parts: input.promptParts,
   })
 
-  const text = result.parts.findLast((x) => x.type === "text")?.text ?? ""
+  const text = result.parts.findLast((x: { type: string }) => x.type === "text")?.text ?? ""
   BackgroundManager.complete(taskId, {
     text,
     sessionId: input.session.id,

@@ -1,6 +1,12 @@
 # Session Rotation for Swarm — Ralph Progress
 
-## Status: NOT STARTED
+## Codebase Patterns
+- `result.parts` from `SessionPrompt.prompt()` returns `MessageV2.Part[]` which is a discriminated union — callback parameters need explicit type annotations to avoid implicit any errors with tsgo
+- Use `(p: { type: string }) => p.type === "text"` pattern for filtering parts in callbacks
+- Test runner: `bun run --cwd packages/opencode/test/ test:parallel` (never from root)
+- Typecheck: `bun run --cwd packages/opencode typecheck` runs `tsgo --noEmit`
+
+## Status: ALL STORIES COMPLETE
 
 ## Context
 
@@ -10,3 +16,26 @@ boundary, generate structured checkpoint → archive old session → create fres
 
 ## Stories
 
+## 2026-04-05 - US-001 through US-013 (All Stories)
+- All 13 user stories fully implemented across the following files:
+  - `src/config/config.ts` — rotation config group (US-001)
+  - `src/session/index.ts` — Session.archive(), Event.Archived, RotationStarted/Completed events (US-002, US-013)
+  - `src/session/prompt.ts` — archived session guard, overflow trigger, boundary trigger handler (US-003, US-011, US-012)
+  - `src/session/swarm.ts` — replaceWorkerSession() (US-004)
+  - `src/board/checkpoint.ts` — template generation, LLM extraction, conductor coordination (US-005, US-006, US-007)
+  - `src/session/rotation.ts` — bootstrap(), rotate(), shouldRotate() (US-008, US-009, US-010)
+  - `src/tool/board.ts` — boundary trigger needs_rotation flag (US-012)
+  - `src/session/processor.ts` — needsRotation handling, "rotate" result (US-012)
+- Fixed 8 implicit-any typecheck errors in:
+  - `src/memory/engine/extractor.ts` (2 errors)
+  - `src/memory/engine/recall.ts` (2 errors)
+  - `src/tool/delegate-task.ts` (2 errors)
+  - `src/tool/task.ts` (1 error)
+  - `test/session/prompt.test.ts` (1 error)
+- **Learnings for future iterations:**
+  - tsgo strict mode requires explicit type annotations on callback params for discriminated unions
+  - SessionPrompt.prompt() returns `{ info, parts }` where parts is `MessageV2.Part[]`
+  - All rotation code uses lazy imports (`await import("./rotation")`) to avoid circular deps
+  - The Board system (SharedBoard, BoardTask, BoardArtifact, BoardSignal) is the coordination layer for Swarm
+  - SessionMetadata is used for cross-session state transfer (swarm_id, task_id, prev_session, rotation_seq)
+---

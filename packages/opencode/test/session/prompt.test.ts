@@ -47,7 +47,8 @@ describe("session.prompt missing file", () => {
         if (msg.info.role !== "user") throw new Error("expected user message")
 
         const hasFailure = msg.parts.some(
-          (part) => part.type === "text" && part.synthetic && part.text.includes("Read tool failed to read"),
+          (part: MessageV2.Part) =>
+            part.type === "text" && part.synthetic && part.text.includes("Read tool failed to read"),
         )
         expect(hasFailure).toBe(true)
 
