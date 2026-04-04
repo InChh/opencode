@@ -1,260 +1,197 @@
 {
-  "project": "opencode",
-  "branchName": "ralph/memory-consolidation",
-  "description": "Category array refactor + automatic memory consolidation (dedup, expire, prune, balance-aware scheduling)",
+  "project": "OpenCode",
+  "branchName": "ralph/swarm-discussion",
+  "description": "Swarm Discussion Mode — structured multi-role debate with code-enforced round protocol, session reuse, consensus voting, and human-readable discussion tracking UI.",
   "userStories": [
     {
       "id": "US-001",
-      "title": "Schema change: category → categories in Memory.Info and MemoryRecord",
-      "description": "As a developer, I need the data model to support multiple categories per memory so that knowledge spanning multiple domains is correctly classified.",
+      "title": "Discussion.Round schema adds max_rounds + internal lock refactor",
+      "description": "As a developer, I need the Discussion tracker to store max_rounds and use atomic write locks to prevent race conditions.",
       "acceptanceCriteria": [
-        "Memory.Category enum unchanged (still the 7 values: style, pattern, tool, domain, workflow, correction, context)",
-        "Memory.Info: field `category` replaced by `categories: z.array(Memory.Category).min(1)`",
-        "Memory.CreateInput updated: `categories` is required, accepts array",
-        "MemoryRecord in storage.ts: field `category: string` replaced by `categories: string[]`",
-        "All TypeScript compilation errors from the rename are resolved across the codebase (fix all files that reference `category` on Memory.Info or MemoryRecord to use `categories`)",
+        "In src/board/discussion.ts, add max_rounds: z.number() to the Round schema",
+        "Change Discussion.start() signature to start(swarm, channel, workers, max_rounds) and store max_rounds in the Round object",
+        "Refactor load/save into internal loadRaw/saveRaw functions that do NOT acquire locks",
+        "Change record() to use a single write lock for the entire load-modify-save cycle: using _ = await Lock.write(key(swarm, channel)), then loadRaw, modify, saveRaw",
+        "Change join(), advance(), and any other mutating functions to also use write lock wrapping loadRaw/saveRaw",
+        "Existing read-only functions (status, tally) keep read locks unchanged",
         "Typecheck passes"
       ],
       "priority": 1,
-      "passes": false,
-      "notes": "Phase 1: Category Array Refactor. This is the foundation — all other stories depend on it. Focus on type definitions and fixing compile errors. Do NOT change storage read/write logic, prompts, tools, or tests yet — those are separate stories."
+      "passes": true,
+      "notes": "Two changes in one story because they both touch the same internal lock structure. loadRaw/saveRaw are private helpers; public API unchanged except start() gains max_rounds param."
     },
     {
       "id": "US-002",
-      "title": "Storage migration: read-time normalization, dual-field write, and bootstrap bulk migration",
-      "description": "As a user with existing memories, I need my personal.json data to be seamlessly migrated so nothing breaks on upgrade or downgrade.",
+      "title": "Discussion.join() — dynamic participant registration",
+      "description": "As a developer, I need a function to register a Worker's role_name into Discussion.expected[] after the discussion has started.",
       "acceptanceCriteria": [
-        "Read-time normalization in storage loadAll() and Memory.get()/list(): if raw record has `category` (string) and no `categories` (array), set `categories = [category]`",
-        "Mixed-format resilience: if a record has both `category` and `categories`, prefer `categories`",
-        "Write-time: MemoryStorage.save() always writes `categories` array field and also writes `category: categories[0]` as deprecated compatibility field for downgrade safety",
-        "A migrateCategories() function bulk-converts all records in personal.json: for each record, converts category → categories: [category], writes both fields",
-        "Bulk migration called during InstanceBootstrap (alongside existing recovery logic), guarded by meta key `categoriesMigratedAt` to run only once",
-        "Idempotent — running migrateCategories() twice produces identical output, no data loss",
+        "Add async function join(swarm: string, channel: string, role: string): Promise<Round> to Discussion namespace in src/board/discussion.ts",
+        "join() acquires write lock, calls loadRaw, adds role to expected[] if not already present, calls saveRaw, returns updated Round",
+        "If no discussion exists for the channel, throw an error with message including channel name",
+        "Duplicate role names are silently ignored (idempotent)",
         "Typecheck passes"
       ],
       "priority": 2,
-      "passes": false,
-      "notes": "This enables the code to read old-format personal.json without breaking. Combines US-CAT-002 from the PRD appendix."
+      "passes": true,
+      "notes": "This fixes the critical bug where expected[] is always empty. Called from delegate_task when discussion_channel is present."
     },
     {
       "id": "US-003",
-      "title": "Optimizer hook and injector: categories array compat",
-      "description": "As a developer, I need the optimizer hook's correction guard and the injector's grouping logic to work with the categories array.",
+      "title": "delegate_task passes role_name and calls Discussion.join()",
+      "description": "As a developer, I need delegate_task to accept a role_name parameter and register the Worker in the Discussion tracker.",
       "acceptanceCriteria": [
-        "optimizer-hook.ts: `memory.category === 'correction'` changed to `memory.categories.includes('correction')`",
-        "No other optimizer logic depends on category field directly",
-        "injector.ts block(): group by `categories[0]` (primary) — a memory appears in exactly one group",
-        "Injector output format unchanged for single-category memories",
-        "Injector `order` array unchanged",
+        "Add role_name: z.string().optional() to the delegateParameters schema in src/tool/delegate-task.ts, with description 'Role name for discussion mode (e.g., PM, RD, QA)'",
+        "In the Swarm worker registration block (after info.workers.push and Swarm.save), add: if discussion_channel AND role_name are both set, import Discussion and call Discussion.join(swarm_id, discussion_channel, role_name)",
+        "The join call is fire-and-forget with .catch(e => log.warn('discussion join failed', { error: e }))",
         "Typecheck passes"
       ],
       "priority": 3,
-      "passes": false,
-      "notes": "Small, focused changes in two files. Optimizer hook runs on session.created so this must happen early. Injector grouping is a straightforward change from m.category to m.categories[0]."
+      "passes": true,
+      "notes": "role_name is the Discussion system's unique key. Conductor passes it when creating each Worker."
     },
     {
       "id": "US-004",
-      "title": "Extractor and recall prompts: output categories array",
-      "description": "As a developer, I need the extractor to output and parse categories arrays, and the recall prompt to show categories arrays.",
+      "title": "Swarm.discuss() uses { name, perspective } roles schema",
+      "description": "As a developer, I need Swarm.discuss() to accept roles with name and perspective fields, and pass max_rounds to Discussion.start().",
       "acceptanceCriteria": [
-        "ExtractedItem schema in extractor.ts: accepts both `categories` (array, primary) and `category` (string, legacy fallback). Zod .transform() normalizes to `categories`",
-        "Extract prompt (extract.txt): instructs LLM to output `\"categories\": [\"style\", \"pattern\"]` instead of `\"category\": \"style\"`",
-        "Memory.create() calls in extractor use `categories` field",
-        "formatExisting() in extractor.ts updated to show categories: `- [id] (style, pattern) content`",
-        "recall.ts: passes `categories: m.categories` instead of `category: m.category` to recall LLM",
-        "Recall prompt (recall.txt): input format shows categories array",
-        "Remember prompt (remember.txt): updated wording to show categories parameter",
+        "Change Swarm.discuss() input.roles type from Array<{ agent: string; perspective: string }> to Array<{ name: string; perspective: string }>",
+        "Update the goal message construction: list roles as '{i}. Role: \"{name}\" — Perspective: {perspective}'",
+        "Include explicit instructions in the goal for Conductor: 'When calling delegate_task for each role, set role_name=\"{name}\" and discussion_channel=\"{channel}\". All Workers use the default sisyphus agent.'",
+        "Change Discussion.start() call from start(id, channel, []) to start(id, channel, [], max_rounds) where max_rounds is input.max_rounds ?? 3",
+        "Update SwarmDiscussTool in src/tool/swarm.ts parameters to match: roles as z.array(z.object({ name: z.string(), perspective: z.string() }))",
         "Typecheck passes"
       ],
       "priority": 4,
-      "passes": false,
-      "notes": "Updates extractor.ts, recall.ts, and the three prompt text files (extract.txt, recall.txt, remember.txt)."
+      "passes": true,
+      "notes": "Removes the agent field from roles. Every Worker is sisyphus; the only difference is the perspective prompt and role_name."
     },
     {
       "id": "US-005",
-      "title": "Tool interface: memory_remember, memory_list, memory_forget support categories",
-      "description": "As a user (or LLM calling tools), I want memory tools to support multi-category with backward compat for old category parameter.",
+      "title": "Monitor round complete message includes structured round info",
+      "description": "As a developer, I need the Monitor's round complete message to include round/max_rounds/is_final so Conductor has deterministic information.",
       "acceptanceCriteria": [
-        "memory_remember (remember.ts): accepts `categories` (array, primary) and `category` (string, deprecated). Normalized internally to categories array via .refine() or .transform()",
-        "memory_list (memory-list.ts): `category` filter param unchanged (single value) — matches any memory where categories.includes(value)",
-        "memory_list display: `[style,pattern]` for multi-category, `[style]` for single",
-        "memory_forget (forget.ts) display: shows categories as `style,pattern` or `categories.join(',')`",
+        "In src/session/swarm.ts monitor(), when roundState.complete is true, include roundState.max_rounds in the formatted message",
+        "Format: '[Discussion Round {round} Complete — round {round}/{max_rounds}{, FINAL if round >= max_rounds}]'",
+        "After the opinions list, append actionable guidance: if not final → 'Next action: call board_write advance_round, then prompt each role for round {round+1}.', if final → 'All rounds exhausted. Make final decision and post decision artifact.'",
+        "For consensus signals in the final round, also include tally results in the message",
         "Typecheck passes"
       ],
       "priority": 5,
-      "passes": false,
-      "notes": "Three small tool files: remember.ts (~70 lines), memory-list.ts (~49 lines), forget.ts (~86 lines)."
+      "passes": true,
+      "notes": "This removes the need for Conductor to remember which round it's on. The Monitor tells it explicitly."
     },
     {
       "id": "US-006",
-      "title": "REST API backward compat: accept both category and categories",
-      "description": "As an external SDK consumer, I need the API to continue working during the transition so my integration doesn't break on upgrade.",
+      "title": "board_write advance_round and board_read discussion operations",
+      "description": "As a developer, I need Conductor to advance rounds and read discussion state through board tools.",
       "acceptanceCriteria": [
-        "REST API GET / (list): accepts query param `category` (string, deprecated) and `categories` (string, comma-separated). Both filter by categories.includes(value)",
-        "REST API PUT /:id (update): accepts body field `category` (string, deprecated) and `categories` (array). If both present, categories wins",
-        "REST API response body: includes both `category: categories[0]` (deprecated) and `categories: [...]`",
-        "REST API GET /stats: categoryBreakdown counts each memory once per category it belongs to (a memory in ['style','pattern'] increments both counters)",
+        "In src/tool/board.ts, import Discussion from '../board/discussion'",
+        "Update BoardWriteTool operation enum to: z.enum(['create_task', 'update_task', 'post_artifact', 'signal', 'advance_round'])",
+        "Add advance_round handler: extract channel from params.data.channel, call Discussion.advance(swarm_id, channel), return Round as JSON with title 'Advanced to round {N}'",
+        "Update BoardReadTool operation enum to: z.enum(['tasks', 'artifacts', 'signals', 'snapshot', 'discussion'])",
+        "Add discussion handler: extract channel from params.filter.channel, call BoardSignal.thread(swarm_id, channel) and Discussion.status(swarm_id, channel) in parallel, return { round, thread } as JSON",
         "Typecheck passes"
       ],
       "priority": 6,
-      "passes": false,
-      "notes": "Changes to memory/web/api.ts (~202 lines). Keep deprecated `category` field in responses for one version cycle."
+      "passes": true,
+      "notes": "Two operations in one story because they share the Discussion import and are both small additions to existing tool handlers."
     },
     {
       "id": "US-007",
-      "title": "Web UI: multi-category badges and filter",
-      "description": "As a user of the Memory Manager web UI, I want to see and filter by multiple categories.",
+      "title": "Rewrite conductor-discussion.txt with session reuse protocol",
+      "description": "As a developer, I need the Conductor discussion prompt to teach the precise multi-round protocol using session_id reuse, run_in_background, role_name, and Monitor-driven advancement.",
       "acceptanceCriteria": [
-        "CategoryBadge component renders multiple badges for multi-category memories",
-        "Category filter dropdown unchanged (single select) — matches any category in the array",
-        "Edit modal allows adding/removing categories (multi-select)",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
+        "Rewrite src/agent/prompt/conductor-discussion.txt",
+        "Round 1 section: (1) create discuss task with channel, (2) for each role call delegate_task with role_name=<name>, discussion_channel=<channel>, run_in_background=true, prompt includes: 'Your role name is <name>. Your perspective: <perspective>. Read channel <channel> via board_read. Then post a proposal signal via board_write. The signal from field MUST be <name>, payload must contain { round: 1, summary: your proposal }.', (3) record each returned session_id, (4) STOP AND WAIT for system message '[Discussion Round 1 Complete]'",
+        "Round 2+ section: (1) on receiving Round Complete message, call board_write advance_round with channel, (2) for each role call delegate_task with session_id=<saved>, run_in_background=true, prompt references specific points from round summary, instructs to post opinion/objection signal with correct from and round, (3) WAIT for Round Complete",
+        "Final round section: (1) on receiving 'FINAL ROUND NEXT', advance round, (2) prompt each role to post consensus signal with { position: agree/disagree/modify, summary: reasoning }, (3) wait for Complete + tally, (4) unanimous → decision artifact + complete, (5) not unanimous → Conductor decides, documenting dissent",
+        "Prompt under 1200 tokens",
+        "Typecheck passes"
       ],
       "priority": 7,
-      "passes": false,
-      "notes": "Changes to memory/web/app.html (~304 lines). The UI is Alpine.js-based single-file HTML."
+      "passes": true,
+      "notes": "The key behavioral guarantees: (a) Workers always use role_name in from field, (b) Conductor WAITS for Monitor, never advances on its own, (c) session_id reuse for continuity."
     },
     {
       "id": "US-008",
-      "title": "Regenerate JS SDK after schema change",
-      "description": "As a developer, I need the SDK types regenerated so external consumers get updated TypeScript definitions.",
+      "title": "User entry points: REST route and TUI command for discuss",
+      "description": "As a developer, I want HTTP and TUI entry points for launching discussions.",
       "acceptanceCriteria": [
-        "Run ./packages/sdk/js/script/build.ts successfully",
-        "Generated types in sdk/js include both `category` (deprecated) and `categories` fields in memory-related types",
+        "Add POST /swarm/discuss route to src/server/routes/swarm.ts BEFORE the GET /:id route",
+        "Body schema: { topic: z.string(), roles: z.array(z.object({ name: z.string(), perspective: z.string() })), max_rounds: z.number().optional(), config: SwarmConfig.optional() }",
+        "Handler calls Swarm.discuss(body) and returns Swarm.Info",
+        "Use describeRoute with operationId 'swarm.discuss'",
+        "Update src/command/template/swarm.txt: add 'discuss' subcommand that uses swarm_discuss tool with topic text, defaults to roles [{ name: 'PM', perspective: 'Focus on user value, scope control, and product-market fit' }, { name: 'RD', perspective: 'Focus on implementation feasibility, performance, and technical debt' }, { name: 'QA', perspective: 'Focus on edge cases, error handling, testing strategy, and security' }]",
         "Typecheck passes"
       ],
       "priority": 8,
-      "passes": false,
-      "notes": "Run the SDK build script and verify the generated types include the new categories field."
+      "passes": true,
+      "notes": "POST /swarm/discuss must be before /:id to avoid Hono treating 'discuss' as an id parameter."
     },
     {
       "id": "US-009",
-      "title": "Test suite update for categories array",
-      "description": "As a developer, I need all existing tests to pass after the category → categories migration.",
+      "title": "GET /swarm/:id/discussion REST endpoint",
+      "description": "As a developer, I want a REST endpoint that returns a structured, human-readable discussion summary so the Web UI and intervene workflows have context.",
       "acceptanceCriteria": [
-        "test/memory/web-api.test.ts: all `category: '...'` in test data changed to `categories: ['...']`; filter and stats assertions updated",
-        "test/memory/tools.test.ts: all `category:` changed to `categories:`, all `m.category` assertions changed to `m.categories`",
-        "test/session/agent-request.test.ts: `Category.options.toContain(item.category)` updated to validate against categories array",
-        "test/session/hooks/ralph-loop.test.ts: test helper `category:` changed to `categories:`",
-        "Any other test files that reference `category` on memory objects updated to use `categories`",
-        "All tests pass: `bun test` in packages/opencode",
+        "Add GET /swarm/:id/discussion route to src/server/routes/swarm.ts",
+        "Find the discuss task for this swarm: BoardTask.list(id).then(tasks => tasks.find(t => t.type === 'discuss')). If none found, return { topic: null }",
+        "Extract channel from the discuss task metadata (task.metadata.channel or task.scope[0] — use whatever Conductor stores when creating the discuss task)",
+        "Call Discussion.status(id, channel) for round info and BoardSignal.thread(id, channel) for the thread",
+        "Build response: { topic: task.subject, channel, round: { current: round.round, max: round.max_rounds, complete: round.complete }, participants: round.expected.map(name => ({ name, spoken: round.received.includes(name) })), thread: signals.map(s => ({ round: s.payload.round, from: s.from, type: s.type, summary: s.payload.summary })), decision: find last artifact of type 'decision' for this swarm and return its content, or null }",
         "Typecheck passes"
       ],
       "priority": 9,
-      "passes": false,
-      "notes": "Mechanical changes across multiple test files. Search for `.category` and `category:` in test files to find all occurrences."
+      "passes": true,
+      "notes": "This endpoint powers the Discussion Thread UI component and gives users context when they want to intervene."
     },
     {
       "id": "US-010",
-      "title": "Config schema: consolidation section in config.memory",
-      "description": "As a user, I want to configure consolidation behavior through the standard config file.",
+      "title": "Web Dashboard — Discussion Thread panel",
+      "description": "As a user, I want a dedicated discussion thread view on the Swarm Dashboard when the Swarm is in discussion mode.",
       "acceptanceCriteria": [
-        "Add `consolidation` section to config.memory schema in config.ts with fields: enabled (bool, default true), interval (number ms, default 14400000 = 4h), similarity (number, default 0.8), prune_threshold (number, default 0.1), prune_age (number days, default 60), reset_day (1-28, default 1), days_before_reset (number, default 3), min_spare_credits (number USD, default 0.50)",
-        "All fields optional with sensible defaults",
-        "Existing config.memory.autoOptimize: false also disables consolidation (document this in notes)",
+        "Create packages/app/src/pages/swarm/discussion-thread.tsx component",
+        "Fetch discussion data from GET /swarm/:id/discussion on mount, refetch on SSE events",
+        "Display header: topic text, round progress 'Round {current}/{max}', participant status chips (name + ✓ if spoken, ⏳ if not)",
+        "Display thread grouped by round: each round has a heading 'Round {N}: {Proposals|Responses|Consensus}', under which each signal shows as a card with role name badge (colored by type: proposal=blue, opinion=gray, objection=orange, consensus=green), signal type label, and full summary text",
+        "For participants who have not spoken in the current round, show a placeholder card with ⏳ and role name",
+        "At the bottom, if decision is not null, show a highlighted decision card with ✅ icon, decision text, and tally (agree/disagree/modify counts)",
         "Typecheck passes"
       ],
       "priority": 10,
-      "passes": false,
-      "notes": "Phase 2: Memory Consolidation. Starting here, stories build on the categories array foundation. Changes to config.ts only."
+      "passes": true,
+      "notes": "Replaces the generic ActivityFeed + TaskGraph layout when the Swarm has a discuss task. The ActivityFeed still shows non-discussion events below."
     },
     {
       "id": "US-011",
-      "title": "MemoryEvent.Consolidated and ConsolidationEligible event definitions",
-      "description": "As a developer, I want events to summarize consolidation actions so downstream systems can display consolidation activity.",
+      "title": "Swarm Dashboard integrates Discussion Thread panel",
+      "description": "As a user, I want the Swarm Dashboard to show the Discussion Thread panel when the Swarm contains a discuss task.",
       "acceptanceCriteria": [
-        "Define MemoryEvent.Consolidated in event.ts with schema: { deduped: number, expired: number, pruned: number, total_removed: number }",
-        "Define MemoryEvent.ConsolidationEligible in event.ts with schema: { credits: number, provider: string }",
-        "Events follow existing event definition patterns in event.ts",
+        "In packages/app/src/pages/swarm/swarm-dashboard.tsx, detect discussion mode: check if swarm data has any task with type 'discuss' (fetch tasks from /swarm/:id or include in swarm response)",
+        "When discussion mode is detected: replace the main content grid (TaskGraph + AttentionQueue + ActivityFeed) with the DiscussionThread component as the primary panel",
+        "Keep the Worker cards row above the Discussion Thread (Workers still show their status)",
+        "Keep Pause/Resume/Stop controls and message input (intervene) in the header — intervene lets users influence the Conductor during discussion",
+        "When NOT in discussion mode: keep existing layout unchanged (TaskGraph + ActivityFeed)",
         "Typecheck passes"
       ],
       "priority": 11,
-      "passes": false,
-      "notes": "Small addition to memory/event.ts (~81 lines). Just type/event definitions, no logic."
+      "passes": true,
+      "notes": "Conditional rendering based on task type. The Discussion Thread component handles its own data fetching and SSE updates."
     },
     {
       "id": "US-012",
-      "title": "Heuristic deduplication logic",
-      "description": "As a user, I want duplicate memories to be automatically merged so my memory pool stays clean without manual effort.",
+      "title": "ActivityFeed discussion signal formatting",
+      "description": "As a user, I want the ActivityFeed to format discussion signals with role labels and colors when they appear alongside other events.",
       "acceptanceCriteria": [
-        "Implement consolidate() function in a new file (e.g. memory/engine/consolidate.ts or extend existing optimizer code) that scans all personal memories for near-duplicate pairs using Jaccard similarity >= config.memory.consolidation.similarity (default 0.8)",
-        "For each duplicate group: keep the entry with higher score, merge useCount, hitCount, tags (union, deduplicated), and categories (union, deduplicated) from removed entries into the kept entry, then batch delete the duplicates",
-        "Dedup runs across category boundaries — comparison is content-only, ignores categories",
-        "Log each merge: { kept: id, removed: [ids], reason: 'dedup', similarity: number }",
-        "Consolidation is idempotent — running twice in a row produces no changes on the second run",
+        "In packages/app/src/pages/swarm/activity-feed.tsx, in the onmessage handler, detect discussion signal types: proposal, opinion, objection, consensus",
+        "For discussion signals, format as: 'R{round}: [{from}] {type}: {summary}'",
+        "Color code: proposal → text-blue-400, opinion → text-gray-300, objection → text-orange-400, consensus → text-green-400",
+        "For consensus signals, append position: '(agree)', '(disagree)', or '(modify)'",
+        "Non-discussion signals keep existing formatting unchanged",
         "Typecheck passes"
       ],
       "priority": 12,
-      "passes": false,
-      "notes": "Core dedup algorithm. Sort by score descending, compare pairs with Jaccard, keep highest score, merge metadata. O(n²) is fine for memory pool sizes (typically < 200)."
-    },
-    {
-      "id": "US-013",
-      "title": "Expired memory cleanup and low-score pruning",
-      "description": "As a user, I want expired and low-value memories to be automatically removed so the pool doesn't fill with dead entries.",
-      "acceptanceCriteria": [
-        "During consolidation, delete all memories where expiresAt is set and expiresAt < Date.now(). Log each: { id, reason: 'expired', expiresAt }",
-        "After dedup, delete memories matching ALL of: score < prune_threshold (default 0.1), useCount === 0, hitCount === 0, age > prune_age days (default 60)",
-        "Do NOT prune memories with inject: true (manually pinned)",
-        "Do NOT prune memories with scope: 'team'",
-        "Do NOT prune memories whose categories includes 'correction' (correction memories are exempt regardless of score)",
-        "Do NOT prune memories with status: 'confirmed' and hitCount > 0",
-        "Log each removal: { id, reason: 'low-score', score, age }",
-        "All removal operations use Memory.batchRemove() or equivalent for atomic persistence",
-        "Typecheck passes"
-      ],
-      "priority": 13,
-      "passes": false,
-      "notes": "Adds expire and prune steps to the consolidate() function from US-012. Each step has independent try/catch so failures don't block other steps."
-    },
-    {
-      "id": "US-014",
-      "title": "Unified consolidation trigger via Scheduler",
-      "description": "As a user, I want consolidation to run periodically via the Scheduler, rate-limited to at most once per configured interval.",
-      "acceptanceCriteria": [
-        "Register a Scheduler task 'memory-consolidation' with scope 'instance' and interval from config.memory.consolidation.interval (default 4h)",
-        "The Scheduler task is the sole executor of consolidation logic (dedup + expire + prune). It calls the consolidate() function from US-012/US-013",
-        "Rate-limited via single shared meta key Memory.getMeta('lastConsolidateAt') — skip if last run was within consolidation.interval",
-        "The existing optimizer-hook.ts (session.created) no longer runs consolidation directly. It only ensures the Scheduler task is registered (idempotent). Optimizer hook continues to run decay, confirmation, and team-candidate detection independently",
-        "Consolidation failures in one step (e.g. dedup) do not block subsequent steps (e.g. expire, prune) — each step has independent try/catch",
-        "Publish MemoryEvent.Consolidated with counts at end of run if total_removed > 0",
-        "Typecheck passes"
-      ],
-      "priority": 14,
-      "passes": false,
-      "notes": "Wire the consolidate() function into the Scheduler. Refactor optimizer-hook to not run consolidation directly."
-    },
-    {
-      "id": "US-015",
-      "title": "Provider.balance() for OpenRouter credit query",
-      "description": "As a developer, I need a generic interface to query the user's remaining credit balance from their LLM provider.",
-      "acceptanceCriteria": [
-        "Add Provider.balance(providerID: string): Promise<{ credits: number, unit: string } | undefined> that returns remaining credits or undefined if provider doesn't support balance queries",
-        "Implement for OpenRouter: GET https://openrouter.ai/api/v1/auth/key with user's API key, parse data.usage and data.limit, return { credits: limit - usage, unit: 'usd' }. If limit is null (unlimited), return undefined",
-        "Return undefined for all other providers (Anthropic, OpenAI, Bedrock, etc.)",
-        "Cache result for 10 minutes using simple in-memory cache with TTL keyed by providerID",
-        "Balance query failures (network error, auth error) are logged and treated as undefined — never block consolidation",
-        "Typecheck passes"
-      ],
-      "priority": 15,
-      "passes": false,
-      "notes": "Independent of consolidation logic. Adds to provider.ts (~1381 lines). Only OpenRouter has a public balance API."
-    },
-    {
-      "id": "US-016",
-      "title": "Balance-aware consolidation trigger (log only)",
-      "description": "As a user with a subscription that resets monthly, I want the system to detect spare credits near billing reset and log the opportunity for future LLM-based consolidation.",
-      "acceptanceCriteria": [
-        "In the Scheduler task from US-014, after heuristic consolidation, check provider balance via Provider.balance()",
-        "If balance is available AND credits > config.memory.consolidation.min_spare_credits (default 0.50 USD) AND today is within config.memory.consolidation.days_before_reset days of the configured reset_day: log 'spare credits detected, consolidation eligible'",
-        "Publish MemoryEvent.ConsolidationEligible event with { credits, provider }",
-        "Phase 1 only: no actual LLM consolidation is triggered — this is observability prep for future phase",
-        "Typecheck passes"
-      ],
-      "priority": 16,
-      "passes": false,
-      "notes": "Final story. Adds balance check at the end of the consolidation scheduler task. Prepares the hook point for future LLM-based consolidation but does not invoke it."
+      "passes": true,
+      "notes": "Even with the Discussion Thread panel, ActivityFeed may still show discussion signals in non-discussion layouts or when scrolling past."
     }
   ]
 }
