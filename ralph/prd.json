@@ -14,7 +14,7 @@
         "Typecheck passes"
       ],
       "priority": 1,
-      "passes": false,
+      "passes": true,
       "notes": "Small config-only change. No runtime logic yet — just schema definition. Later stories read these values."
     },
     {
@@ -29,7 +29,7 @@
         "Typecheck passes"
       ],
       "priority": 2,
-      "passes": false,
+      "passes": true,
       "notes": "time.archived field already exists in the schema. This story only adds the archive() function and event."
     },
     {
@@ -42,7 +42,7 @@
         "Typecheck passes"
       ],
       "priority": 3,
-      "passes": false,
+      "passes": true,
       "notes": "Depends on US-002 (archive function). Simple guard clause addition."
     },
     {
@@ -59,7 +59,7 @@
         "Typecheck passes"
       ],
       "priority": 4,
-      "passes": false,
+      "passes": true,
       "notes": "Signal watch routes by swarm_id not session_id, so monitor continues working without changes."
     },
     {
@@ -77,7 +77,7 @@
         "Typecheck passes"
       ],
       "priority": 5,
-      "passes": false,
+      "passes": true,
       "notes": "This is the zero-LLM-cost part. The LLM extraction for decisions/state is added in the next story."
     },
     {
@@ -93,7 +93,7 @@
         "Typecheck passes"
       ],
       "priority": 6,
-      "passes": false,
+      "passes": true,
       "notes": "Depends on US-005. Adds the LLM layer on top of template generation. Failure is non-fatal."
     },
     {
@@ -107,7 +107,7 @@
         "Typecheck passes"
       ],
       "priority": 7,
-      "passes": false,
+      "passes": true,
       "notes": "Depends on US-005. Conductor-specific data is only relevant when the session being rotated is the Conductor."
     },
     {
@@ -122,7 +122,7 @@
         "Typecheck passes"
       ],
       "priority": 8,
-      "passes": false,
+      "passes": true,
       "notes": "Does not inject the prompt — that is done by the rotate() function in a later story."
     },
     {
@@ -137,7 +137,7 @@
         "Typecheck passes"
       ],
       "priority": 9,
-      "passes": false,
+      "passes": true,
       "notes": "Depends on US-002 (archive), US-004 (replace), US-005 (checkpoint), US-008 (bootstrap). This is the orchestrator."
     },
     {
@@ -155,7 +155,7 @@
         "Typecheck passes"
       ],
       "priority": 10,
-      "passes": false,
+      "passes": true,
       "notes": "This is the decision function. Calling it has no side effects. Board snapshot read is cached (5s TTL)."
     },
     {
@@ -170,7 +170,7 @@
         "Typecheck passes"
       ],
       "priority": 11,
-      "passes": false,
+      "passes": true,
       "notes": "Depends on US-009 (rotate) and US-010 (shouldRotate). This is the main integration point."
     },
     {
@@ -185,7 +185,7 @@
         "Typecheck passes"
       ],
       "priority": 12,
-      "passes": false,
+      "passes": true,
       "notes": "Depends on US-009 (rotate). The needsRotation flag ensures the current step completes before rotation runs."
     },
     {
@@ -199,7 +199,7 @@
         "Typecheck passes"
       ],
       "priority": 13,
-      "passes": false,
+      "passes": true,
       "notes": "Events are published by rotate() in US-009. This story defines the event schemas and ensures logging is in place."
     }
   ]

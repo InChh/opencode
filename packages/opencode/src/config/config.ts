@@ -1314,6 +1314,33 @@ export namespace Config {
         })
         .optional()
         .describe("Swarm multi-agent collaboration configuration"),
+      rotation: z
+        .object({
+          enabled: z
+            .boolean()
+            .optional()
+            .default(true)
+            .describe("Enable session rotation for Swarm sessions (default: true)"),
+          checkpoint_llm: z
+            .boolean()
+            .optional()
+            .default(true)
+            .describe("Use LLM to extract decisions/state in checkpoint (default: true)"),
+          max_bootstrap_tokens: z
+            .number()
+            .int()
+            .positive()
+            .optional()
+            .default(6000)
+            .describe("Maximum tokens for bootstrap prompt (default: 6000)"),
+          conductor_defer: z
+            .boolean()
+            .optional()
+            .default(true)
+            .describe("Defer Conductor rotation when workers are still running (default: true)"),
+        })
+        .optional()
+        .describe("Session rotation configuration for Swarm sessions"),
       sandbox: z
         .object({
           enabled: z.boolean().optional().default(false).describe("Enable OS-level sandbox for bash and MCP commands"),

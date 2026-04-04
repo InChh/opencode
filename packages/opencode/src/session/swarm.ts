@@ -98,6 +98,32 @@ export namespace Swarm {
     return loadAll()
   }
 
+  export async function replaceWorkerSession(swarmID: string, old: string, next: string): Promise<void> {
+    const info = await load(swarmID)
+    if (!info) throw new Error(`Swarm not found: ${swarmID}`)
+
+    // Copy metadata from old session to new session
+    const meta = SessionMetadata.get(old)
+    if (meta) {
+      for (const key of ["swarm_id", "task_id", "discussion_channel"] as const) {
+        if (meta[key] !== undefined) SessionMetadata.set(next, key, meta[key])
+      }
+    }
+
+    // Replace conductor or worker reference
+    if (info.conductor === old) {
+      info.conductor = next
+    } else {
+      const worker = info.workers.find((w) => w.session_id === old)
+      if (worker) worker.session_id = next
+    }
+
+    info.time.updated = Date.now()
+    await save(info)
+    Bus.publish(Event.Updated, { swarm: info })
+    log.info("replaced session", { swarmID, old, next })
+  }
+
   export async function launch(input: { goal: string; config?: Partial<Info["config"]> }): Promise<Info> {
     const id = `SW-${crypto.randomUUID()}`
     await SharedBoard.init(id)

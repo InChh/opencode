@@ -2,6 +2,7 @@ import { Tool } from "./tool"
 import z from "zod"
 import { SharedBoard, BoardTask, BoardArtifact, BoardSignal } from "../board"
 import { Discussion } from "../board/discussion"
+import { SessionMetadata } from "../session/session-metadata"
 
 type BoardMeta = Record<string, unknown>
 
@@ -83,7 +84,7 @@ export const BoardWriteTool = Tool.define("board_write", {
     swarm_id: z.string().describe("The Swarm ID"),
     data: z.record(z.string(), z.unknown()).describe("Data for the operation"),
   }),
-  async execute(params): Promise<{ title: string; metadata: BoardMeta; output: string }> {
+  async execute(params, ctx): Promise<{ title: string; metadata: BoardMeta; output: string }> {
     if (params.operation === "create_task") {
       const task = await BoardTask.create({
         subject: (params.data.subject as string) ?? "",
@@ -103,6 +104,16 @@ export const BoardWriteTool = Tool.define("board_write", {
       const changes: Record<string, unknown> = { ...params.data }
       delete changes.id
       const task = await BoardTask.update(params.swarm_id, id, changes as any)
+
+      // Boundary trigger: flag rotation when task reaches terminal status
+      const terminal = ["completed", "failed", "cancelled"]
+      if (terminal.includes(task.status) && ctx) {
+        const meta = SessionMetadata.get(ctx.sessionID)
+        if (meta?.swarm_id && meta?.task_id === task.id) {
+          SessionMetadata.set(ctx.sessionID, "needs_rotation", true)
+        }
+      }
+
       return { title: `Updated task ${task.id}`, metadata: { taskId: task.id }, output: JSON.stringify(task, null, 2) }
     }
     if (params.operation === "post_artifact") {

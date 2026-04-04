@@ -10,6 +10,9 @@ import { BoardTask } from "../../board/task"
 import { BoardSignal } from "../../board/signal"
 import { Discussion } from "../../board/discussion"
 
+const STRATEGY_FILE = "conductor-strategy.md"
+const SWARM_DIR = "swarm"
+
 export namespace SwarmHooks {
   const log = Log.create({ service: "hooks.swarm" })
 
@@ -17,16 +20,59 @@ export namespace SwarmHooks {
   const cache = new Map<string, string | null>()
   const discussionCache = new Map<string, string | null>()
 
-  function boardDir(): string {
-    return path.join(Global.Path.data, "projects", Instance.project.id, "board")
-  }
-
   function templatePath(): string {
     return path.join(import.meta.dir, "../../board/strategy-template.md")
   }
 
+  // Search order: project .opencode/swarm/ → global ~/.config/opencode/swarm/
+  function strategyCandidates(): string[] {
+    return [
+      path.join(Instance.worktree, ".opencode", SWARM_DIR, STRATEGY_FILE),
+      path.join(Global.Path.config, SWARM_DIR, STRATEGY_FILE),
+    ]
+  }
+
+  async function readStrategy(): Promise<string | null> {
+    for (const fp of strategyCandidates()) {
+      const content = await fs.readFile(fp, "utf-8").catch(() => null)
+      if (content) return content
+    }
+    return null
+  }
+
+  // Scaffold strategy file into global config dir on first use
+  async function scaffold(): Promise<string | null> {
+    const template = await Bun.file(templatePath())
+      .text()
+      .catch(() => "")
+    if (!template) return null
+    const dir = path.join(Global.Path.config, SWARM_DIR)
+    const fp = path.join(dir, STRATEGY_FILE)
+    await fs.mkdir(dir, { recursive: true })
+    await Bun.write(fp, template)
+    log.info("scaffolded conductor strategy", { path: fp })
+    log.info(
+      [
+        "🐝 Swarm mode enabled — conductor strategy scaffolded",
+        "",
+        "  Customizable files:",
+        `    Global:  ${fp}`,
+        `    Project: ${path.join(Instance.worktree, ".opencode", SWARM_DIR, STRATEGY_FILE)}`,
+        "",
+        "  Quick start:",
+        "    /swarm launch <goal>     — start a multi-agent swarm",
+        "    /swarm status             — check running swarms",
+        "    /swarm stop <id>          — stop a swarm",
+        "    /swarm discuss <topic>    — start a multi-role discussion",
+        "",
+        "  Edit the strategy file to customize how the Conductor plans, assigns, and monitors tasks.",
+      ].join("\n"),
+    )
+    return template
+  }
+
   // --- conductor-strategy-injector (PreLLMChain, priority 150) ---
-  // Loads conductor-strategy.md from board dir, copies template if missing, appends to system prompt
+  // Loads conductor-strategy.md from config dirs (project → global), scaffolds on first use
 
   function registerStrategyInjector(): void {
     HookChain.register("conductor-strategy-injector", "pre-llm", 150, async (ctx) => {
@@ -38,18 +84,8 @@ export namespace SwarmHooks {
         return
       }
 
-      const fp = path.join(boardDir(), "conductor-strategy.md")
-      let content = await fs.readFile(fp, "utf-8").catch(() => null)
-      if (!content) {
-        const template = await Bun.file(templatePath())
-          .text()
-          .catch(() => "")
-        if (template) {
-          await fs.mkdir(boardDir(), { recursive: true })
-          await Bun.write(fp, template)
-          content = template
-        }
-      }
+      let content = await readStrategy()
+      if (!content) content = await scaffold()
       if (!content) {
         cache.set(ctx.sessionID, null)
         return
@@ -182,10 +218,22 @@ export namespace SwarmHooks {
     })
   }
 
+  // --- swarm-onboarding (eager, runs once at registration) ---
+  // Pre-scaffolds strategy file when OPENCODE_SWARM is enabled so users
+  // discover the customizable config before their first /swarm launch.
+
+  async function onboard(): Promise<void> {
+    if (!Flag.OPENCODE_SWARM) return
+    const existing = await readStrategy()
+    if (existing) return
+    await scaffold()
+  }
+
   export function register(): void {
     registerStrategyInjector()
     registerScopeLockChecker()
     registerCheckpointPublisher()
     registerThreadInjector()
+    onboard().catch((e) => log.warn("swarm onboarding failed", { error: e }))
   }
 }

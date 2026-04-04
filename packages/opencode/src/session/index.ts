@@ -200,6 +200,12 @@ export namespace Session {
         info: Info,
       }),
     ),
+    Archived: BusEvent.define(
+      "session.archived",
+      z.object({
+        info: Info,
+      }),
+    ),
     Diff: BusEvent.define(
       "session.diff",
       z.object({
@@ -212,6 +218,24 @@ export namespace Session {
       z.object({
         sessionID: z.string().optional(),
         error: MessageV2.Assistant.shape.error,
+      }),
+    ),
+    RotationStarted: BusEvent.define(
+      "session.rotation.started",
+      z.object({
+        sessionID: z.string(),
+        swarmID: z.string(),
+        trigger: z.enum(["overflow", "boundary", "manual"]),
+        seq: z.number(),
+      }),
+    ),
+    RotationCompleted: BusEvent.define(
+      "session.rotation.completed",
+      z.object({
+        oldSessionID: z.string(),
+        newSessionID: z.string(),
+        checkpointID: z.string().optional(),
+        tokens: z.number(),
       }),
     ),
   }
@@ -429,6 +453,13 @@ export namespace Session {
       })
     },
   )
+
+  export const archive = fn(Identifier.schema("session"), async (sessionID) => {
+    const info = await setArchived({ sessionID, time: Date.now() })
+    Bus.publish(Event.Archived, { info })
+    log.info("archived", { sessionID })
+    return info
+  })
 
   export const setPermission = fn(
     z.object({

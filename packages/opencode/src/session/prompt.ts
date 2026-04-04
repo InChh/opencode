@@ -181,6 +181,10 @@ export namespace SessionPrompt {
 
   export const prompt = fn(PromptInput, async (input) => {
     const session = await Session.get(input.sessionID)
+    if (session.time.archived) {
+      log.warn("skipping prompt for archived session", { sessionID: input.sessionID })
+      return undefined as any
+    }
     await SessionRevert.cleanup(session)
 
     const message = await createUserMessage(input)
@@ -568,12 +572,26 @@ export namespace SessionPrompt {
         continue
       }
 
-      // context overflow, needs compaction
+      // context overflow, needs compaction or rotation
       if (
         lastFinished &&
         lastFinished.summary !== true &&
         (await SessionCompaction.isOverflow({ tokens: lastFinished.tokens, model }))
       ) {
+        // Check if session should rotate instead of compacting again
+        const { SessionRotation } = await import("./rotation")
+        if (await SessionRotation.shouldRotate({ sessionID })) {
+          const meta = SessionMetadata.get(sessionID)
+          if (meta?.swarm_id) {
+            const rotated = await SessionRotation.rotate({
+              sessionID,
+              swarmID: meta.swarm_id as string,
+              trigger: "overflow",
+            })
+            if (rotated) break
+            // Rotation failed — fall through to compaction
+          }
+        }
         await SessionCompaction.create({
           sessionID,
           agent: lastUser.agent,
@@ -778,6 +796,19 @@ export namespace SessionPrompt {
       }
 
       if (result === "stop") break
+      if (result === "rotate") {
+        const { SessionRotation } = await import("./rotation")
+        const meta = SessionMetadata.get(sessionID)
+        if (meta?.swarm_id) {
+          const rotated = await SessionRotation.rotate({
+            sessionID,
+            swarmID: meta.swarm_id as string,
+            trigger: "boundary",
+          })
+          if (rotated) break
+          log.warn("boundary rotation failed, continuing", { sessionID })
+        }
+      }
       if (result === "compact") {
         await SessionCompaction.create({
           sessionID,

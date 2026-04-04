@@ -1,5 +1,6 @@
 import { createMemo, createSignal, For } from "solid-js"
 import { DEFAULT_THEMES, useTheme } from "@tui/context/theme"
+import { Flag } from "@/flag/flag"
 
 const themeCount = Object.keys(DEFAULT_THEMES).length
 const themeTip = `Use {highlight}/themes{/highlight} or {highlight}Ctrl+X T{/highlight} to switch between ${themeCount} built-in themes`
@@ -30,9 +31,18 @@ function parse(tip: string): TipPart[] {
   return parts
 }
 
+const SWARM_TIPS = [
+  "Run {highlight}/swarm launch <goal>{/highlight} to start a multi-agent Swarm for complex tasks",
+  "Run {highlight}/swarm status{/highlight} to check progress of running Swarms",
+  "Run {highlight}/swarm discuss <topic>{/highlight} to start a multi-role discussion with PM, RD, QA",
+  "Customize Conductor strategy in {highlight}~/.config/opencode/swarm/conductor-strategy.md{/highlight}",
+  "Override global Swarm strategy per-project in {highlight}.opencode/swarm/conductor-strategy.md{/highlight}",
+]
+
 export function Tips() {
   const theme = useTheme().theme
-  const parts = parse(TIPS[Math.floor(Math.random() * TIPS.length)])
+  const pool = Flag.OPENCODE_SWARM ? [...TIPS, ...SWARM_TIPS] : TIPS
+  const parts = parse(pool[Math.floor(Math.random() * pool.length)])
 
   return (
     <box flexDirection="row" maxWidth="100%">

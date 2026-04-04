@@ -35,6 +35,7 @@ export namespace SessionProcessor {
     let blocked = false
     let attempt = 0
     let needsCompaction = false
+    let needsRotation = false
 
     const result = {
       get message() {
@@ -288,6 +289,13 @@ export namespace SessionProcessor {
                   ) {
                     needsCompaction = true
                   }
+                  // Check boundary rotation flag from board_write
+                  const { SessionMetadata } = await import("./session-metadata")
+                  const rotationMeta = SessionMetadata.get(input.sessionID)
+                  if (rotationMeta?.needs_rotation) {
+                    needsRotation = true
+                    SessionMetadata.set(input.sessionID, "needs_rotation", false)
+                  }
                   HookChain.execute("session-lifecycle", {
                     sessionID: input.sessionID,
                     event: "step.finished",
@@ -438,6 +446,7 @@ export namespace SessionProcessor {
           }
           input.assistantMessage.time.completed = Date.now()
           await Session.updateMessage(input.assistantMessage)
+          if (needsRotation) return "rotate" as const
           if (needsCompaction) return "compact"
           if (blocked) return "stop"
           if (input.assistantMessage.error) return "stop"
