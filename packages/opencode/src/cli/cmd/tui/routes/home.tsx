@@ -50,8 +50,13 @@ export function Home() {
   const activeWorkers = createMemo(() => {
     const list = swarms() ?? []
     return list
-      .filter((s: any) => s.status === "running")
-      .reduce((sum: number, s: any) => sum + (s.workers?.filter((w: any) => w.status === "active").length ?? 0), 0)
+      .filter((s: any) => s.status === "active")
+      .reduce(
+        (sum: number, s: any) =>
+          sum +
+          (s.workers?.filter((w: any) => ["queued", "starting", "running", "waiting"].includes(w.status)).length ?? 0),
+        0,
+      )
   })
 
   const isFirstTimeUser = createMemo(() => sync.data.session.length === 0)

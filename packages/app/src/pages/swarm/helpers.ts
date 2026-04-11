@@ -1,6 +1,7 @@
 export function stateTone(value: string) {
-  if (value === "running") return "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
+  if (value === "active") return "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
   if (value === "blocked") return "border-amber-500/30 bg-amber-500/10 text-amber-200"
+  if (value === "paused") return "border-zinc-500/30 bg-zinc-500/10 text-zinc-300"
   if (value === "failed") return "border-red-500/30 bg-red-500/10 text-red-300"
   if (value === "completed") return "border-sky-500/30 bg-sky-500/10 text-sky-200"
   if (value === "deleted") return "border-zinc-500/30 bg-zinc-500/10 text-zinc-300"
@@ -19,7 +20,8 @@ export function taskTone(value: string, blocked: boolean) {
   if (value === "failed") return "text-red-300"
   if (blocked) return "text-amber-200"
   if (value === "completed") return "text-emerald-300"
-  if (value === "in_progress") return "text-sky-200"
+  if (value === "in_progress" || value === "verifying") return "text-sky-200"
+  if (value === "ready") return "text-cyan-200"
   return "text-text-base"
 }
 

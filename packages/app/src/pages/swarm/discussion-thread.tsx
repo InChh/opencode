@@ -53,7 +53,18 @@ export function DiscussionThread(props: { swarmId: string }) {
 
   onMount(() => {
     const source = new EventSource(`/swarm/${props.swarmId}/events`)
-    source.onmessage = () => refetch()
+    let seq = 0
+    source.onmessage = (ev) => {
+      const data = JSON.parse(ev.data)
+      const next = data.type === "snapshot" ? data.payload?.seq : data.payload?.transition?.seq
+      if (typeof next !== "number") {
+        refetch()
+        return
+      }
+      if (next <= seq) return
+      seq = next
+      refetch()
+    }
     onCleanup(() => source.close())
   })
 

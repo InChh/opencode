@@ -41,17 +41,20 @@ export function ActivityFeed(props: { swarmId: string }) {
 
   onMount(() => {
     const source = new EventSource(`/swarm/${props.swarmId}/events`)
+    let seq = 0
     source.onmessage = (ev) => {
       const data = JSON.parse(ev.data)
+      const next = data.type === "snapshot" ? data.payload?.seq : data.payload?.transition?.seq
+      if (typeof next === "number") {
+        if (next <= seq) return
+        seq = next
+      }
       const time = new Date(data.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
       let entry: FeedEntry = { time, text: data.type }
-      if (data.payload?.signal) {
-        const formatted = formatSignal(data.payload.signal)
-        entry = { ...formatted, time }
-      }
-      if (data.payload?.task) {
-        const t = data.payload.task
-        entry = { time, text: `Task ${t.subject} → ${t.status}` }
+      if (data.type === "snapshot") entry = { time, text: `Snapshot synced (seq ${data.payload?.seq ?? "-"})` }
+      if (data.type === "transition" && data.payload?.transition) {
+        const hit = data.payload.transition as { seq: number; actor: string; reason: string }
+        entry = { time, text: `#${hit.seq} ${hit.reason} — ${hit.actor}` }
       }
       setEntries((prev) => [...prev.slice(-49), entry])
       ref?.scrollTo({ top: ref.scrollHeight, behavior: "smooth" })

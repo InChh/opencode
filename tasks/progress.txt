@@ -94,3 +94,12 @@
   - Including the latest snapshot alongside transition metadata makes clients simple: they can de-duplicate by `seq` and refetch when a gap is detected.
   - Legacy board signals can still feed logs and admin views, but they should not drive the authoritative event stream anymore.
 ---
+
+## 2026-04-11 12:53:39 CST - US-011
+- Switched admin/web/TUI read surfaces to lifecycle-first semantics by exposing `active|paused|blocked|completed|failed|stopped` from `packages/opencode/src/session/swarm-admin.ts`, showing `stage` separately, wiring `verify_status` into the admin/web UIs, and updating sidebar/TUI/app status handling for v2 workers and SSE `snapshot`/`transition` messages.
+- Verified the new semantics in the browser with isolated local servers on `http://localhost:4098` and `http://localhost:4447` using Playwright, confirming the admin overview/detail and web swarm pages render `status=active` with `stage=planning` for a fresh v2 swarm.
+- **Learnings for future iterations:**
+  - Product surfaces should treat lifecycle and execution as two separate badges: `status` for state, `stage` for current work.
+  - Browser verification is easiest against an isolated XDG data home so old local swarm files do not interfere with v2-only readers.
+  - `verify_status` should stay hidden for `idle`, and `skipped` must only surface when waiver data exists in the snapshot.
+---

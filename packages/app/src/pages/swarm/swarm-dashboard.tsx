@@ -9,12 +9,14 @@ type Detail = {
     swarm_id: string
     status: string
     current_phase: string
+    verify_status: string | null
     updated_at: number
     needs_attention: boolean
     attention: string[]
   }
   goal: string
   plan_summary: string
+  verify_status: string | null
   risk_summary: string
   plan_empty: boolean
   plan_empty_copy: string
@@ -104,7 +106,18 @@ export default function SwarmDashboard() {
   onMount(() => {
     const timer = window.setInterval(() => refetch(), 5_000)
     const source = new EventSource(`${sdk.url}/swarm/${params.id}/events`)
-    source.onmessage = () => refetch()
+    let seq = 0
+    source.onmessage = (ev) => {
+      const data = JSON.parse(ev.data)
+      const next = data.type === "snapshot" ? data.payload?.seq : data.payload?.transition?.seq
+      if (typeof next !== "number") {
+        refetch()
+        return
+      }
+      if (next <= seq) return
+      seq = next
+      refetch()
+    }
     onCleanup(() => {
       window.clearInterval(timer)
       source.close()
@@ -157,14 +170,14 @@ export default function SwarmDashboard() {
 
   const canStop = createMemo(() => {
     const value = data()?.overview.status
-    return value === "running" || value === "blocked"
+    return value === "active" || value === "blocked" || value === "paused"
   })
 
   const canDelete = createMemo(() => {
     const value = data()?.overview.status
     if (!value) return false
     if (value === "deleted") return false
-    return value !== "running" && value !== "blocked" && value !== "planning" && value !== "paused"
+    return value !== "active" && value !== "blocked" && value !== "paused"
   })
 
   return (
@@ -184,6 +197,11 @@ export default function SwarmDashboard() {
                     <span class="rounded-full border border-border-weak-base bg-surface-base px-2.5 py-1 text-11-medium uppercase tracking-[0.18em] text-text-weak">
                       {item().overview.current_phase}
                     </span>
+                    <Show when={item().verify_status}>
+                      <span class="rounded-full border border-border-weak-base bg-surface-base px-2.5 py-1 text-11-medium uppercase tracking-[0.18em] text-text-weak">
+                        verify {item().verify_status}
+                      </span>
+                    </Show>
                     <span class="text-12-regular text-text-weak">Updated {ago(item().overview.updated_at)}</span>
                   </div>
                   <div>
@@ -311,7 +329,7 @@ export default function SwarmDashboard() {
               <For each={tabs}>
                 {(tab) => (
                   <button
-                    class={`rounded-full border px-3 py-1.5 text-12-medium capitalize ${state.tab === tab ? stateTone(tab === "conductor" ? item().overview.status : "running") : "border-border-weak-base bg-surface-base text-text-base"}`}
+                    class={`rounded-full border px-3 py-1.5 text-12-medium capitalize ${state.tab === tab ? stateTone(tab === "conductor" ? item().overview.status : "active") : "border-border-weak-base bg-surface-base text-text-base"}`}
                     onClick={() => setState("tab", tab)}
                   >
                     {tab}
@@ -453,17 +471,12 @@ export default function SwarmDashboard() {
                 <div class="mt-4 space-y-3">
                   <For each={item().agents}>
                     {(agent) => (
-                      <div
-                        id={`agent-${agent.id}`}
-                        class={`rounded-xl border p-4 ${stateTone(agent.status === "active" ? "running" : agent.status)}`}
-                      >
+                      <div id={`agent-${agent.id}`} class={`rounded-xl border p-4 ${stateTone(agent.status)}`}>
                         <div class="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
                           <div class="space-y-2">
                             <div class="flex flex-wrap items-center gap-2">
                               <div class="text-14-medium text-text-strong">{agent.label}</div>
-                              <span
-                                class={`rounded-full border px-2 py-0.5 text-11-medium ${stateTone(agent.status === "active" ? "running" : agent.status)}`}
-                              >
+                              <span class={`rounded-full border px-2 py-0.5 text-11-medium ${stateTone(agent.status)}`}>
                                 {agent.status}
                               </span>
                             </div>
@@ -627,7 +640,7 @@ export default function SwarmDashboard() {
                                       >
                                         <div class="flex flex-wrap items-center gap-2">
                                           <span
-                                            class={`rounded-full border px-2 py-0.5 text-11-medium ${entry.source === "decision" ? consensusTone("consensus") : entry.source === "summary" ? consensusTone("partial_consensus") : stateTone("running")}`}
+                                            class={`rounded-full border px-2 py-0.5 text-11-medium ${entry.source === "decision" ? consensusTone("consensus") : entry.source === "summary" ? consensusTone("partial_consensus") : stateTone("active")}`}
                                           >
                                             {entry.source}
                                           </span>

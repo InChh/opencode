@@ -10,6 +10,7 @@ type Row = {
   conductor_label: string
   status: string
   current_phase: string
+  verify_status: string | null
   updated_at: number
   task_counts: {
     pending: number
@@ -29,10 +30,12 @@ type Row = {
 
 const tabs = [
   ["all", "All"],
-  ["running", "Running"],
+  ["active", "Active"],
   ["blocked", "Blocked"],
+  ["paused", "Paused"],
   ["failed", "Failed"],
   ["completed", "Completed"],
+  ["stopped", "Stopped"],
   ["deleted", "Deleted"],
 ] as const
 
@@ -113,6 +116,11 @@ export default function SwarmOverview() {
                   <span class={`rounded-full border px-2 py-0.5 text-11-medium ${stateTone(row.status)}`}>
                     {row.status}
                   </span>
+                  <Show when={row.verify_status}>
+                    <span class="rounded-full border border-border-weak-base bg-surface-base px-2 py-0.5 text-11-medium text-text-weak">
+                      verify {row.verify_status}
+                    </span>
+                  </Show>
                 </div>
 
                 <div class="grid grid-cols-2 gap-3 text-12-regular text-text-base">

@@ -262,16 +262,18 @@ const APP_HTML = `<!DOCTYPE html>
       loadRows()
     }
 
-    const canStop = (status) => status === 'running' || status === 'blocked'
-    const canDelete = (status) => status && status !== 'deleted' && status !== 'running' && status !== 'blocked' && status !== 'planning' && status !== 'paused'
+    const canStop = (status) => status === 'active' || status === 'blocked' || status === 'paused'
+    const canDelete = (status) => status && status !== 'deleted' && status !== 'active' && status !== 'blocked' && status !== 'paused'
 
     const renderFilters = () => {
       const tabs = [
         ['all', 'All'],
-        ['running', 'Running'],
+        ['active', 'Active'],
         ['blocked', 'Blocked'],
+        ['paused', 'Paused'],
         ['failed', 'Failed'],
         ['completed', 'Completed'],
+        ['stopped', 'Stopped'],
         ['deleted', 'Deleted'],
       ]
       return tabs.map(([value, label]) =>
@@ -294,7 +296,7 @@ const APP_HTML = `<!DOCTYPE html>
           ? '<span class="chip warn">⚠ ' + esc(row.attention.join(' · ')) + '</span>'
           : ''
         return '<button class="item' + (state.id === row.swarm_id ? ' active' : '') + '" data-id="' + esc(row.swarm_id) + '">' +
-          '<div class="row"><strong>' + esc(row.swarm_id) + '</strong><span class="chip">' + esc(row.status) + '</span></div>' +
+          '<div class="row"><strong>' + esc(row.swarm_id) + '</strong><span class="chip">' + esc(row.status) + '</span>' + (row.verify_status ? '<span class="chip">verify ' + esc(row.verify_status) + '</span>' : '') + '</div>' +
           '<div class="goal">' + esc(row.goal_summary || row.goal || 'Untitled swarm') + '</div>' +
           '<div class="meta"><span>' + esc(row.current_phase || 'unknown phase') + '</span><span>Updated ' + esc(ago(row.updated_at)) + '</span></div>' +
           '<div class="chips">' +
@@ -401,7 +403,7 @@ const APP_HTML = `<!DOCTYPE html>
         '</div>'
       detail.innerHTML =
         '<div class="panel">' +
-          '<div class="row"><h2 class="title" style="margin:0">' + esc(overview.goal_summary || overview.goal || data.goal || id) + '</h2><span class="chip">' + esc(overview.status || 'unknown') + '</span></div>' +
+          '<div class="row"><h2 class="title" style="margin:0">' + esc(overview.goal_summary || overview.goal || data.goal || id) + '</h2><span class="chip">' + esc(overview.status || 'unknown') + '</span>' + (overview.verify_status ? '<span class="chip">verify ' + esc(overview.verify_status) + '</span>' : '') + '</div>' +
           '<div class="meta"><span>' + esc(id) + '</span><span>' + esc(overview.current_phase || data.current_phase || 'unknown phase') + '</span><span>Updated ' + esc(ago(overview.updated_at)) + '</span></div>' +
           '<div class="chips">' +
             '<span class="chip">Conductor ' + esc(overview.conductor_label || 'unknown') + '</span>' +

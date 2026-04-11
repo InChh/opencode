@@ -5,20 +5,12 @@ import { BoardTask } from "../board/task"
 import { Discussion } from "../board/discussion"
 import { SessionStatus } from "./status"
 import { Swarm } from "./swarm"
+import { SwarmState } from "./swarm-state"
 
 export namespace SwarmAdmin {
   const stale = 15 * 60 * 1000
 
-  export const Status = z.enum([
-    "planning",
-    "running",
-    "blocked",
-    "paused",
-    "completed",
-    "failed",
-    "stopped",
-    "deleted",
-  ])
+  export const Status = z.enum(["active", "blocked", "paused", "completed", "failed", "stopped", "deleted"])
   export type Status = z.infer<typeof Status>
 
   export const Attention = z.enum(["blocked_task", "failed_task", "stale_worker", "no_consensus"])
@@ -47,6 +39,7 @@ export namespace SwarmAdmin {
     conductor_session: z.string(),
     status: Status,
     current_phase: z.string(),
+    verify_status: z.string().nullable(),
     updated_at: z.number(),
     deleted_at: z.number().optional(),
     task_counts: TaskCount,
@@ -160,6 +153,7 @@ export namespace SwarmAdmin {
     overview: Overview,
     goal: z.string(),
     current_phase: z.string(),
+    verify_status: z.string().nullable(),
     plan_summary: z.string(),
     risk_summary: z.string(),
     plan_empty: z.boolean(),
@@ -207,31 +201,13 @@ export namespace SwarmAdmin {
   }
 
   function phase(info: Swarm.Info, tasks: BoardTask.Info[], disc: DiscussionInfo[]) {
-    if (info.time.deleted) return "deleted"
-    if (info.time.stopped) return "stopped"
-    if (info.status === "completed") return "completed"
-    if (info.status === "failed") return "failed"
-    if (info.status === "paused") return "paused"
-    if (disc.some((item) => item.consensus_state === "active")) return "discussing"
-    if (tasks.length === 0 && info.stage === "planning") return "planning"
-    if (
-      info.stage === "executing" &&
-      tasks.some((task) => (task.status === "pending" || task.status === "ready") && !task.assignee)
-    )
-      return "assigning"
-    if (info.stage === "executing") return "running"
+    if (info.time.deleted) return info.stage
     return info.stage
   }
 
   function state(info: Swarm.Info, count: z.infer<typeof TaskCount>) {
     if (info.time.deleted) return Status.enum.deleted
-    if (info.time.stopped) return Status.enum.stopped
-    if (info.status === "completed") return Status.enum.completed
-    if (info.status === "failed" || count.failed > 0) return Status.enum.failed
-    if (info.status === "paused") return Status.enum.paused
-    if (info.status === "blocked" || count.blocked > 0) return Status.enum.blocked
-    if (info.stage === "planning") return Status.enum.planning
-    return Status.enum.running
+    return info.status
   }
 
   function refs(raw: z.infer<typeof Raw>[], from: string) {
@@ -492,6 +468,7 @@ export namespace SwarmAdmin {
 
   async function collect(id: string, include_deleted = false) {
     const info = await Swarm.status(id, { include_deleted })
+    const snap = await SwarmState.read(id)
     const [tasks, arts, sigs] = await Promise.all([
       BoardTask.list(id),
       BoardArtifact.list({ swarm_id: id }),
@@ -535,6 +512,10 @@ export namespace SwarmAdmin {
         : undefined,
       talkCount.no_consensus > 0 ? Attention.enum.no_consensus : undefined,
     ].filter((item): item is Attention => item !== undefined)
+    const verify =
+      snap?.verify.status === "idle" || (snap?.verify.status === "skipped" && !snap.verify.waiver)
+        ? null
+        : (snap?.verify.status ?? null)
     const item = Overview.parse({
       swarm_id: info.id,
       goal: info.goal,
@@ -543,6 +524,7 @@ export namespace SwarmAdmin {
       conductor_session: info.conductor,
       status: state(info, taskCount),
       current_phase: phase(info, tasks, disc),
+      verify_status: verify,
       updated_at: last,
       deleted_at: info.time.deleted,
       task_counts: taskCount,
@@ -666,6 +648,7 @@ export namespace SwarmAdmin {
       overview: base.item,
       goal: base.info.goal,
       current_phase: base.item.current_phase,
+      verify_status: base.item.verify_status,
       plan_summary,
       risk_summary: risk(base.info, base.arts, base.taskList, base.disc, people),
       plan_empty: plan_summary === "No conductor plan is available yet.",

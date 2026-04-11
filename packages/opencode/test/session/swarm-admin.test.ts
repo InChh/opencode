@@ -185,7 +185,7 @@ describe("Swarm admin", () => {
       expect(overview).toHaveLength(1)
       expect(overview[0]).toMatchObject({
         swarm_id: id,
-        status: "blocked",
+        status: "active",
         needs_attention: true,
       })
       expect(overview[0]?.attention).toContain("blocked_task")
