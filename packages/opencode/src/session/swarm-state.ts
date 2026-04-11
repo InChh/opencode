@@ -1086,6 +1086,14 @@ export namespace SwarmState {
     return lines.join("\n")
   }
 
+  export function renderDecision(input: { gate: GateState; summary: Summary | null }) {
+    if (!input.gate.value) return input.summary ? renderSummary(input.summary) : "Alignment gate: unknown"
+    const lines = [`Alignment gate: ${input.gate.value}`]
+    if (input.gate.reason) lines.push(`Reason: ${input.gate.reason}`)
+    if (!input.summary) return lines.join("\n")
+    return [...lines, "", renderSummary(input.summary)].join("\n")
+  }
+
   export function preflight(input: {
     goal: string
     scope: string

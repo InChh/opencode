@@ -747,6 +747,41 @@ describe("SwarmState", () => {
     expect(escalated.summary?.ask).toContain("Alignment gate escalated")
   })
 
+  test("renders alignment decisions for CLI summaries", () => {
+    const out = SwarmState.renderDecision({
+      gate: {
+        value: "G1",
+        reason: "Novel scope keeps the run visible without blocking",
+        input: {
+          action_sensitive: false,
+          material_role_delta: false,
+          ambiguous: true,
+          valid_options: 2,
+          trade_offs: true,
+          confidence: "high",
+          routine: false,
+        },
+        evaluated_at: Date.now(),
+      },
+      summary: {
+        goal: "Ship the alignment flow",
+        scope: "Delegate PM analysis",
+        constraints: [],
+        roles: ["PM"],
+        role_deltas: [],
+        assumptions: ["Catalog is current"],
+        next_phase: "Delegate workers using the approved contract",
+        ask: null,
+        created_at: Date.now(),
+      },
+    })
+
+    expect(out).toContain("Alignment gate: G1")
+    expect(out).toContain("Novel scope keeps the run visible without blocking")
+    expect(out).toContain("Next phase: Delegate workers using the approved contract")
+    expect(out).not.toContain("Ask:")
+  })
+
   test("requires run confirmation before resuming a paused gate", async () => {
     await using tmp = await tmpdir({ git: true, config: {} })
     await Instance.provide({

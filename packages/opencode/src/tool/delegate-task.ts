@@ -161,6 +161,8 @@ export const DelegateTaskTool = Tool.define("delegate_task", async (ctx) => {
 
       const promptWithSkills = params.prompt + skillContent
 
+      let note: string | null = null
+
       if (isSwarm && params.swarm_id) {
         const align = await SwarmState.readAlignment()
         let allow = true
@@ -214,13 +216,21 @@ export const DelegateTaskTool = Tool.define("delegate_task", async (ctx) => {
             state.swarm.resume.stage = null
           },
         }).catch((e) => log.warn("failed to persist run contract", { swarmID: params.swarm_id, error: e }))
+        const state = await SwarmState.read(params.swarm_id)
+        note =
+          state?.alignment.summary && (state.alignment.gate.value === "G1" || !allow)
+            ? SwarmState.renderDecision({
+                gate: state.alignment.gate,
+                summary: state.alignment.summary,
+              })
+            : null
         if (!allow) {
-          const state = await SwarmState.read(params.swarm_id)
-          const summary = state?.alignment.summary ? `${SwarmState.renderSummary(state.alignment.summary)}\n` : ""
           return {
             title: params.description,
             metadata: { blocked: true, swarmID: params.swarm_id },
-            output: `${summary}Run confirmation required before delegation: ${params.swarm_id}`,
+            output: [note, `Run confirmation required before delegation: ${params.swarm_id}`]
+              .filter(Boolean)
+              .join("\n\n"),
           }
         }
       }
@@ -456,7 +466,9 @@ export const DelegateTaskTool = Tool.define("delegate_task", async (ctx) => {
         }))
       const text = result.parts.findLast((x: { type: string }) => x.type === "text")?.text ?? ""
 
-      const output = text + "\n\n" + ["<task_metadata>", `session_id: ${session.id}`, "</task_metadata>"].join("\n")
+      const output = [note, text, ["<task_metadata>", `session_id: ${session.id}`, "</task_metadata>"].join("\n")]
+        .filter(Boolean)
+        .join("\n\n")
 
       return {
         title: params.description,

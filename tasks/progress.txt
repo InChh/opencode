@@ -12,6 +12,16 @@
 - Use `SwarmState.writeback()` for approved role changes so only `modified` or `added` deltas update the shared catalog, while unchanged roles stay untouched and user confirmation state stays in sync.
 - `SwarmState.preflight()` can accept later-phase gate overrides; when the new gate outranks the stored gate, clear stale run confirmation and surface an explicit escalation reason in the fresh pending confirmation.
 - Reuse `SwarmAdmin.Alignment` for server reads: expose it directly at `/swarm/:id/alignment` for CLI consumers and embed it into `SwarmAdmin.Detail` so web panels read the same alignment snapshot.
+- Use `SwarmState.renderDecision()` for CLI-facing alignment copy when you need gate, reason, and stored summary together without exposing worker prompts.
+
+## 2026-04-11 20:18:57 CST - US-014
+- Added `SwarmState.renderDecision()` in `packages/opencode/src/session/swarm-state.ts` and wired `packages/opencode/src/tool/delegate-task.ts` to show alignment gate summaries for non-blocking `G1` runs and blocking `G2`/`G3` pauses before any raw worker output.
+- Files changed: `packages/opencode/src/session/swarm-state.ts`, `packages/opencode/src/tool/delegate-task.ts`, `packages/opencode/test/session/swarm-state.test.ts`, `packages/opencode/test/tool/delegate-task.test.ts`, `packages/opencode/AGENTS.md`, `tasks/prd.json`, `tasks/progress.txt`
+- **Learnings for future iterations:**
+  - CLI alignment copy should come from persisted alignment state after preflight, not from ad-hoc prompt text, so the gate summary matches the same contract seen by API and web readers.
+  - `delegate_task` can prepend a non-blocking alignment note for `G1` runs without changing worker execution by caching the rendered decision before session launch.
+  - `bun run --cwd packages/opencode typecheck` remains blocked by the same pre-existing untouched files from `US-013`; focused swarm-state and delegate-task tests passed for this story.
+---
 
 ## 2026-04-11 20:15:33 CST - US-013
 - Added alignment write routes in `packages/opencode/src/server/routes/swarm.ts`, finished `Swarm.approveRoles()` in `packages/opencode/src/session/swarm.ts`, and regenerated `packages/sdk/js/src/v2/gen/*` so clients can approve role deltas or confirm a paused run through the server.

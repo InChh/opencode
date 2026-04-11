@@ -18,6 +18,7 @@
 - Catalog-backed run roles should leave overlay fields `null`; `SwarmState.classify()` treats those `null` values as inherited catalog values instead of false-positive modifications.
 - `delegate_task` is the first guaranteed pre-worker checkpoint for swarm runs; persist or refresh `alignment.contract` there via `SwarmState.draft()` before the worker session is created or registered.
 - Persist user-facing contract copy in `alignment.summary` and render it with `SwarmState.renderSummary()` so CLI and web surfaces reuse the same non-prompt summary.
+- Use `SwarmState.renderDecision()` when a CLI flow needs gate context plus the stored summary; it prepends the gate and reason without exposing internal worker prompts.
 - `SwarmState.decide()` owns deterministic gate mapping: sensitivity => `G3`, material role delta => `G2`, ambiguity/trade-offs => `G1` or `G2` depending on confidence and novelty, then confidence and routine-vs-novel decide the fallback between `G1` and `G0`.
 - `SwarmState.admit()` is the discussion threshold gate: only the three primary signals (`multiple_valid_options`, `meaningful_trade_offs`, `direction_change`) count toward the 2-of-3 admission rule; `role_benefit` is advisory only.
 - `SwarmState.preflight()` is the conductor-ready alignment bundle: it drafts the contract, classifies role deltas, evaluates the gate, and decides whether delegation can proceed or must pause with `pending_confirmation`.
