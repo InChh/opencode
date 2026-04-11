@@ -325,6 +325,85 @@ describe("SwarmState", () => {
     ])
   })
 
+  test("drafts a run contract before delegation and preserves catalog role references", () => {
+    const now = Date.now()
+    const first = SwarmState.draft({
+      goal: "Ship the alignment flow",
+      scope: "Plan the first delegation step",
+      discussion: false,
+      role: "PM",
+      catalog: {
+        pm: {
+          id: "pm",
+          name: "PM",
+          purpose: "Own scope",
+          perspective: "User impact first",
+          default_when: "Trade-offs affect product direction",
+          version: 1,
+          created_at: now,
+          updated_at: now,
+          audit: { created_at: now, updated_at: now, actor: "alice", run_id: "SW-role-1" },
+        },
+      },
+    })
+    expect(first).toMatchObject({
+      goal: "Ship the alignment flow",
+      scope: "Plan the first delegation step",
+      mode: "execute",
+      discussion_reason: null,
+      roles: [
+        {
+          role_id: "pm",
+          name: "PM",
+          purpose: null,
+          perspective: null,
+          default_when: null,
+        },
+      ],
+    })
+
+    const next = SwarmState.draft({
+      goal: "ignored",
+      scope: "ignored",
+      discussion: true,
+      reason: "Need a role-based trade-off review",
+      role: "RD",
+      catalog: {
+        pm: {
+          id: "pm",
+          name: "PM",
+          purpose: "Own scope",
+          perspective: "User impact first",
+          default_when: "Trade-offs affect product direction",
+          version: 1,
+          created_at: now,
+          updated_at: now,
+          audit: { created_at: now, updated_at: now, actor: "alice", run_id: "SW-role-1" },
+        },
+      },
+      current: first,
+    })
+    expect(next.created_at).toBe(first.created_at)
+    expect(next.mode).toBe("discussion")
+    expect(next.discussion_reason).toBe("Need a role-based trade-off review")
+    expect(next.roles).toEqual([
+      {
+        role_id: "pm",
+        name: "PM",
+        purpose: null,
+        perspective: null,
+        default_when: null,
+      },
+      {
+        role_id: null,
+        name: "RD",
+        purpose: null,
+        perspective: null,
+        default_when: null,
+      },
+    ])
+  })
+
   test("restores the stored stage on paused to active", async () => {
     await using tmp = await tmpdir({ git: true, config: {} })
     await Instance.provide({

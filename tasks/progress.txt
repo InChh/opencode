@@ -2,6 +2,7 @@
 - Canonical swarm snapshot schema changes must update `SwarmState.Alignment`, `SwarmState.Example`, and `SwarmState.create()` together; current rollout rejects older snapshot schema versions instead of adding compatibility loaders.
 - Shared swarm alignment persistence lives in `board/alignment.json`; keep `alignment.catalog.roles` project-scoped and `alignment.confirmations.users` user-scoped inside that file.
 - `SwarmState.classify()` only treats `purpose`, `perspective`, and `default_when` as material role changes, and it normalizes whitespace before comparing requested roles to the catalog.
+- `delegate_task` is the first guaranteed pre-worker checkpoint for swarm runs, so run-contract persistence belongs there before worker sessions are created or registered.
 
 ## 2026-04-11 19:15:48 CST - US-001
 - Added canonical alignment state to `packages/opencode/src/session/swarm-state.ts` for project-scoped role catalog data, user-scoped confirmations, run contract, gate state, role delta state, pending confirmations, and alignment audit metadata.
@@ -28,4 +29,13 @@
   - Match requested roles by `role_id` when present, and fall back to the role `name` so new overlays without catalog IDs still classify deterministically.
   - Material delta detection should stay limited to `purpose`, `perspective`, and `default_when`; timestamps, versions, and whitespace-only edits should not trigger approval flow.
   - Keep delta classification pure and test it directly before wiring it into conductor or contract flows.
+---
+
+## 2026-04-11 19:30:52 CST - US-004
+- Added `SwarmState.draft()` and wired `packages/opencode/src/tool/delegate-task.ts` to persist `alignment.contract` before any swarm worker session is created, preserving catalog-backed role references and discussion-mode context across later delegations.
+- Files changed: `packages/opencode/src/session/swarm-state.ts`, `packages/opencode/src/tool/delegate-task.ts`, `packages/opencode/test/session/swarm-state.test.ts`, `packages/opencode/AGENTS.md`, `tasks/prd.json`, `tasks/progress.txt`
+- **Learnings for future iterations:**
+  - The first `delegate_task` call is the safest place to create a run contract because it is the last guaranteed checkpoint before worker launch.
+  - Keep run-contract drafting pure in `SwarmState.draft()` so later gate and confirmation logic can reuse the same contract builder without depending on tool context.
+  - When a delegated role already exists in the catalog, store the catalog reference in the contract and leave overlay fields `null` until a real per-run delta is known.
 ---

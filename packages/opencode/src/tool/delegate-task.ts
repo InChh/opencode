@@ -18,6 +18,7 @@ import { BackgroundManager } from "../agent/background/manager"
 import { Skill } from "../skill/skill"
 import { Log } from "../util/log"
 import { SessionMetadata } from "../session/session-metadata"
+import { SwarmState } from "../session/swarm-state"
 
 const log = Log.create({ service: "delegate-task" })
 
@@ -159,6 +160,32 @@ export const DelegateTaskTool = Tool.define("delegate_task", async (ctx) => {
       })
 
       const promptWithSkills = params.prompt + skillContent
+
+      if (isSwarm && params.swarm_id) {
+        const align = await SwarmState.readAlignment()
+        await SwarmState.mutate(params.swarm_id, {
+          actor: "coordinator",
+          reason: "persist run contract",
+          fn: (state) => {
+            state.alignment.contract = SwarmState.draft({
+              goal: state.swarm.goal,
+              scope: params.description,
+              discussion: Boolean(params.discussion_channel),
+              reason: params.discussion_channel ? params.description : null,
+              role: params.role_name ?? null,
+              catalog: align.catalog.roles,
+              current: state.alignment.contract,
+            })
+            const now = Date.now()
+            state.alignment.audit.contract = {
+              created_at: state.alignment.audit.contract.created_at ?? now,
+              updated_at: now,
+              actor: "coordinator",
+              run_id: params.swarm_id ?? null,
+            }
+          },
+        }).catch((e) => log.warn("failed to persist run contract", { swarmID: params.swarm_id, error: e }))
+      }
 
       // Create or resume session
       const session = await iife(async () => {

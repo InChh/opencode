@@ -819,6 +819,54 @@ export namespace SwarmState {
     } satisfies DeltaState
   }
 
+  function role(input: { catalog: Record<string, Role>; name?: string | null }) {
+    if (!input.name) return null
+    const hit = Object.values(input.catalog).find((item) => item.id === input.name || item.name === input.name)
+    if (!hit) {
+      return {
+        role_id: null,
+        name: input.name,
+        purpose: null,
+        perspective: null,
+        default_when: null,
+      } satisfies RunRole
+    }
+    return {
+      role_id: hit.id,
+      name: hit.name,
+      purpose: null,
+      perspective: null,
+      default_when: null,
+    } satisfies RunRole
+  }
+
+  export function draft(input: {
+    goal: string
+    scope: string
+    discussion: boolean
+    reason?: string | null
+    role?: string | null
+    catalog: Record<string, Role>
+    current?: RunContract | null
+  }) {
+    const item = role({ catalog: input.catalog, name: input.role })
+    const roles = input.current?.roles ?? []
+    const next = item && roles.every((role) => match(role) !== match(item)) ? [...roles, item] : roles
+    return {
+      goal: input.current?.goal ?? input.goal,
+      scope: input.current?.scope ?? input.scope,
+      constraints: input.current?.constraints ?? [],
+      roles: next,
+      mode: input.discussion || input.current?.mode === "discussion" ? "discussion" : "execute",
+      assumptions: input.current?.assumptions ?? [],
+      risks: input.current?.risks ?? [],
+      discussion_reason: input.discussion
+        ? (input.current?.discussion_reason ?? input.reason ?? input.scope)
+        : (input.current?.discussion_reason ?? null),
+      created_at: input.current?.created_at ?? Date.now(),
+    } satisfies RunContract
+  }
+
   export async function illegal(id: string, input: { actor: string; reason: string }) {
     using _ = await Lock.write(key(id))
     const state = await read(id)
