@@ -1,3 +1,14 @@
 ## Codebase Patterns
 
+- Use `SwarmState.create/read/write` in `packages/opencode/src/session/swarm-state.ts` for canonical swarm snapshot setup instead of hand-rolling `state.json` payloads.
+
+---
+
+## 2026-04-11 12:03:41 CST - US-001
+- Implemented the canonical v2 snapshot schema in `packages/opencode/src/session/swarm-state.ts`, including authoritative vs metadata field lists and a minimal valid snapshot example.
+- Wired `packages/opencode/src/session/swarm.ts` to create and sync `state.json` snapshots for swarm lifecycle writes, and added `packages/opencode/test/session/swarm-state.test.ts` coverage for schema versioning and canonical file I/O.
+- **Learnings for future iterations:**
+  - The canonical swarm snapshot belongs under `board/<swarm>/state.json`, alongside the existing per-swarm board data.
+  - Legacy `Swarm.save()` calls still happen in tests and admin flows, so snapshot changes should preserve existing task/discussion data when syncing.
+  - Snapshot metadata currently carries the legacy conductor/config/time fields, which makes it possible to migrate readers incrementally.
 ---

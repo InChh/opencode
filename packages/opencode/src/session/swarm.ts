@@ -13,6 +13,7 @@ import { Session } from "."
 import { SessionPrompt } from "./prompt"
 import { SessionStatus } from "./status"
 import { SessionMetadata } from "./session-metadata"
+import { SwarmState } from "./swarm-state"
 
 export namespace Swarm {
   const log = Log.create({ service: "swarm" })
@@ -84,12 +85,72 @@ export namespace Swarm {
     await Bun.write(filepath(), JSON.stringify(swarms, null, 2))
   }
 
+  function stateStatus(info: Info): SwarmState.Status {
+    if (info.time.stopped) return "stopped"
+    if (info.status === "paused") return "paused"
+    if (info.status === "completed") return "completed"
+    if (info.status === "failed") return "failed"
+    return "active"
+  }
+
+  function stateStage(info: Info): SwarmState.Stage {
+    if (info.time.stopped || info.status === "completed" || info.status === "failed") return "idle"
+    if (info.status === "planning") return "planning"
+    return "executing"
+  }
+
+  function stateWorkerStatus(worker: Worker): SwarmState.WorkerStatus {
+    if (worker.status === "active") return "running"
+    if (worker.status === "idle") return "waiting"
+    if (worker.status === "done") return "completed"
+    return "failed"
+  }
+
+  async function sync(info: Info) {
+    const state =
+      (await SwarmState.read(info.id)) ??
+      SwarmState.create({
+        id: info.id,
+        goal: info.goal,
+        conductor: info.conductor,
+        config: info.config,
+        time: { created: info.time.created, updated: info.time.updated },
+      })
+    state.swarm.goal = info.goal
+    state.swarm.conductor = info.conductor
+    state.swarm.config = info.config
+    state.swarm.status = stateStatus(info)
+    state.swarm.stage = stateStage(info)
+    state.swarm.time.created = info.time.created
+    state.swarm.time.updated = info.time.updated
+    state.swarm.time.completed = info.time.completed ?? null
+    state.swarm.time.stopped = info.time.stopped ?? null
+    state.swarm.time.deleted = info.time.deleted ?? null
+    state.workers = Object.fromEntries(
+      info.workers.map((worker) => [
+        worker.session_id,
+        {
+          id: worker.session_id,
+          session_id: worker.session_id,
+          agent: worker.agent,
+          role: worker.role ?? null,
+          task_id: worker.task_id || null,
+          status: stateWorkerStatus(worker),
+          updated_at: info.time.updated,
+          reason: null,
+        },
+      ]),
+    )
+    await SwarmState.write(SwarmState.Snapshot.parse(state))
+  }
+
   export async function save(info: Info) {
     const all = await loadAll()
     const idx = all.findIndex((s) => s.id === info.id)
     if (idx >= 0) all[idx] = info
     else all.push(info)
     await saveAll(all)
+    await sync(info)
   }
 
   function visible(info: Info, include_deleted?: boolean) {
