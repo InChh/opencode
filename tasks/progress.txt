@@ -14,6 +14,16 @@
 - Reuse `SwarmAdmin.Alignment` for server reads: expose it directly at `/swarm/:id/alignment` for CLI consumers and embed it into `SwarmAdmin.Detail` so web panels read the same alignment snapshot.
 - Use `SwarmState.renderDecision()` for CLI-facing alignment copy when you need gate, reason, and stored summary together without exposing worker prompts.
 - The app swarm dashboard should render alignment UI from `detail.alignment` in `/swarm/:id/admin`; keep the panel derived from that shared read model so web and CLI explain the same gate and approval state.
+- Keep deterministic gate and discussion policy coverage in `packages/opencode/test/session/swarm-state.test.ts`, where `SwarmState.decide()`, `admit()`, and `preflight()` can be asserted directly as pure helpers.
+
+## 2026-04-11 20:24:38 CST - US-016
+- Added explicit gate and discussion truth-table coverage in `packages/opencode/test/session/swarm-state.test.ts` for low-risk `G0`/`G1`, material-delta `G2`, sensitive `G3`, and the `0/3` through `3/3` discussion admission thresholds.
+- Files changed: `packages/opencode/test/session/swarm-state.test.ts`, `packages/opencode/AGENTS.md`, `tasks/prd.json`, `tasks/progress.txt`
+- **Learnings for future iterations:**
+  - The pure alignment helpers already encode the policy contract, so the clearest regression tests are direct table-style assertions in `swarm-state.test.ts` instead of orchestration-heavy tool tests.
+  - A low-risk `G1` case is easiest to model with unchanged roles plus low confidence, while `G2` and `G3` stay best expressed through material deltas and explicit sensitive-action overrides.
+  - `bun run --cwd packages/opencode typecheck` now passes alongside the focused swarm-state test file.
+---
 
 ## 2026-04-11 20:22:36 CST - US-015
 - Added a dedicated alignment panel to `packages/app/src/pages/swarm/swarm-dashboard.tsx` that shows gate, mode, selected roles, role delta summary, contract details, pending approval state, and the non-blocking explanation for `G0`/`G1` runs without exposing worker prompts.

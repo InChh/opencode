@@ -568,6 +568,65 @@ describe("SwarmState", () => {
     expect(routine.reason).toContain("Routine")
   })
 
+  test("covers low-risk, material-delta, and sensitive gate outcomes", () => {
+    const now = Date.now()
+    const catalog = {
+      pm: {
+        id: "pm",
+        name: "PM",
+        purpose: "Own scope",
+        perspective: "User impact first",
+        default_when: "Trade-offs affect product direction",
+        version: 1,
+        created_at: now,
+        updated_at: now,
+        audit: { created_at: now, updated_at: now, actor: "alice", run_id: "SW-role-1" },
+      },
+    }
+
+    const routine = SwarmState.preflight({
+      goal: "Ship the alignment flow",
+      scope: "Delegate PM analysis",
+      discussion: false,
+      role: "PM",
+      catalog,
+      current: SwarmState.Example.alignment,
+    })
+    expect(routine.gate.value).toBe("G0")
+
+    const visible = SwarmState.preflight({
+      goal: "Ship the alignment flow",
+      scope: "Review a low-confidence PM step",
+      discussion: false,
+      role: "PM",
+      catalog,
+      current: SwarmState.Example.alignment,
+      gate: { confidence: "low", routine: true },
+    })
+    expect(visible.gate.value).toBe("G1")
+
+    const delta = SwarmState.preflight({
+      goal: "Ship the alignment flow",
+      scope: "Delegate RD analysis",
+      discussion: false,
+      role: "RD",
+      catalog,
+      current: SwarmState.Example.alignment,
+    })
+    expect(delta.gate.value).toBe("G2")
+
+    const risky = SwarmState.preflight({
+      goal: "Ship the alignment flow",
+      scope: "Run a sensitive action",
+      discussion: false,
+      role: "PM",
+      gate: { action_sensitive: true },
+      catalog,
+      current: SwarmState.Example.alignment,
+    })
+    expect(risky.gate.value).toBe("G3")
+  })
+
   test("admits discussion mode only when at least two primary signals are true", () => {
     const zero = SwarmState.admit({
       multiple_valid_options: false,
@@ -604,6 +663,41 @@ describe("SwarmState", () => {
     })
     expect(three.mode).toBe("discussion")
     expect(three.primary).toBe(3)
+  })
+
+  test("maps all discussion signal counts to the expected mode", () => {
+    expect(
+      SwarmState.admit({
+        multiple_valid_options: false,
+        meaningful_trade_offs: false,
+        direction_change: false,
+        role_benefit: false,
+      }).mode,
+    ).toBe("execute")
+    expect(
+      SwarmState.admit({
+        multiple_valid_options: true,
+        meaningful_trade_offs: false,
+        direction_change: false,
+        role_benefit: false,
+      }).mode,
+    ).toBe("execute")
+    expect(
+      SwarmState.admit({
+        multiple_valid_options: true,
+        meaningful_trade_offs: true,
+        direction_change: false,
+        role_benefit: false,
+      }).mode,
+    ).toBe("discussion")
+    expect(
+      SwarmState.admit({
+        multiple_valid_options: true,
+        meaningful_trade_offs: true,
+        direction_change: true,
+        role_benefit: true,
+      }).mode,
+    ).toBe("discussion")
   })
 
   test("builds alignment preflight state before delegation", () => {
