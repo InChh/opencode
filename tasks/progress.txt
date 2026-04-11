@@ -4,6 +4,7 @@
 - `SwarmState.classify()` only treats `purpose`, `perspective`, and `default_when` as material role changes, and it normalizes whitespace before comparing requested roles to the catalog.
 - `delegate_task` is the first guaranteed pre-worker checkpoint for swarm runs, so run-contract persistence belongs there before worker sessions are created or registered.
 - `SwarmState.decide()` owns deterministic gate mapping, and the caller should pass the explicit input object through unchanged so stored gate state explains why the run auto-ran or paused.
+- `SwarmState.admit()` uses a strict 2-of-3 threshold across the primary discussion signals; `role_benefit` is supporting context and should never unlock discussion mode by itself.
 
 ## 2026-04-11 19:15:48 CST - US-001
 - Added canonical alignment state to `packages/opencode/src/session/swarm-state.ts` for project-scoped role catalog data, user-scoped confirmations, run contract, gate state, role delta state, pending confirmations, and alignment audit metadata.
@@ -48,4 +49,13 @@
   - Gate evaluation should stay pure in `SwarmState.decide()` and return the original input object so later API and UI readers can explain the exact decision inputs.
   - Sensitivity and material role delta should short-circuit the rest of the decision tree, which keeps precedence easy to read and test.
   - Persist gate audit metadata whenever the gate is refreshed so later escalation checks can compare both value changes and who updated the gate state.
+---
+
+## 2026-04-11 19:36:04 CST - US-006
+- Added `SwarmState.admit()` in `packages/opencode/src/session/swarm-state.ts` to enforce the 2-of-3 discussion admission threshold across multiple valid options, meaningful trade-offs, and direction-changing consequences, while treating role-based debate benefit as advisory context only.
+- Files changed: `packages/opencode/src/session/swarm-state.ts`, `packages/opencode/test/session/swarm-state.test.ts`, `packages/opencode/AGENTS.md`, `tasks/prd.json`, `tasks/progress.txt`
+- **Learnings for future iterations:**
+  - Discussion admission should stay pure and separate from contract drafting so the conductor can evaluate thresholds before deciding between execute and discussion modes.
+  - The `0/3`, `1/3`, `2/3`, and `3/3` cases are worth keeping as explicit tests because they document the threshold better than prose alone.
+  - `role_benefit` should remain visible in the result for later summaries, but it must never override the primary-signal threshold.
 ---

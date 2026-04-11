@@ -926,6 +926,34 @@ export namespace SwarmState {
     } satisfies GateState
   }
 
+  export const DiscussionInput = z.object({
+    multiple_valid_options: z.boolean(),
+    meaningful_trade_offs: z.boolean(),
+    direction_change: z.boolean(),
+    role_benefit: z.boolean().default(false),
+  })
+  export type DiscussionInput = z.infer<typeof DiscussionInput>
+
+  export function admit(input: DiscussionInput) {
+    const primary = [input.multiple_valid_options, input.meaningful_trade_offs, input.direction_change].filter(
+      Boolean,
+    ).length
+    if (primary >= 2) {
+      return {
+        mode: "discussion" as const,
+        reason: `Discussion admitted with ${primary}/3 primary signals`,
+        primary,
+        role_benefit: input.role_benefit,
+      }
+    }
+    return {
+      mode: "execute" as const,
+      reason: `Discussion rejected with ${primary}/3 primary signals`,
+      primary,
+      role_benefit: input.role_benefit,
+    }
+  }
+
   export async function illegal(id: string, input: { actor: string; reason: string }) {
     using _ = await Lock.write(key(id))
     const state = await read(id)

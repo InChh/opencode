@@ -464,6 +464,44 @@ describe("SwarmState", () => {
     expect(routine.reason).toContain("Routine")
   })
 
+  test("admits discussion mode only when at least two primary signals are true", () => {
+    const zero = SwarmState.admit({
+      multiple_valid_options: false,
+      meaningful_trade_offs: false,
+      direction_change: false,
+      role_benefit: true,
+    })
+    expect(zero.mode).toBe("execute")
+    expect(zero.primary).toBe(0)
+
+    const one = SwarmState.admit({
+      multiple_valid_options: true,
+      meaningful_trade_offs: false,
+      direction_change: false,
+      role_benefit: true,
+    })
+    expect(one.mode).toBe("execute")
+    expect(one.primary).toBe(1)
+
+    const two = SwarmState.admit({
+      multiple_valid_options: true,
+      meaningful_trade_offs: true,
+      direction_change: false,
+      role_benefit: false,
+    })
+    expect(two.mode).toBe("discussion")
+    expect(two.primary).toBe(2)
+
+    const three = SwarmState.admit({
+      multiple_valid_options: true,
+      meaningful_trade_offs: true,
+      direction_change: true,
+      role_benefit: false,
+    })
+    expect(three.mode).toBe("discussion")
+    expect(three.primary).toBe(3)
+  })
+
   test("restores the stored stage on paused to active", async () => {
     await using tmp = await tmpdir({ git: true, config: {} })
     await Instance.provide({
