@@ -1,6 +1,7 @@
 ## Codebase Patterns
 - Canonical swarm snapshot schema changes must update `SwarmState.Alignment`, `SwarmState.Example`, and `SwarmState.create()` together; current rollout rejects older snapshot schema versions instead of adding compatibility loaders.
 - Shared swarm alignment persistence lives in `board/alignment.json`; keep `alignment.catalog.roles` project-scoped and `alignment.confirmations.users` user-scoped inside that file.
+- `SwarmState.classify()` only treats `purpose`, `perspective`, and `default_when` as material role changes, and it normalizes whitespace before comparing requested roles to the catalog.
 
 ## 2026-04-11 19:15:48 CST - US-001
 - Added canonical alignment state to `packages/opencode/src/session/swarm-state.ts` for project-scoped role catalog data, user-scoped confirmations, run contract, gate state, role delta state, pending confirmations, and alignment audit metadata.
@@ -18,4 +19,13 @@
   - Shared alignment state should live in `board/alignment.json` instead of individual swarm `state.json` files when the data must survive across runs.
   - Keep reusable role definitions in `alignment.catalog.roles` and per-user approvals in `alignment.confirmations.users` so later role delta checks can compare shared baseline data with user-specific confirmation state.
   - Role catalog audit metadata belongs on each stored role entry as well as the top-level catalog audit stamp, which makes create versus update assertions easy in tests.
+---
+
+## 2026-04-11 19:24:27 CST - US-003
+- Added `SwarmState.classify()` in `packages/opencode/src/session/swarm-state.ts` to compare requested run roles against the stored catalog, classify `unchanged`, `added`, `removed`, and `modified` entries, and ignore formatting-only whitespace noise outside the material fields.
+- Files changed: `packages/opencode/src/session/swarm-state.ts`, `packages/opencode/test/session/swarm-state.test.ts`, `packages/opencode/AGENTS.md`, `tasks/prd.json`, `tasks/progress.txt`
+- **Learnings for future iterations:**
+  - Match requested roles by `role_id` when present, and fall back to the role `name` so new overlays without catalog IDs still classify deterministically.
+  - Material delta detection should stay limited to `purpose`, `perspective`, and `default_when`; timestamps, versions, and whitespace-only edits should not trigger approval flow.
+  - Keep delta classification pure and test it directly before wiring it into conductor or contract flows.
 ---

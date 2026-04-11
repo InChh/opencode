@@ -221,6 +221,110 @@ describe("SwarmState", () => {
     })
   })
 
+  test("classifies requested roles using only material fields", () => {
+    const now = Date.now()
+    const out = SwarmState.classify({
+      catalog: {
+        pm: {
+          id: "pm",
+          name: "PM",
+          purpose: "Own scope",
+          perspective: "User impact first",
+          default_when: "Trade-offs affect product direction",
+          version: 1,
+          created_at: now,
+          updated_at: now,
+          audit: { created_at: now, updated_at: now, actor: "alice", run_id: "SW-role-1" },
+        },
+        qa: {
+          id: "qa",
+          name: "QA",
+          purpose: "Protect release quality",
+          perspective: "Failure modes first",
+          default_when: "Risk is unclear",
+          version: 1,
+          created_at: now,
+          updated_at: now,
+          audit: { created_at: now, updated_at: now, actor: "alice", run_id: "SW-role-1" },
+        },
+      },
+      roles: [
+        {
+          role_id: "pm",
+          name: "PM",
+          purpose: "  Own   scope  ",
+          perspective: "User impact first",
+          default_when: "Trade-offs affect product direction",
+        },
+        {
+          role_id: "qa",
+          name: "QA",
+          purpose: "Protect release quality",
+          perspective: "Critical path first",
+          default_when: "Risk is unclear",
+        },
+        {
+          role_id: null,
+          name: "RD",
+          purpose: "Evaluate implementation options",
+          perspective: "Delivery and maintainability",
+          default_when: "Trade-offs affect architecture",
+        },
+      ],
+    })
+    expect(out.material).toBe(true)
+    expect(out.roles).toEqual([
+      {
+        role_id: "pm",
+        name: "PM",
+        state: "unchanged",
+        fields: [],
+      },
+      {
+        role_id: "qa",
+        name: "QA",
+        state: "modified",
+        fields: ["perspective"],
+      },
+      {
+        role_id: null,
+        name: "RD",
+        state: "added",
+        fields: [],
+      },
+    ])
+    expect(typeof out.updated_at).toBe("number")
+  })
+
+  test("marks missing catalog roles as removed", () => {
+    const now = Date.now()
+    const out = SwarmState.classify({
+      catalog: {
+        pm: {
+          id: "pm",
+          name: "PM",
+          purpose: "Own scope",
+          perspective: "User impact first",
+          default_when: "Trade-offs affect product direction",
+          version: 1,
+          created_at: now,
+          updated_at: now,
+          audit: { created_at: now, updated_at: now, actor: "alice", run_id: "SW-role-1" },
+        },
+      },
+      roles: [],
+    })
+    expect(out.material).toBe(true)
+    expect(out.roles).toEqual([
+      {
+        role_id: "pm",
+        name: "PM",
+        state: "removed",
+        fields: [],
+      },
+    ])
+  })
+
   test("restores the stored stage on paused to active", async () => {
     await using tmp = await tmpdir({ git: true, config: {} })
     await Instance.provide({

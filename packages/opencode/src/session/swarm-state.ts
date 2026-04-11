@@ -774,6 +774,51 @@ export namespace SwarmState {
     return state.confirmations.users[input.user][input.role_id]
   }
 
+  function match(input: Pick<Role, "id" | "name"> | Pick<RunRole, "role_id" | "name">) {
+    return String(("id" in input ? input.id : input.role_id) ?? input.name)
+      .trim()
+      .toLowerCase()
+  }
+
+  function tidy(input: string | null | undefined) {
+    return (input ?? "").trim().replace(/\s+/g, " ")
+  }
+
+  export function classify(input: { catalog: Record<string, Role>; roles: RunRole[] }) {
+    const keys = ["purpose", "perspective", "default_when"] as const
+    const rest = new Map(input.roles.map((role) => [match(role), role]))
+    const roles = Object.values(input.catalog).map((role) => {
+      const item = rest.get(match(role))
+      if (!item) {
+        return {
+          role_id: role.id,
+          name: role.name,
+          state: "removed" as const,
+          fields: [],
+        }
+      }
+      rest.delete(match(role))
+      const fields = keys.filter((key) => tidy(role[key]) !== tidy(item[key]))
+      return {
+        role_id: role.id,
+        name: item.name,
+        state: fields.length > 0 ? ("modified" as const) : ("unchanged" as const),
+        fields,
+      }
+    })
+    const add = Array.from(rest.values()).map((role) => ({
+      role_id: role.role_id ?? null,
+      name: role.name,
+      state: "added" as const,
+      fields: [],
+    }))
+    return {
+      material: [...roles, ...add].some((role) => role.state !== "unchanged"),
+      roles: [...roles, ...add],
+      updated_at: Date.now(),
+    } satisfies DeltaState
+  }
+
   export async function illegal(id: string, input: { actor: string; reason: string }) {
     using _ = await Lock.write(key(id))
     const state = await read(id)
