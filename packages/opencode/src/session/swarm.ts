@@ -207,6 +207,12 @@ export namespace Swarm {
     return info.visibility.archived_at === null
   }
 
+  function roleKey(input: { role_id?: string | null; name: string }) {
+    return String(input.role_id ?? input.name)
+      .trim()
+      .toLowerCase()
+  }
+
   export async function load(id: string, input?: { include_deleted?: boolean }): Promise<Info | undefined> {
     const state = await SwarmState.read(id)
     const info = state ? fromState(state) : undefined
@@ -387,6 +393,82 @@ export namespace Swarm {
           updated_at: now,
           actor: input.actor,
           run_id: id,
+        }
+        state.swarm.status = "active"
+        state.swarm.stage = state.swarm.resume.stage ?? state.swarm.stage
+        state.swarm.resume.stage = null
+        state.swarm.reason = null
+      },
+    })
+    const info = fromState(next)
+    Bus.publish(Event.Updated, { swarm: info })
+    return info
+  }
+
+  export async function approveRoles(id: string, input: { actor: string; roles?: string[] }): Promise<Info> {
+    const state = await SwarmState.read(id)
+    if (!state) throw new Error(`Swarm state not found: ${id}`)
+    if (!state.alignment.contract) throw new Error(`No alignment contract for swarm: ${id}`)
+    const keys = new Set((input.roles ?? []).map((item) => item.trim().toLowerCase()))
+    const roles = state.alignment.role_delta.roles.filter((role) => {
+      if (!["modified", "added"].includes(role.state)) return false
+      if (keys.size === 0) return true
+      return keys.has(roleKey({ role_id: role.role_id, name: role.name })) || keys.has(role.name.trim().toLowerCase())
+    })
+    if (roles.length === 0) throw new Error(`No approvable role deltas for swarm: ${id}`)
+
+    await SwarmState.writeback({
+      user: input.actor,
+      run_id: id,
+      role_delta: {
+        material: roles.length > 0,
+        roles,
+        updated_at: state.alignment.role_delta.updated_at,
+      },
+      contract: state.alignment.contract,
+    })
+
+    const align = await SwarmState.readAlignment()
+    const next = await SwarmState.mutate(id, {
+      actor: "coordinator",
+      reason: "approve role alignment",
+      fn: (state) => {
+        if (!state.alignment.contract) throw new Error(`No alignment contract for swarm: ${id}`)
+        const pre = SwarmState.preflight({
+          goal: state.swarm.goal,
+          scope: state.alignment.contract.scope,
+          discussion: state.alignment.contract.mode === "discussion",
+          reason: state.alignment.contract.discussion_reason,
+          catalog: align.catalog.roles,
+          current: {
+            ...state.alignment,
+            run_confirmation: null,
+          },
+        })
+        state.alignment.contract = pre.contract
+        state.alignment.role_delta = pre.role_delta
+        state.alignment.gate = pre.gate
+        state.alignment.run_confirmation = null
+        state.alignment.summary = pre.summary
+        state.alignment.pending_confirmation = pre.pending_confirmation
+        const now = Date.now()
+        state.alignment.audit.gate = {
+          created_at: state.alignment.audit.gate.created_at ?? now,
+          updated_at: now,
+          actor: input.actor,
+          run_id: id,
+        }
+        state.alignment.audit.pending_confirmation = {
+          created_at: state.alignment.audit.pending_confirmation.created_at ?? now,
+          updated_at: now,
+          actor: input.actor,
+          run_id: id,
+        }
+        if (!pre.proceed) {
+          state.swarm.resume.stage = state.swarm.resume.stage ?? state.swarm.stage
+          state.swarm.status = "paused"
+          state.swarm.reason = pre.pending_confirmation?.reason ?? pre.gate.reason
+          return
         }
         state.swarm.status = "active"
         state.swarm.stage = state.swarm.resume.stage ?? state.swarm.stage

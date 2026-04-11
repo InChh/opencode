@@ -13,6 +13,15 @@
 - `SwarmState.preflight()` can accept later-phase gate overrides; when the new gate outranks the stored gate, clear stale run confirmation and surface an explicit escalation reason in the fresh pending confirmation.
 - Reuse `SwarmAdmin.Alignment` for server reads: expose it directly at `/swarm/:id/alignment` for CLI consumers and embed it into `SwarmAdmin.Detail` so web panels read the same alignment snapshot.
 
+## 2026-04-11 20:15:33 CST - US-013
+- Added alignment write routes in `packages/opencode/src/server/routes/swarm.ts`, finished `Swarm.approveRoles()` in `packages/opencode/src/session/swarm.ts`, and regenerated `packages/sdk/js/src/v2/gen/*` so clients can approve role deltas or confirm a paused run through the server.
+- Files changed: `packages/opencode/src/server/routes/swarm.ts`, `packages/opencode/src/session/swarm.ts`, `packages/opencode/test/session/swarm-state.test.ts`, `packages/sdk/js/src/v2/gen/*`, `tasks/prd.json`, `tasks/progress.txt`
+- **Learnings for future iterations:**
+  - Alignment write endpoints can reuse `Swarm.Info` plus `SwarmAdmin.Alignment` as a shared response envelope, which keeps CLI and web clients on the same post-write shape.
+  - `Swarm.approveRoles()` should re-run `SwarmState.preflight()` against the freshly written catalog so the run gate and pending confirmation state immediately reflect approved role writeback.
+  - `bun run --cwd packages/opencode typecheck` is still blocked by pre-existing errors in untouched files (`src/cli/cmd/import.ts`, `src/cli/cmd/tui/component/*`, `src/share/share-next.ts`, `test/acp/event-subscription.test.ts`); touched swarm alignment files were not part of that failure set, and `bun run --cwd packages/sdk/js typecheck` passed after regenerating the SDK.
+---
+
 ## 2026-04-11 19:15:48 CST - US-001
 - Added canonical alignment state to `packages/opencode/src/session/swarm-state.ts` for project-scoped role catalog data, user-scoped confirmations, run contract, gate state, role delta state, pending confirmations, and alignment audit metadata.
 - Files changed: `packages/opencode/src/session/swarm-state.ts`, `packages/opencode/test/session/swarm-state.test.ts`, `packages/opencode/test/session/swarm-cleanup.test.ts`, `packages/opencode/AGENTS.md`, `tasks/prd.json`, `tasks/progress.txt`

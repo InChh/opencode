@@ -829,6 +829,109 @@ describe("SwarmState", () => {
     })
   })
 
+  test("approving role deltas writes back catalog changes and refreshes run state", async () => {
+    await using tmp = await tmpdir({ git: true, config: {} })
+    await Instance.provide({
+      directory: tmp.path,
+      fn: async () => {
+        const now = Date.now()
+        await SwarmState.putRole({
+          role: {
+            id: "pm",
+            name: "PM",
+            purpose: "Own scope",
+            perspective: "User impact first",
+            default_when: "Trade-offs affect product direction",
+            version: 1,
+          },
+          actor: "alice",
+          run_id: "SW-approve",
+        })
+        const state = SwarmState.create({
+          id: "SW-approve",
+          goal: "Refresh role approvals",
+          conductor: "SE-conductor",
+          time: { created: now, updated: now },
+        })
+        state.swarm.status = "paused"
+        state.swarm.stage = "planning"
+        state.swarm.resume.stage = "planning"
+        state.swarm.reason = "Material role delta requires user review"
+        state.alignment.contract = {
+          goal: "Refresh role approvals",
+          scope: "Approve PM updates",
+          constraints: [],
+          roles: [
+            {
+              role_id: "pm",
+              name: "PM",
+              purpose: null,
+              perspective: "Outcome-first trade-offs",
+              default_when: null,
+            },
+          ],
+          mode: "execute",
+          assumptions: [],
+          risks: [],
+          discussion_reason: null,
+          created_at: now,
+        }
+        state.alignment.gate = {
+          value: "G2",
+          reason: "Material role delta requires user review",
+          input: {
+            action_sensitive: false,
+            material_role_delta: true,
+            ambiguous: false,
+            valid_options: 1,
+            trade_offs: false,
+            confidence: "high",
+            routine: true,
+          },
+          evaluated_at: now,
+        }
+        state.alignment.role_delta = {
+          material: true,
+          roles: [{ role_id: "pm", name: "PM", state: "modified", fields: ["perspective"] }],
+          updated_at: now,
+        }
+        state.alignment.summary = SwarmState.summarize({
+          contract: state.alignment.contract,
+          role_delta: state.alignment.role_delta,
+          gate: state.alignment.gate,
+          pending_confirmation: {
+            kind: "run",
+            gate: "G2",
+            requested_at: now,
+            requested_by: "coordinator",
+            reason: "Material role delta requires user review",
+            roles: ["pm"],
+          },
+        })
+        state.alignment.pending_confirmation = {
+          kind: "run",
+          gate: "G2",
+          requested_at: now,
+          requested_by: "coordinator",
+          reason: "Material role delta requires user review",
+          roles: ["pm"],
+        }
+        await SwarmState.write(state)
+
+        const info = await Swarm.approveRoles("SW-approve", { actor: "bob", roles: ["pm"] })
+        const next = await SwarmState.read("SW-approve")
+        const align = await SwarmState.readAlignment()
+        expect(info.status).toBe("active")
+        expect(next?.alignment.role_delta.material).toBe(false)
+        expect(next?.alignment.pending_confirmation).toBeNull()
+        expect(next?.alignment.gate.value).toBe("G0")
+        expect(align.catalog.roles.pm?.perspective).toBe("Outcome-first trade-offs")
+        expect(align.catalog.roles.pm?.audit.actor).toBe("bob")
+        expect(align.confirmations.users.bob?.pm?.version).toBe(2)
+      },
+    })
+  })
+
   test("restores the stored stage on paused to active", async () => {
     await using tmp = await tmpdir({ git: true, config: {} })
     await Instance.provide({

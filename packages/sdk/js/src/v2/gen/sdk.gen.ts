@@ -165,6 +165,10 @@ import type {
   SwarmAdminDetailErrors,
   SwarmAdminDetailResponses,
   SwarmAdminListResponses,
+  SwarmAlignmentApproveRoleErrors,
+  SwarmAlignmentApproveRoleResponses,
+  SwarmAlignmentConfirmRunErrors,
+  SwarmAlignmentConfirmRunResponses,
   SwarmAlignmentErrors,
   SwarmAlignmentResponses,
   SwarmArchiveErrors,
@@ -4024,6 +4028,96 @@ export class Admin extends HeyApiClient {
   }
 }
 
+export class Alignment extends HeyApiClient {
+  /**
+   * Approve alignment role changes
+   *
+   * Approve role deltas for the current run and write approved changes back to the catalog.
+   */
+  public approveRole<ThrowOnError extends boolean = false>(
+    parameters: {
+      id: string
+      directory?: string
+      workspace?: string
+      actor?: string
+      roles?: Array<string>
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "id" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "actor" },
+            { in: "body", key: "roles" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      SwarmAlignmentApproveRoleResponses,
+      SwarmAlignmentApproveRoleErrors,
+      ThrowOnError
+    >({
+      url: "/swarm/{id}/alignment/approve-role",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Confirm current swarm run
+   *
+   * Record run-level confirmation and resume a paused alignment gate when allowed.
+   */
+  public confirmRun<ThrowOnError extends boolean = false>(
+    parameters: {
+      id: string
+      directory?: string
+      workspace?: string
+      actor?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "id" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "actor" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      SwarmAlignmentConfirmRunResponses,
+      SwarmAlignmentConfirmRunErrors,
+      ThrowOnError
+    >({
+      url: "/swarm/{id}/alignment/confirm-run",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+}
+
 export class Swarm extends HeyApiClient {
   /**
    * Swarm admin UI
@@ -4578,6 +4672,11 @@ export class Swarm extends HeyApiClient {
   private _admin?: Admin
   get admin(): Admin {
     return (this._admin ??= new Admin({ client: this.client }))
+  }
+
+  private _alignment?: Alignment
+  get alignment2(): Alignment {
+    return (this._alignment ??= new Alignment({ client: this.client }))
   }
 }
 

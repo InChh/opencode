@@ -16,6 +16,11 @@ const flag = z
   .optional()
   .transform((value) => value === "true")
 
+const alignmentWrite = z.object({
+  swarm: z.lazy(() => Swarm.Info),
+  alignment: z.lazy(() => SwarmAdmin.Alignment),
+})
+
 const APP_HTML = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -675,6 +680,64 @@ export const SwarmRoutes = lazy(() =>
           include_deleted: c.req.valid("query").include_deleted,
         })
         return c.json(info)
+      },
+    )
+    .post(
+      "/:id/alignment/approve-role",
+      describeRoute({
+        summary: "Approve alignment role changes",
+        description: "Approve role deltas for the current run and write approved changes back to the catalog.",
+        operationId: "swarm.alignment.approveRole",
+        responses: {
+          200: {
+            description: "Updated swarm alignment state",
+            content: { "application/json": { schema: resolver(alignmentWrite) } },
+          },
+          ...errors(400),
+        },
+      }),
+      validator("param", z.object({ id: z.string() })),
+      validator(
+        "json",
+        z.object({
+          actor: z.string(),
+          roles: z.array(z.string()).optional(),
+        }),
+      ),
+      async (c) => {
+        const id = c.req.valid("param").id
+        const body = c.req.valid("json")
+        const swarm = await Swarm.approveRoles(id, body)
+        const alignment = await SwarmAdmin.readAlignment(id)
+        return c.json({ swarm, alignment })
+      },
+    )
+    .post(
+      "/:id/alignment/confirm-run",
+      describeRoute({
+        summary: "Confirm current swarm run",
+        description: "Record run-level confirmation and resume a paused alignment gate when allowed.",
+        operationId: "swarm.alignment.confirmRun",
+        responses: {
+          200: {
+            description: "Updated swarm alignment state",
+            content: { "application/json": { schema: resolver(alignmentWrite) } },
+          },
+          ...errors(400),
+        },
+      }),
+      validator("param", z.object({ id: z.string() })),
+      validator(
+        "json",
+        z.object({
+          actor: z.string(),
+        }),
+      ),
+      async (c) => {
+        const id = c.req.valid("param").id
+        const swarm = await Swarm.confirm(id, c.req.valid("json"))
+        const alignment = await SwarmAdmin.readAlignment(id)
+        return c.json({ swarm, alignment })
       },
     )
     .post(
