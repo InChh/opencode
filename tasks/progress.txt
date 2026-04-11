@@ -2,10 +2,12 @@
 - Canonical swarm snapshot schema changes must update `SwarmState.Alignment`, `SwarmState.Example`, and `SwarmState.create()` together; current rollout rejects older snapshot schema versions instead of adding compatibility loaders.
 - Shared swarm alignment persistence lives in `board/alignment.json`; keep `alignment.catalog.roles` project-scoped and `alignment.confirmations.users` user-scoped inside that file.
 - `SwarmState.classify()` only treats `purpose`, `perspective`, and `default_when` as material role changes, and it normalizes whitespace before comparing requested roles to the catalog.
+- Catalog-backed run roles keep overlay fields `null`; `SwarmState.classify()` should treat those nulls as inherited catalog values so unchanged roles do not become false-positive modifications.
 - `delegate_task` is the first guaranteed pre-worker checkpoint for swarm runs, so run-contract persistence belongs there before worker sessions are created or registered.
 - `SwarmState.decide()` owns deterministic gate mapping, and the caller should pass the explicit input object through unchanged so stored gate state explains why the run auto-ran or paused.
 - `SwarmState.admit()` uses a strict 2-of-3 threshold across the primary discussion signals; `role_benefit` is supporting context and should never unlock discussion mode by itself.
 - `SwarmState.preflight()` is the canonical place to bundle contract drafting, role delta classification, gate evaluation, and pending-confirmation decisions before any swarm delegation proceeds.
+- Persist readable approval copy in `alignment.summary` and reuse `SwarmState.renderSummary()` for user-facing gate output instead of exposing worker prompts.
 
 ## 2026-04-11 19:15:48 CST - US-001
 - Added canonical alignment state to `packages/opencode/src/session/swarm-state.ts` for project-scoped role catalog data, user-scoped confirmations, run contract, gate state, role delta state, pending confirmations, and alignment audit metadata.
@@ -68,4 +70,13 @@
   - Keep conductor preflight in one pure helper so later confirmation routes and escalation logic can reuse the same state transition inputs.
   - Returning early from `delegate_task` on `G2` or `G3` is an effective pre-worker guard because it stops session creation before any worker is registered.
   - Direction-level approval prompts belong in conductor policy text, not in per-task or per-worker delegation logic.
+---
+
+## 2026-04-11 19:47:52 CST - US-008
+- Added persisted `alignment.summary` data plus `SwarmState.summarize()` and `SwarmState.renderSummary()` so higher-risk runs now store one user-facing contract summary and blocked `delegate_task` output shows that summary instead of raw worker prompt context.
+- Files changed: `packages/opencode/src/session/swarm-state.ts`, `packages/opencode/src/tool/delegate-task.ts`, `packages/opencode/test/session/swarm-state.test.ts`, `packages/opencode/AGENTS.md`, `tasks/prd.json`, `tasks/progress.txt`
+- **Learnings for future iterations:**
+  - Store user-facing approval copy in canonical swarm state so CLI, web, and later write routes can all read the same alignment summary.
+  - Reuse `SwarmState.renderSummary()` for approval messaging instead of rebuilding ad-hoc strings in individual surfaces.
+  - Catalog-backed run roles should keep overlay values `null`; delta checks must treat those nulls as inherited catalog fields or summaries will show false-positive role changes.
 ---

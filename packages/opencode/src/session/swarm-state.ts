@@ -231,6 +231,7 @@ export namespace SwarmState {
     "alignment.gate.reason",
     "alignment.gate.evaluated_at",
     "alignment.role_delta.updated_at",
+    "alignment.summary",
     "alignment.audit",
     "verify.required",
     "verify.updated_at",
@@ -452,6 +453,19 @@ export namespace SwarmState {
   })
   export type Pending = z.infer<typeof Pending>
 
+  export const Summary = z.object({
+    goal: z.string(),
+    scope: z.string(),
+    constraints: z.array(z.string()).default([]),
+    roles: z.array(z.string()).default([]),
+    role_deltas: z.array(Delta).default([]),
+    assumptions: z.array(z.string()).default([]),
+    next_phase: z.string(),
+    ask: z.string().nullable().default(null),
+    created_at: z.number(),
+  })
+  export type Summary = z.infer<typeof Summary>
+
   export const Meta = z.object({
     created_at: z.number().nullable().default(null),
     updated_at: z.number().nullable().default(null),
@@ -473,6 +487,7 @@ export namespace SwarmState {
     contract: RunContract.nullable().default(null),
     gate: GateState.default({ value: null, reason: null, input: null, evaluated_at: null }),
     role_delta: DeltaState.default({ material: false, roles: [], updated_at: null }),
+    summary: Summary.nullable().default(null),
     pending_confirmation: Pending.nullable().default(null),
     audit: z
       .object({
@@ -596,6 +611,7 @@ export namespace SwarmState {
       contract: null,
       gate: { value: null, reason: null, input: null, evaluated_at: null },
       role_delta: { material: false, roles: [], updated_at: null },
+      summary: null,
       pending_confirmation: null,
       audit: {
         catalog: { created_at: null, updated_at: null, actor: null, run_id: null },
@@ -654,6 +670,7 @@ export namespace SwarmState {
         contract: null,
         gate: { value: null, reason: null, input: null, evaluated_at: null },
         role_delta: { material: false, roles: [], updated_at: null },
+        summary: null,
         pending_confirmation: null,
         audit: {
           catalog: { created_at: null, updated_at: null, actor: null, run_id: null },
@@ -798,7 +815,7 @@ export namespace SwarmState {
         }
       }
       rest.delete(match(role))
-      const fields = keys.filter((key) => tidy(role[key]) !== tidy(item[key]))
+      const fields = keys.filter((key) => tidy(role[key]) !== tidy(item[key] ?? role[key]))
       return {
         role_id: role.id,
         name: item.name,
@@ -954,6 +971,51 @@ export namespace SwarmState {
     }
   }
 
+  export function summarize(input: {
+    contract: RunContract
+    role_delta: DeltaState
+    gate: GateState
+    pending_confirmation: Pending | null
+  }) {
+    const blocking = input.gate.value === "G2" || input.gate.value === "G3"
+    return {
+      goal: input.contract.goal,
+      scope: input.contract.scope,
+      constraints: input.contract.constraints,
+      roles: input.contract.roles.map((role) => role.name),
+      role_deltas: input.role_delta.roles.filter((role) => role.state !== "unchanged"),
+      assumptions: input.contract.assumptions,
+      next_phase: blocking
+        ? "Pause before delegation until the user confirms this run"
+        : input.contract.mode === "discussion"
+          ? "Start role discussion with the approved contract"
+          : "Delegate workers using the approved contract",
+      ask: blocking ? (input.pending_confirmation?.reason ?? "Confirm this run before delegation continues") : null,
+      created_at: Date.now(),
+    } satisfies Summary
+  }
+
+  export function renderSummary(summary: Summary) {
+    const deltas =
+      summary.role_deltas.length > 0
+        ? summary.role_deltas
+            .map((role) => `${role.name} (${role.state}${role.fields.length > 0 ? `: ${role.fields.join(", ")}` : ""})`)
+            .join("; ")
+        : "None"
+    const lines = [
+      "Alignment summary",
+      `Goal: ${summary.goal}`,
+      `Scope: ${summary.scope}`,
+      `Constraints: ${summary.constraints.length > 0 ? summary.constraints.join(", ") : "None"}`,
+      `Roles: ${summary.roles.length > 0 ? summary.roles.join(", ") : "None"}`,
+      `Material role deltas: ${deltas}`,
+      `Assumptions: ${summary.assumptions.length > 0 ? summary.assumptions.join(", ") : "None"}`,
+      `Next phase: ${summary.next_phase}`,
+    ]
+    if (summary.ask) lines.push(`Ask: ${summary.ask}`)
+    return lines.join("\n")
+  }
+
   export function preflight(input: {
     goal: string
     scope: string
@@ -993,10 +1055,12 @@ export namespace SwarmState {
           reason: gate.reason,
           roles: role_delta.roles.filter((role) => role.state !== "unchanged").map((role) => role.role_id ?? role.name),
         } satisfies Pending)
+    const summary = gate.value === "G0" ? null : summarize({ contract, role_delta, gate, pending_confirmation })
     return {
       contract,
       role_delta,
       gate,
+      summary,
       pending_confirmation,
       proceed,
     }
@@ -1150,6 +1214,7 @@ export namespace SwarmState {
         contract: null,
         gate: { value: null, reason: null, input: null, evaluated_at: null },
         role_delta: { material: false, roles: [], updated_at: null },
+        summary: null,
         pending_confirmation: null,
         audit: {
           catalog: { created_at: null, updated_at: null, actor: null, run_id: null },

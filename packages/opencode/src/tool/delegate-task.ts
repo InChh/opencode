@@ -180,6 +180,7 @@ export const DelegateTaskTool = Tool.define("delegate_task", async (ctx) => {
             state.alignment.contract = next.contract
             state.alignment.role_delta = next.role_delta
             state.alignment.gate = next.gate
+            state.alignment.summary = next.summary
             state.alignment.pending_confirmation = next.pending_confirmation
             allow = next.proceed
             const now = Date.now()
@@ -213,10 +214,12 @@ export const DelegateTaskTool = Tool.define("delegate_task", async (ctx) => {
           },
         }).catch((e) => log.warn("failed to persist run contract", { swarmID: params.swarm_id, error: e }))
         if (!allow) {
+          const state = await SwarmState.read(params.swarm_id)
+          const summary = state?.alignment.summary ? `${SwarmState.renderSummary(state.alignment.summary)}\n` : ""
           return {
             title: params.description,
             metadata: { blocked: true, swarmID: params.swarm_id },
-            output: `Run confirmation required before delegation: ${params.swarm_id}`,
+            output: `${summary}Run confirmation required before delegation: ${params.swarm_id}`,
           }
         }
       }

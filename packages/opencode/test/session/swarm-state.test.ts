@@ -38,6 +38,7 @@ describe("SwarmState", () => {
         expect(next?.alignment.contract).toBeNull()
         expect(next?.alignment.gate.value).toBeNull()
         expect(next?.alignment.role_delta.roles).toEqual([])
+        expect(next?.alignment.summary).toBeNull()
         expect(next?.alignment.pending_confirmation).toBeNull()
       },
     })
@@ -122,6 +123,24 @@ describe("SwarmState", () => {
           ],
           updated_at: 14,
         }
+        state.alignment.summary = {
+          goal: "Plan a risky swarm",
+          scope: "Swarm alignment rollout",
+          constraints: ["Do not add compatibility loaders"],
+          roles: ["PM"],
+          role_deltas: [
+            {
+              role_id: "pm",
+              name: "PM",
+              state: "modified",
+              fields: ["purpose", "perspective"],
+            },
+          ],
+          assumptions: ["Catalog already exists"],
+          next_phase: "Pause before delegation until the user confirms this run",
+          ask: "Confirm the updated contract",
+          created_at: 15,
+        }
         state.alignment.pending_confirmation = {
           kind: "run",
           gate: "G2",
@@ -145,6 +164,7 @@ describe("SwarmState", () => {
         expect(next?.alignment.contract?.mode).toBe("discussion")
         expect(next?.alignment.gate.value).toBe("G2")
         expect(next?.alignment.role_delta.roles[0]?.fields).toEqual(["purpose", "perspective"])
+        expect(next?.alignment.summary?.next_phase).toContain("Pause before delegation")
         expect(next?.alignment.pending_confirmation?.roles).toEqual(["pm"])
         expect(next?.alignment.audit.contract.actor).toBe("SE-conductor")
       },
@@ -526,6 +546,7 @@ describe("SwarmState", () => {
     })
     expect(flagged.proceed).toBe(true)
     expect(flagged.gate.value).toBe("G0")
+    expect(flagged.summary).toBeNull()
     expect(flagged.pending_confirmation).toBeNull()
 
     const blocked = SwarmState.preflight({
@@ -550,8 +571,11 @@ describe("SwarmState", () => {
     })
     expect(blocked.proceed).toBe(false)
     expect(blocked.gate.value).toBe("G2")
+    expect(blocked.summary?.roles).toEqual(["RD"])
+    expect(blocked.summary?.role_deltas.map((role) => role.state)).toEqual(["removed", "added"])
+    expect(blocked.summary?.ask).toBe("Material role delta requires user review")
     expect(blocked.pending_confirmation?.kind).toBe("run")
-    expect(blocked.pending_confirmation?.roles).toEqual(["RD"])
+    expect(blocked.pending_confirmation?.roles).toEqual(["pm", "RD"])
   })
 
   test("restores the stored stage on paused to active", async () => {
