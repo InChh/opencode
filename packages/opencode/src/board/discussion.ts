@@ -5,6 +5,7 @@ import { Lock } from "../util/lock"
 import { Global } from "../global"
 import { Instance } from "../project/instance"
 import { BoardSignal } from "./signal"
+import { SwarmState } from "../session/swarm-state"
 
 export namespace Discussion {
   export const Round = z.object({
@@ -56,59 +57,109 @@ export namespace Discussion {
     await Bun.write(fp, JSON.stringify(round, null, 2))
   }
 
+  function fromState(swarm: string, channel: string, item: SwarmState.Discussion): Round {
+    return Round.parse({
+      round: item.current_round,
+      max_rounds: item.max_rounds,
+      channel,
+      swarm_id: swarm,
+      expected: item.participants,
+      received: item.received,
+      complete: item.status === "round_complete" || item.status === "consensus_ready" || item.status === "decided",
+    })
+  }
+
   export async function join(swarm: string, channel: string, participant: string): Promise<Round> {
-    using _ = await Lock.write(key(swarm, channel))
-    const current = await loadRaw(swarm, channel)
+    const round = await SwarmState.mutate(swarm, {
+      actor: "coordinator",
+      reason: `join discussion ${channel}`,
+      fn: (state) => {
+        const item = state.discussions[channel]
+        if (!item) throw new Error(`No discussion found for channel ${channel}`)
+        if (!item.participants.includes(participant)) item.participants.push(participant)
+        item.updated_at = Date.now()
+      },
+    })
+    const current = round.discussions[channel]
     if (!current) throw new Error(`No discussion found for channel ${channel}`)
-    if (!current.expected.includes(participant)) {
-      current.expected.push(participant)
-      await saveRaw(current)
-    }
-    return current
+    const next = fromState(swarm, channel, current)
+    await saveRaw(next)
+    return next
   }
 
   export async function start(swarm: string, channel: string, workers: string[], max_rounds?: number): Promise<Round> {
-    using _ = await Lock.write(key(swarm, channel))
-    const round: Round = {
-      round: 1,
-      max_rounds: max_rounds ?? 3,
-      channel,
-      swarm_id: swarm,
-      expected: workers,
-      received: [],
-      complete: false,
-    }
+    const state = await SwarmState.mutate(swarm, {
+      actor: "coordinator",
+      reason: `start discussion ${channel}`,
+      fn: (next) => {
+        next.discussions[channel] = {
+          id: channel,
+          channel,
+          topic: channel,
+          status: "collecting",
+          current_round: 1,
+          max_rounds: max_rounds ?? 3,
+          participants: workers,
+          received: [],
+          updated_at: Date.now(),
+        }
+      },
+    })
+    const current = state.discussions[channel]
+    if (!current) throw new Error(`No discussion found for channel ${channel}`)
+    const round = fromState(swarm, channel, current)
     await saveRaw(round)
     return round
   }
 
   export async function record(swarm: string, channel: string, from: string, _round: number): Promise<Round> {
-    using _ = await Lock.write(key(swarm, channel))
-    const current = await loadRaw(swarm, channel)
+    const state = await SwarmState.mutate(swarm, {
+      actor: "coordinator",
+      reason: `record discussion ${channel}`,
+      fn: (next) => {
+        const item = next.discussions[channel]
+        if (!item) throw new Error(`No discussion found for channel ${channel}`)
+        if (item.current_round !== _round) return
+        if (!item.received.includes(from)) item.received.push(from)
+        item.status =
+          item.participants.length > 0 && item.received.length >= item.participants.length
+            ? "round_complete"
+            : "collecting"
+        item.updated_at = Date.now()
+      },
+    })
+    const current = state.discussions[channel]
     if (!current) throw new Error(`No discussion found for channel ${channel}`)
-    if (current.round !== _round) return current
-    if (!current.received.includes(from)) {
-      current.received.push(from)
-    }
-    current.complete = current.expected.length > 0 && current.received.length >= current.expected.length
-    await saveRaw(current)
-    return current
+    const round = fromState(swarm, channel, current)
+    await saveRaw(round)
+    return round
   }
 
   export async function status(swarm: string, channel: string): Promise<Round | undefined> {
+    const state = await SwarmState.read(swarm)
+    if (state?.discussions[channel]) return fromState(swarm, channel, state.discussions[channel]!)
     using _ = await Lock.read(key(swarm, channel))
     return loadRaw(swarm, channel)
   }
 
-  export async function advance(swarm: string, channel: string): Promise<Round> {
-    using _ = await Lock.write(key(swarm, channel))
-    const current = await loadRaw(swarm, channel)
+  export async function advance(swarm: string, channel: string, actor = "coordinator"): Promise<Round> {
+    const state = await SwarmState.mutate(swarm, {
+      actor,
+      reason: `advance discussion ${channel}`,
+      fn: (next) => {
+        const item = next.discussions[channel]
+        if (!item) throw new Error(`No discussion found for channel ${channel}`)
+        item.current_round += 1
+        item.received = []
+        item.status = "collecting"
+        item.updated_at = Date.now()
+      },
+    })
+    const current = state.discussions[channel]
     if (!current) throw new Error(`No discussion found for channel ${channel}`)
-    current.round += 1
-    current.received = []
-    current.complete = false
-    await saveRaw(current)
-    return current
+    const round = fromState(swarm, channel, current)
+    await saveRaw(round)
+    return round
   }
 
   export async function tally(swarm: string, channel: string): Promise<Tally> {

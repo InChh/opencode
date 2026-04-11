@@ -8,6 +8,7 @@ import { Log } from "../util/log"
 import { Global } from "../global"
 import { Instance } from "../project/instance"
 import { ScopeLock } from "./scope-lock"
+import { SwarmState } from "../session/swarm-state"
 
 export namespace BoardTask {
   const log = Log.create({ service: "board.task" })
@@ -58,50 +59,31 @@ export namespace BoardTask {
     await fs.mkdir(dir(swarm), { recursive: true })
   }
 
-  export async function create(input: {
-    subject: string
-    description?: string
-    type: Type
-    scope?: string[]
-    swarm_id: string
-    blockedBy?: string[]
-    blocks?: string[]
-    assignee?: string
-    metadata?: Record<string, unknown>
-  }): Promise<Info> {
-    await ensure(input.swarm_id)
-    const id = `BT-${crypto.randomUUID()}`
-    const now = Date.now()
-    const task: Info = {
-      id,
-      subject: input.subject,
-      description: input.description,
-      status: "pending",
-      blockedBy: input.blockedBy ?? [],
-      blocks: input.blocks ?? [],
-      assignee: input.assignee,
-      type: input.type,
-      scope: input.scope ?? [],
-      artifacts: [],
-      swarm_id: input.swarm_id,
-      metadata: input.metadata ?? {},
-      createdAt: now,
-      updatedAt: now,
-    }
-    using _ = await Lock.write(key(id))
-    await Bun.write(filepath(input.swarm_id, id), JSON.stringify(task, null, 2))
-    Bus.publish(Event.Created, { task })
-    return task
+  function fromState(task: SwarmState.Task, swarm: string): Info {
+    return Info.parse({
+      id: task.id,
+      subject: task.subject,
+      description: task.description ?? undefined,
+      status: task.status,
+      blockedBy: task.blocked_by,
+      blocks: task.blocks,
+      assignee: task.assignee ?? undefined,
+      type: task.type,
+      scope: task.scope,
+      artifacts: task.artifacts,
+      swarm_id: swarm,
+      metadata: task.metadata,
+      createdAt: task.created_at,
+      updatedAt: task.updated_at,
+    })
   }
 
-  export async function get(swarm: string, id: string): Promise<Info> {
-    using _ = await Lock.read(key(id))
-    const file = Bun.file(filepath(swarm, id))
-    if (!(await file.exists())) throw new Error(`Board task not found: ${id}`)
-    return Info.parse(await file.json())
+  async function writeRaw(task: Info) {
+    using _ = await Lock.write(key(task.id))
+    await Bun.write(filepath(task.swarm_id, task.id), JSON.stringify(task, null, 2))
   }
 
-  export async function list(swarm: string): Promise<Info[]> {
+  async function listRaw(swarm: string): Promise<Info[]> {
     await ensure(swarm)
     const files = await fs.readdir(dir(swarm)).catch(() => [] as string[])
     const tasks = await Promise.all(
@@ -119,7 +101,81 @@ export namespace BoardTask {
             })
         }),
     )
-    return tasks.filter((t): t is Info => t !== undefined)
+    return tasks.filter((task): task is Info => task !== undefined)
+  }
+
+  export async function create(input: {
+    subject: string
+    description?: string
+    type: Type
+    scope?: string[]
+    swarm_id: string
+    blockedBy?: string[]
+    blocks?: string[]
+    assignee?: string
+    metadata?: Record<string, unknown>
+    actor?: string
+  }): Promise<Info> {
+    await ensure(input.swarm_id)
+    const id = `BT-${crypto.randomUUID()}`
+    const now = Date.now()
+    const task = Info.parse({
+      id,
+      subject: input.subject,
+      description: input.description,
+      status: "pending",
+      blockedBy: input.blockedBy ?? [],
+      blocks: input.blocks ?? [],
+      assignee: input.assignee,
+      type: input.type,
+      scope: input.scope ?? [],
+      artifacts: [],
+      swarm_id: input.swarm_id,
+      metadata: input.metadata ?? {},
+      createdAt: now,
+      updatedAt: now,
+    })
+    await SwarmState.mutate(input.swarm_id, {
+      actor: input.actor ?? "coordinator",
+      reason: `create task ${id}`,
+      fn: (state) => {
+        state.tasks[id] = {
+          id,
+          subject: task.subject,
+          description: task.description ?? null,
+          status: task.status,
+          blocked_by: task.blockedBy,
+          blocks: task.blocks,
+          assignee: task.assignee ?? null,
+          type: task.type,
+          scope: task.scope,
+          artifacts: task.artifacts,
+          verify_required: true,
+          metadata: task.metadata,
+          created_at: task.createdAt,
+          updated_at: task.updatedAt,
+          reason: null,
+        }
+      },
+    })
+    await writeRaw(task)
+    Bus.publish(Event.Created, { task })
+    return task
+  }
+
+  export async function get(swarm: string, id: string): Promise<Info> {
+    const state = await SwarmState.read(swarm)
+    if (state?.tasks[id]) return fromState(state.tasks[id]!, swarm)
+    using _ = await Lock.read(key(id))
+    const file = Bun.file(filepath(swarm, id))
+    if (!(await file.exists())) throw new Error(`Board task not found: ${id}`)
+    return Info.parse(await file.json())
+  }
+
+  export async function list(swarm: string): Promise<Info[]> {
+    const state = await SwarmState.read(swarm)
+    if (state) return Object.values(state.tasks).map((task) => fromState(task, swarm))
+    return listRaw(swarm)
   }
 
   export async function ready(swarm: string): Promise<Info[]> {
@@ -140,18 +196,33 @@ export namespace BoardTask {
         "subject" | "description" | "status" | "blockedBy" | "blocks" | "assignee" | "scope" | "artifacts" | "metadata"
       >
     >,
+    actor = "coordinator",
   ): Promise<Info> {
-    const fp = filepath(swarm, id)
-    using _ = await Lock.write(key(id))
-    const file = Bun.file(fp)
-    if (!(await file.exists())) throw new Error(`Board task not found: ${id}`)
-    const current = Info.parse(await file.json())
+    const current = await get(swarm, id)
     const updated: Info = {
       ...current,
       ...changes,
       updatedAt: Date.now(),
     }
-    await Bun.write(fp, JSON.stringify(updated, null, 2))
+    await SwarmState.mutate(swarm, {
+      actor,
+      reason: `update task ${id}`,
+      fn: (state) => {
+        const task = state.tasks[id]
+        if (!task) throw new Error(`Board task not found: ${id}`)
+        task.subject = updated.subject
+        task.description = updated.description ?? null
+        task.status = updated.status
+        task.blocked_by = updated.blockedBy
+        task.blocks = updated.blocks
+        task.assignee = updated.assignee ?? null
+        task.scope = updated.scope
+        task.artifacts = updated.artifacts
+        task.metadata = updated.metadata
+        task.updated_at = updated.updatedAt
+      },
+    })
+    await writeRaw(updated)
     if (updated.status === "completed" || updated.status === "cancelled" || updated.status === "failed") {
       ScopeLock.unlock(swarm, id)
     }
@@ -159,7 +230,14 @@ export namespace BoardTask {
     return updated
   }
 
-  export async function remove(swarm: string, id: string): Promise<void> {
+  export async function remove(swarm: string, id: string, actor = "coordinator"): Promise<void> {
+    await SwarmState.mutate(swarm, {
+      actor,
+      reason: `remove task ${id}`,
+      fn: (state) => {
+        delete state.tasks[id]
+      },
+    })
     using _ = await Lock.write(key(id))
     await fs.unlink(filepath(swarm, id)).catch(() => {
       throw new Error(`Board task not found: ${id}`)

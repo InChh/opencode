@@ -1,6 +1,7 @@
 ## Codebase Patterns
 
 - Use `SwarmState.create/read/write` in `packages/opencode/src/session/swarm-state.ts` for canonical swarm snapshot setup instead of hand-rolling `state.json` payloads.
+- Route authoritative swarm/task/discussion changes through `SwarmState.mutate`; `BoardTask` and `Discussion` raw JSON files are compatibility mirrors, not the source of truth.
 
 ---
 
@@ -20,4 +21,13 @@
   - `Swarm.Info.status` now carries only lifecycle values; any UI or read-model phase label should come from `stage` or a deliberate projection.
   - Pause/resume logic should preserve the last active `stage` in `resume.stage` before any sync back to `state.json`.
   - Admin routes still expose compatibility labels like `planning` and `running`, but they should be treated as derived presentation values rather than authoritative swarm state.
+---
+
+## 2026-04-11 12:13:20 CST - US-003
+- Added coordinator-gated snapshot mutation helpers in `packages/opencode/src/session/swarm-state.ts`, moved `packages/opencode/src/board/task.ts` and `packages/opencode/src/board/discussion.ts` authoritative writes into `state.json`, and kept legacy board JSON files as compatibility projections.
+- Updated `packages/opencode/src/tool/board.ts` to reject or downgrade non-coordinator writes into signals, recorded audit entries for illegal direct mutations, and documented the pattern in `packages/opencode/AGENTS.md`.
+- **Learnings for future iterations:**
+  - If a swarm feature changes authoritative state, add it through `SwarmState.mutate` first and only mirror legacy files afterward if a compatibility reader still needs them.
+  - Non-coordinator worker updates should become observations (`BoardSignal`) unless the conductor explicitly commits them.
+  - Audit trails for rejected snapshot writes live in `state.audit.illegal`, which makes it easy to assert policy enforcement in tests.
 ---

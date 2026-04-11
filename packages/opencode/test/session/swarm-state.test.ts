@@ -3,6 +3,7 @@ import { tmpdir } from "../fixture/fixture"
 import { Instance } from "../../src/project/instance"
 import { SwarmState } from "../../src/session/swarm-state"
 import { Swarm } from "../../src/session/swarm"
+import { BoardTask } from "../../src/board"
 
 describe("SwarmState", () => {
   test("requires schema version 2", () => {
@@ -75,6 +76,39 @@ describe("SwarmState", () => {
         expect(active.stage).toBe("verifying")
         expect(active.resume.stage).toBeNull()
         expect(next?.swarm.stage).toBe("verifying")
+      },
+    })
+  })
+
+  test("rejects non-coordinator task writes and records audit output", async () => {
+    await using tmp = await tmpdir({ git: true, config: {} })
+    await Instance.provide({
+      directory: tmp.path,
+      fn: async () => {
+        const now = Date.now()
+        await Swarm.save({
+          id: "SW-auth",
+          goal: "Keep snapshot writes coordinator-only",
+          conductor: "SE-conductor",
+          workers: [],
+          config: { max_workers: 4, auto_escalate: true, verify_on_complete: true },
+          status: "active",
+          stage: "executing",
+          resume: { stage: null },
+          visibility: { archived_at: null },
+          time: { created: now, updated: now },
+        })
+        await expect(
+          BoardTask.create({
+            subject: "Worker should not commit snapshot state",
+            type: "implement",
+            swarm_id: "SW-auth",
+            actor: "SE-worker-1",
+          }),
+        ).rejects.toThrow("Only the coordinator")
+        const state = await SwarmState.read("SW-auth")
+        expect(state?.audit.illegal.at(-1)?.actor).toBe("SE-worker-1")
+        expect(state?.audit.illegal.at(-1)?.reason).toContain("create task")
       },
     })
   })

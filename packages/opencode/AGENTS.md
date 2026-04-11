@@ -8,3 +8,7 @@
 - **Command**: `bun run db generate --name <slug>`.
 - **Output**: creates `migration/<timestamp>_<slug>/migration.sql` and `snapshot.json`.
 - **Tests**: migration tests should read the per-folder layout (no `_journal.json`).
+
+## Swarm State
+
+- Use `SwarmState.mutate` for authoritative swarm, task, and discussion writes; the per-task and per-discussion JSON files are compatibility projections derived from `board/<swarm>/state.json`.

@@ -3,8 +3,12 @@ import path from "path"
 import z from "zod"
 import { Global } from "../global"
 import { Instance } from "../project/instance"
+import { Lock } from "../util/lock"
+import { Log } from "../util/log"
 
 export namespace SwarmState {
+  const log = Log.create({ service: "swarm.state" })
+
   export const Status = z.enum(["active", "paused", "blocked", "completed", "failed", "stopped"])
   export type Status = z.infer<typeof Status>
 
@@ -323,6 +327,10 @@ export namespace SwarmState {
     return path.join(Global.Path.data, "projects", Instance.project.id, "board", id, "state.json")
   }
 
+  function key(id: string) {
+    return `swarm-state:${id}`
+  }
+
   export async function ensure(id: string) {
     await fs.mkdir(path.dirname(filepath(id)), { recursive: true })
   }
@@ -336,6 +344,39 @@ export namespace SwarmState {
   export async function write(snapshot: Snapshot) {
     await ensure(snapshot.swarm.id)
     await Bun.write(filepath(snapshot.swarm.id), JSON.stringify(snapshot, null, 2))
+  }
+
+  export async function illegal(id: string, input: { actor: string; reason: string }) {
+    using _ = await Lock.write(key(id))
+    const state = await read(id)
+    if (!state) return
+    state.audit.illegal.push({ actor: input.actor, reason: input.reason, at: Date.now() })
+    await write(state)
+    log.warn("illegal swarm mutation", { swarm: id, actor: input.actor, reason: input.reason })
+  }
+
+  export async function mutate(
+    id: string,
+    input: {
+      actor: string
+      reason: string
+      fn: (snapshot: Snapshot) => void
+    },
+  ) {
+    using _ = await Lock.write(key(id))
+    const state = await read(id)
+    if (!state) throw new Error(`Swarm state not found: ${id}`)
+    if (input.actor !== "coordinator" && input.actor !== state.swarm.conductor) {
+      state.audit.illegal.push({ actor: input.actor, reason: input.reason, at: Date.now() })
+      await write(state)
+      log.warn("blocked non-coordinator mutation", { swarm: id, actor: input.actor, reason: input.reason })
+      throw new Error(`Only the coordinator can mutate swarm state: ${input.actor}`)
+    }
+    const next = structuredClone(state)
+    input.fn(next)
+    const checked = Snapshot.parse(next)
+    await write(checked)
+    return checked
   }
 
   export function create(input: {
