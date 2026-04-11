@@ -180,6 +180,7 @@ export const DelegateTaskTool = Tool.define("delegate_task", async (ctx) => {
             state.alignment.contract = next.contract
             state.alignment.role_delta = next.role_delta
             state.alignment.gate = next.gate
+            state.alignment.run_confirmation = next.confirmed ? state.alignment.run_confirmation : null
             state.alignment.summary = next.summary
             state.alignment.pending_confirmation = next.pending_confirmation
             allow = next.proceed

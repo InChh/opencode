@@ -655,9 +655,10 @@ describe("SwarmState", () => {
     })
     expect(blocked.proceed).toBe(false)
     expect(blocked.gate.value).toBe("G2")
+    expect(blocked.escalated).toBe(true)
     expect(blocked.summary?.roles).toEqual(["RD"])
     expect(blocked.summary?.role_deltas.map((role) => role.state)).toEqual(["removed", "added"])
-    expect(blocked.summary?.ask).toBe("Material role delta requires user review")
+    expect(blocked.summary?.ask).toContain("Alignment gate escalated from G0 to G2")
     expect(blocked.pending_confirmation?.kind).toBe("run")
     expect(blocked.pending_confirmation?.roles).toEqual(["pm", "RD"])
 
@@ -695,6 +696,55 @@ describe("SwarmState", () => {
     expect(approved.proceed).toBe(true)
     expect(approved.pending_confirmation).toBeNull()
     expect(approved.summary?.ask).toBeNull()
+
+    const escalated = SwarmState.preflight({
+      goal: "Ship the alignment flow",
+      scope: "Delegate PM analysis",
+      discussion: false,
+      role: "PM",
+      gate: { action_sensitive: true },
+      catalog: {
+        pm: {
+          id: "pm",
+          name: "PM",
+          purpose: "Own scope",
+          perspective: "User impact first",
+          default_when: "Trade-offs affect product direction",
+          version: 1,
+          created_at: now,
+          updated_at: now,
+          audit: { created_at: now, updated_at: now, actor: "alice", run_id: "SW-role-1" },
+        },
+      },
+      current: {
+        ...SwarmState.Example.alignment,
+        contract: flagged.contract,
+        gate: {
+          value: "G1",
+          reason: "Novel scope keeps the run visible without blocking",
+          input: {
+            action_sensitive: false,
+            material_role_delta: false,
+            ambiguous: false,
+            valid_options: 1,
+            trade_offs: false,
+            confidence: "high",
+            routine: false,
+          },
+          evaluated_at: now,
+        },
+        run_confirmation: {
+          gate: "G1",
+          confirmed_at: now,
+          confirmed_by: "alice",
+        },
+      },
+    })
+    expect(escalated.escalated).toBe(true)
+    expect(escalated.gate.value).toBe("G3")
+    expect(escalated.proceed).toBe(false)
+    expect(escalated.pending_confirmation?.reason).toContain("Alignment gate escalated from G1 to G3")
+    expect(escalated.summary?.ask).toContain("Alignment gate escalated")
   })
 
   test("requires run confirmation before resuming a paused gate", async () => {

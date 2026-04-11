@@ -418,6 +418,10 @@ export namespace SwarmState {
   export const Gate = z.enum(["G0", "G1", "G2", "G3"])
   export type Gate = z.infer<typeof Gate>
 
+  export function rank(gate: Gate | null | undefined) {
+    return gate === "G3" ? 3 : gate === "G2" ? 2 : gate === "G1" ? 1 : 0
+  }
+
   export const GateInput = z.object({
     action_sensitive: z.boolean().nullable().default(null),
     material_role_delta: z.boolean().nullable().default(null),
@@ -1088,6 +1092,7 @@ export namespace SwarmState {
     discussion: boolean
     reason?: string | null
     role?: string | null
+    gate?: Partial<GateInput>
     catalog: Record<string, Role>
     current: Alignment
   }) {
@@ -1101,20 +1106,24 @@ export namespace SwarmState {
       current: input.current.contract,
     })
     const role_delta = classify({ catalog: input.catalog, roles: contract.roles })
-    const gate = decide({
-      action_sensitive: false,
-      material_role_delta: role_delta.material,
-      ambiguous: input.discussion,
-      valid_options: input.discussion ? 2 : 1,
-      trade_offs: input.discussion,
-      confidence: "high",
-      routine: !input.discussion,
-    })
+    const gate = decide(
+      GateInput.parse({
+        action_sensitive: false,
+        material_role_delta: role_delta.material,
+        ambiguous: input.discussion,
+        valid_options: input.discussion ? 2 : 1,
+        trade_offs: input.discussion,
+        confidence: "high",
+        routine: !input.discussion,
+        ...input.gate,
+      }),
+    )
     const confirmed =
       input.current.run_confirmation !== null &&
       input.current.gate.value === gate.value &&
       JSON.stringify(input.current.contract) === JSON.stringify(contract)
     const proceed = confirmed || gate.value === "G0" || gate.value === "G1"
+    const escalated = rank(gate.value) > rank(input.current.gate.value)
     const pending_confirmation = proceed
       ? null
       : ({
@@ -1122,7 +1131,9 @@ export namespace SwarmState {
           gate: gate.value,
           requested_at: Date.now(),
           requested_by: "coordinator",
-          reason: gate.reason,
+          reason: escalated
+            ? `Alignment gate escalated from ${input.current.gate.value ?? "G0"} to ${gate.value}: ${gate.reason}`
+            : gate.reason,
           roles: role_delta.roles.filter((role) => role.state !== "unchanged").map((role) => role.role_id ?? role.name),
         } satisfies Pending)
     const summary = gate.value === "G0" ? null : summarize({ contract, role_delta, gate, pending_confirmation })
@@ -1131,6 +1142,7 @@ export namespace SwarmState {
       role_delta,
       gate,
       confirmed,
+      escalated,
       summary,
       pending_confirmation,
       proceed,

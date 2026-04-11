@@ -10,6 +10,7 @@
 - Persist readable approval copy in `alignment.summary` and reuse `SwarmState.renderSummary()` for user-facing gate output instead of exposing worker prompts.
 - Persist approved high-risk runs in `alignment.run_confirmation`; reuse that approval only while the stored contract and gate still match, and keep `Swarm.resume()` blocked until pending run confirmation is cleared.
 - Use `SwarmState.writeback()` for approved role changes so only `modified` or `added` deltas update the shared catalog, while unchanged roles stay untouched and user confirmation state stays in sync.
+- `SwarmState.preflight()` can accept later-phase gate overrides; when the new gate outranks the stored gate, clear stale run confirmation and surface an explicit escalation reason in the fresh pending confirmation.
 
 ## 2026-04-11 19:15:48 CST - US-001
 - Added canonical alignment state to `packages/opencode/src/session/swarm-state.ts` for project-scoped role catalog data, user-scoped confirmations, run contract, gate state, role delta state, pending confirmations, and alignment audit metadata.
@@ -99,4 +100,13 @@
   - Approved role writeback should merge null overlay fields back to the catalog baseline so partial overlays can update one field without blanking the rest of the charter.
   - Unchanged roles should not be rewritten during approval flows; skipping them preserves stable versions and cleaner audit history.
   - Catalog writeback should always pair the catalog update with `confirmRole()` so future runs can reuse the approved version without an extra confirmation pass.
+---
+
+## 2026-04-11 19:47:52 CST - US-011
+- Added gate-input overrides plus escalation detection in `SwarmState.preflight()` and cleared stale `alignment.run_confirmation` during `delegate_task` preflight so later higher-risk turns now persist a stronger gate, an escalation-specific pause reason, and a fresh confirmation requirement before delegation resumes.
+- Files changed: `packages/opencode/src/session/swarm-state.ts`, `packages/opencode/src/tool/delegate-task.ts`, `packages/opencode/test/session/swarm-state.test.ts`, `packages/opencode/AGENTS.md`, `tasks/prd.json`, `tasks/progress.txt`
+- **Learnings for future iterations:**
+  - Mid-run escalation should compare gate ranks, not just gate inequality, so lateral changes like `G2` to `G2` do not create noisy re-approval loops.
+  - Later-phase risk checks need explicit gate-input overrides because the default preflight inputs only cover the routine delegation case.
+  - Clear stale `run_confirmation` as soon as preflight stops matching the stored contract and gate, otherwise read models can imply the higher-risk turn was already approved.
 ---
