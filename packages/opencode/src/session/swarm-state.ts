@@ -802,6 +802,61 @@ export namespace SwarmState {
     return state.confirmations.users[input.user][input.role_id]
   }
 
+  function slug(input: string) {
+    const value = input
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+    return value || crypto.randomUUID()
+  }
+
+  export async function writeback(input: {
+    user: string
+    run_id: string
+    role_delta: DeltaState
+    contract: RunContract
+  }) {
+    const align = await readAlignment()
+    const done = await Promise.all(
+      input.role_delta.roles
+        .filter((role) => role.state === "modified" || role.state === "added")
+        .map(async (delta) => {
+          const role = input.contract.roles.find(
+            (item) => match(item) === match({ role_id: delta.role_id, name: delta.name }),
+          )
+          if (!role) return null
+          const prev = delta.role_id
+            ? align.catalog.roles[delta.role_id]
+            : Object.values(align.catalog.roles).find((item) => match(item) === match(role))
+          const next = {
+            id: prev?.id ?? role.role_id ?? slug(role.name),
+            name: prev?.name ?? role.name,
+            purpose: role.purpose ?? prev?.purpose ?? "",
+            perspective: role.perspective ?? prev?.perspective ?? "",
+            default_when: role.default_when ?? prev?.default_when ?? "",
+            version: (prev?.version ?? 0) + 1,
+          }
+          if (!next.purpose || !next.perspective || !next.default_when) {
+            throw new Error(`Cannot write back incomplete role overlay: ${role.name}`)
+          }
+          const saved = await putRole({ role: next, actor: input.user, run_id: input.run_id })
+          const confirmed = await confirmRole({
+            user: input.user,
+            role_id: saved.id,
+            version: saved.version,
+            run_id: input.run_id,
+          })
+          return {
+            role: saved,
+            confirmed,
+            state: delta.state,
+          }
+        }),
+    )
+    return done.filter((item) => item !== null)
+  }
+
   function match(input: Pick<Role, "id" | "name"> | Pick<RunRole, "role_id" | "name">) {
     return String(("id" in input ? input.id : input.role_id) ?? input.name)
       .trim()

@@ -9,6 +9,7 @@
 - `SwarmState.preflight()` is the canonical place to bundle contract drafting, role delta classification, gate evaluation, and pending-confirmation decisions before any swarm delegation proceeds.
 - Persist readable approval copy in `alignment.summary` and reuse `SwarmState.renderSummary()` for user-facing gate output instead of exposing worker prompts.
 - Persist approved high-risk runs in `alignment.run_confirmation`; reuse that approval only while the stored contract and gate still match, and keep `Swarm.resume()` blocked until pending run confirmation is cleared.
+- Use `SwarmState.writeback()` for approved role changes so only `modified` or `added` deltas update the shared catalog, while unchanged roles stay untouched and user confirmation state stays in sync.
 
 ## 2026-04-11 19:15:48 CST - US-001
 - Added canonical alignment state to `packages/opencode/src/session/swarm-state.ts` for project-scoped role catalog data, user-scoped confirmations, run contract, gate state, role delta state, pending confirmations, and alignment audit metadata.
@@ -89,4 +90,13 @@
   - Reusing a high-risk approval needs explicit persisted state; clearing `pending_confirmation` alone is not enough because later preflight checks will recompute the same gate.
   - Approval reuse should compare both the stored gate and the full stored contract so later role or scope changes trigger a fresh checkpoint instead of silently inheriting an outdated confirmation.
   - Keep `Swarm.resume()` strict for pending run confirmations so admin pause controls cannot accidentally bypass alignment gates.
+---
+
+## 2026-04-11 19:47:52 CST - US-010
+- Added `SwarmState.writeback()` so approved role overlays now rewrite only material `modified` or `added` deltas back into `board/alignment.json`, increment versions, and record the approving user and run in both catalog audit metadata and user confirmation state.
+- Files changed: `packages/opencode/src/session/swarm-state.ts`, `packages/opencode/test/session/swarm-state.test.ts`, `packages/opencode/AGENTS.md`, `tasks/prd.json`, `tasks/progress.txt`
+- **Learnings for future iterations:**
+  - Approved role writeback should merge null overlay fields back to the catalog baseline so partial overlays can update one field without blanking the rest of the charter.
+  - Unchanged roles should not be rewritten during approval flows; skipping them preserves stable versions and cleaner audit history.
+  - Catalog writeback should always pair the catalog update with `confirmRole()` so future runs can reuse the approved version without an extra confirmation pass.
 ---

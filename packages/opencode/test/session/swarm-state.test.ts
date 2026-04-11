@@ -242,6 +242,89 @@ describe("SwarmState", () => {
     })
   })
 
+  test("writes approved modified roles back to the shared catalog", async () => {
+    await using tmp = await tmpdir({ git: true, config: {} })
+    await Instance.provide({
+      directory: tmp.path,
+      fn: async () => {
+        await SwarmState.putRole({
+          role: {
+            id: "pm",
+            name: "PM",
+            purpose: "Own scope",
+            perspective: "User impact first",
+            default_when: "Trade-offs affect product direction",
+            version: 1,
+          },
+          actor: "alice",
+          run_id: "SW-role-1",
+        })
+        await SwarmState.putRole({
+          role: {
+            id: "qa",
+            name: "QA",
+            purpose: "Protect release quality",
+            perspective: "Failure modes first",
+            default_when: "Risk is unclear",
+            version: 3,
+          },
+          actor: "alice",
+          run_id: "SW-role-1",
+        })
+
+        const out = await SwarmState.writeback({
+          user: "bob",
+          run_id: "SW-role-2",
+          role_delta: {
+            material: true,
+            roles: [
+              { role_id: "pm", name: "PM", state: "modified", fields: ["perspective"] },
+              { role_id: "qa", name: "QA", state: "unchanged", fields: [] },
+            ],
+            updated_at: Date.now(),
+          },
+          contract: {
+            goal: "Review run roles",
+            scope: "Approve catalog updates",
+            constraints: [],
+            roles: [
+              {
+                role_id: "pm",
+                name: "PM",
+                purpose: null,
+                perspective: "Outcome-first trade-offs",
+                default_when: null,
+              },
+              {
+                role_id: "qa",
+                name: "QA",
+                purpose: null,
+                perspective: null,
+                default_when: null,
+              },
+            ],
+            mode: "execute",
+            assumptions: [],
+            risks: [],
+            discussion_reason: null,
+            created_at: Date.now(),
+          },
+        })
+
+        const next = await SwarmState.readAlignment()
+        expect(out).toHaveLength(1)
+        expect(out[0]?.state).toBe("modified")
+        expect(next.catalog.roles.pm?.perspective).toBe("Outcome-first trade-offs")
+        expect(next.catalog.roles.pm?.version).toBe(2)
+        expect(next.catalog.roles.pm?.audit.actor).toBe("bob")
+        expect(next.catalog.roles.pm?.audit.run_id).toBe("SW-role-2")
+        expect(next.catalog.roles.qa?.version).toBe(3)
+        expect(next.confirmations.users.bob?.pm?.version).toBe(2)
+        expect(next.confirmations.users.bob?.qa).toBeUndefined()
+      },
+    })
+  })
+
   test("classifies requested roles using only material fields", () => {
     const now = Date.now()
     const out = SwarmState.classify({
