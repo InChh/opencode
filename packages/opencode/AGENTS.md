@@ -13,5 +13,6 @@
 
 - Use `SwarmState.mutate` for authoritative swarm, task, and discussion writes; the per-task and per-discussion JSON files are compatibility projections derived from `board/<swarm>/state.json`.
 - When adding canonical swarm snapshot fields, update `SwarmState.Alignment` or the root `Snapshot` shape in `src/session/swarm-state.ts`, and initialize matching defaults in both `SwarmState.Example` and `SwarmState.create()`; current rollout rejects older snapshot schema versions instead of adding compatibility loaders.
+- Project-scoped alignment persistence lives in `board/alignment.json`; keep shared role definitions in `alignment.catalog.roles` and user-specific approvals in `alignment.confirmations.users` so future writes do not mix shared catalog state with per-user confirmation state.
 - Worker timeout behavior comes from `swarm.wait_timeout_seconds` in config and is mirrored into each launched swarm's config; when testing wait behavior, use `Swarm.status()` to trigger the timeout promotion from `waiting` to `blocked`.
 - Before launching v3 swarms in a workspace, run `opencode swarm-cleanup --dry-run` and then `opencode swarm-cleanup --confirm purge-legacy-swarms`; `Swarm.launch()` is intentionally blocked until that cleanup marker exists.

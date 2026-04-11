@@ -355,6 +355,14 @@ export namespace SwarmState {
     version: z.number().int().positive(),
     created_at: z.number(),
     updated_at: z.number(),
+    audit: z
+      .object({
+        created_at: z.number().nullable().default(null),
+        updated_at: z.number().nullable().default(null),
+        actor: z.string().nullable().default(null),
+        run_id: z.string().nullable().default(null),
+      })
+      .default({ created_at: null, updated_at: null, actor: null, run_id: null }),
   })
   export type Role = z.infer<typeof Role>
 
@@ -615,6 +623,10 @@ export namespace SwarmState {
     return path.join(Global.Path.data, "projects", Instance.project.id, "board", id, "state.json")
   }
 
+  export function alignmentFilepath() {
+    return path.join(Global.Path.data, "projects", Instance.project.id, "board", "alignment.json")
+  }
+
   function key(id: string) {
     return `swarm-state:${id}`
   }
@@ -623,10 +635,36 @@ export namespace SwarmState {
     await fs.mkdir(path.dirname(filepath(id)), { recursive: true })
   }
 
+  export async function ensureAlignment() {
+    await fs.mkdir(path.dirname(alignmentFilepath()), { recursive: true })
+  }
+
   export async function read(id: string): Promise<Snapshot | undefined> {
     const file = Bun.file(filepath(id))
     if (!(await file.exists())) return undefined
     return Snapshot.parse(await file.json())
+  }
+
+  export async function readAlignment(): Promise<Alignment> {
+    const file = Bun.file(alignmentFilepath())
+    if (!(await file.exists())) {
+      return Alignment.parse({
+        catalog: { scope: "project", roles: {} },
+        confirmations: { scope: "user", users: {} },
+        contract: null,
+        gate: { value: null, reason: null, input: null, evaluated_at: null },
+        role_delta: { material: false, roles: [], updated_at: null },
+        pending_confirmation: null,
+        audit: {
+          catalog: { created_at: null, updated_at: null, actor: null, run_id: null },
+          confirmations: { created_at: null, updated_at: null, actor: null, run_id: null },
+          contract: { created_at: null, updated_at: null, actor: null, run_id: null },
+          gate: { created_at: null, updated_at: null, actor: null, run_id: null },
+          pending_confirmation: { created_at: null, updated_at: null, actor: null, run_id: null },
+        },
+      })
+    }
+    return Alignment.parse(await file.json())
   }
 
   export async function write(snapshot: Snapshot) {
@@ -654,6 +692,86 @@ export namespace SwarmState {
       .catch((err) => {
         log.warn("state dir sync failed after rename", { swarm: snapshot.swarm.id, error: err })
       })
+  }
+
+  export async function writeAlignment(state: Alignment) {
+    await ensureAlignment()
+    const file = alignmentFilepath()
+    const tmp = `${file}.tmp-${crypto.randomUUID()}`
+    const text = JSON.stringify(state, null, 2)
+    const out = await fs.open(tmp, "w")
+    try {
+      await out.writeFile(text)
+      await out.sync()
+    } finally {
+      await out.close()
+    }
+    await fs.rename(tmp, file)
+    await fs
+      .open(path.dirname(file), "r")
+      .then(async (dir) => {
+        try {
+          await dir.sync()
+        } finally {
+          await dir.close()
+        }
+      })
+      .catch((err) => {
+        log.warn("alignment dir sync failed after rename", { error: err })
+      })
+  }
+
+  export async function putRole(input: {
+    role: Pick<Role, "id" | "name" | "purpose" | "perspective" | "default_when" | "version">
+    actor: string
+    run_id?: string
+  }) {
+    using _ = await Lock.write(`${key(Instance.project.id)}:alignment`)
+    const state = await readAlignment()
+    const prev = state.catalog.roles[input.role.id]
+    const now = Date.now()
+    state.catalog.roles[input.role.id] = {
+      ...input.role,
+      created_at: prev?.created_at ?? now,
+      updated_at: now,
+      audit: {
+        created_at: prev?.audit.created_at ?? now,
+        updated_at: now,
+        actor: input.actor,
+        run_id: input.run_id ?? null,
+      },
+    }
+    state.audit.catalog = {
+      created_at: state.audit.catalog.created_at ?? now,
+      updated_at: now,
+      actor: input.actor,
+      run_id: input.run_id ?? null,
+    }
+    await writeAlignment(state)
+    return state.catalog.roles[input.role.id]
+  }
+
+  export async function confirmRole(input: { user: string; role_id: string; version: number; run_id?: string }) {
+    using _ = await Lock.write(`${key(Instance.project.id)}:alignment`)
+    const state = await readAlignment()
+    const now = Date.now()
+    state.confirmations.users[input.user] = {
+      ...state.confirmations.users[input.user],
+      [input.role_id]: {
+        role_id: input.role_id,
+        version: input.version,
+        confirmed_at: now,
+        run_id: input.run_id ?? null,
+      },
+    }
+    state.audit.confirmations = {
+      created_at: state.audit.confirmations.created_at ?? now,
+      updated_at: now,
+      actor: input.user,
+      run_id: input.run_id ?? null,
+    }
+    await writeAlignment(state)
+    return state.confirmations.users[input.user][input.role_id]
   }
 
   export async function illegal(id: string, input: { actor: string; reason: string }) {

@@ -1,5 +1,6 @@
 ## Codebase Patterns
 - Canonical swarm snapshot schema changes must update `SwarmState.Alignment`, `SwarmState.Example`, and `SwarmState.create()` together; current rollout rejects older snapshot schema versions instead of adding compatibility loaders.
+- Shared swarm alignment persistence lives in `board/alignment.json`; keep `alignment.catalog.roles` project-scoped and `alignment.confirmations.users` user-scoped inside that file.
 
 ## 2026-04-11 19:15:48 CST - US-001
 - Added canonical alignment state to `packages/opencode/src/session/swarm-state.ts` for project-scoped role catalog data, user-scoped confirmations, run contract, gate state, role delta state, pending confirmations, and alignment audit metadata.
@@ -8,4 +9,13 @@
   - Canonical swarm snapshot schema changes must update `SwarmState.Alignment`, `SwarmState.Example`, and `SwarmState.create()` together.
   - Phase-one swarm schema rollouts should reject older snapshot versions instead of adding compatibility loaders.
   - `Swarm.launch()` initialization coverage belongs in `packages/opencode/test/session/swarm-cleanup.test.ts`, while snapshot shape coverage belongs in `packages/opencode/test/session/swarm-state.test.ts`.
+---
+
+## 2026-04-11 19:21:03 CST - US-002
+- Added `SwarmState.readAlignment()`, `writeAlignment()`, `putRole()`, and `confirmRole()` in `packages/opencode/src/session/swarm-state.ts` to persist project-scoped role catalog entries and separate user-scoped confirmations in `board/alignment.json`, including per-role audit metadata on create and update.
+- Files changed: `packages/opencode/src/session/swarm-state.ts`, `packages/opencode/test/session/swarm-state.test.ts`, `packages/opencode/AGENTS.md`, `tasks/prd.json`, `tasks/progress.txt`
+- **Learnings for future iterations:**
+  - Shared alignment state should live in `board/alignment.json` instead of individual swarm `state.json` files when the data must survive across runs.
+  - Keep reusable role definitions in `alignment.catalog.roles` and per-user approvals in `alignment.confirmations.users` so later role delta checks can compare shared baseline data with user-specific confirmation state.
+  - Role catalog audit metadata belongs on each stored role entry as well as the top-level catalog audit stamp, which makes create versus update assertions easy in tests.
 ---

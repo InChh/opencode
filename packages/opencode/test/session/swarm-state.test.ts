@@ -62,6 +62,12 @@ describe("SwarmState", () => {
           version: 1,
           created_at: 10,
           updated_at: 10,
+          audit: {
+            created_at: 10,
+            updated_at: 10,
+            actor: "SE-conductor",
+            run_id: "SW-align",
+          },
         }
         state.alignment.confirmations.users.user_1 = {
           pm: {
@@ -156,6 +162,63 @@ describe("SwarmState", () => {
         },
       }),
     ).toThrow("stage=idle")
+  })
+
+  test("persists role catalog entries separately from user confirmations", async () => {
+    await using tmp = await tmpdir({ git: true, config: {} })
+    await Instance.provide({
+      directory: tmp.path,
+      fn: async () => {
+        const first = await SwarmState.putRole({
+          role: {
+            id: "pm",
+            name: "PM",
+            purpose: "Own scope",
+            perspective: "User impact first",
+            default_when: "Trade-offs affect product direction",
+            version: 1,
+          },
+          actor: "alice",
+          run_id: "SW-role-1",
+        })
+        const mark = await SwarmState.confirmRole({
+          user: "alice",
+          role_id: "pm",
+          version: 1,
+          run_id: "SW-role-1",
+        })
+        const next = await SwarmState.readAlignment()
+        expect(next.catalog.scope).toBe("project")
+        expect(next.catalog.roles.pm).toMatchObject({
+          id: "pm",
+          name: "PM",
+          version: 1,
+        })
+        expect(next.catalog.roles.pm?.audit.actor).toBe("alice")
+        expect(next.confirmations.scope).toBe("user")
+        expect(next.confirmations.users.alice?.pm).toEqual(mark)
+        await SwarmState.putRole({
+          role: {
+            id: "pm",
+            name: "PM",
+            purpose: "Own final scope",
+            perspective: "User impact first",
+            default_when: "Trade-offs affect product direction",
+            version: 2,
+          },
+          actor: "bob",
+          run_id: "SW-role-2",
+        })
+        const last = await SwarmState.readAlignment()
+        expect(last.catalog.roles.pm?.purpose).toBe("Own final scope")
+        expect(last.catalog.roles.pm?.version).toBe(2)
+        expect(last.catalog.roles.pm?.audit.created_at).toBe(first.audit.created_at)
+        expect(last.catalog.roles.pm?.audit.actor).toBe("bob")
+        expect(last.catalog.roles.pm?.audit.run_id).toBe("SW-role-2")
+        expect(last.audit.catalog.actor).toBe("bob")
+        expect(last.confirmations.users.alice?.pm?.version).toBe(1)
+      },
+    })
   })
 
   test("restores the stored stage on paused to active", async () => {
