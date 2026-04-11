@@ -6,18 +6,20 @@ You are an autonomous coding agent working on a software project.
 
 1. Read the PRD at `prd.json` (in the same directory as this file)
 2. Read the progress log at `progress.txt` (check Codebase Patterns section first)
-3. Check you're on the correct branch from PRD `branchName`. If not, check it out or create from current branch.
-4. Pick the **highest priority** user story where `passes: false`
-5. Implement that single user story
-6. Run quality checks (e.g., typecheck, lint, test - use whatever your project requires)
-7. Update CLAUDE.md files if you discover reusable patterns (see below)
-8. If checks pass, commit ALL changes with message: `feat: [Story ID] - [Story Title]`
-9. Update the PRD to set `passes: true` for the completed story
-10. Append your progress to `progress.txt`
+3. Read the origin prd file from `prd.json`.`sourcePrdFile` if needed
+4. Check you're on the correct branch from PRD `branchName`. If not, check it out or create from current branch.
+5. Pick the **highest priority** user story where `passes: false`
+6. Implement that single user story
+7. Run quality checks (e.g., typecheck, lint, test - use whatever your project requires)
+8. Update AGENTS.md files if you discover reusable patterns (see below)
+9. If checks pass, commit ALL changes with message: `feat: [Story ID] - [Story Title]`
+10. Update the PRD to set `passes: true` for the completed story
+11. Append your progress to `progress.txt`
 
 ## Progress Report Format
 
 APPEND to progress.txt (never replace, always append):
+
 ```
 ## [Date/Time] - [Story ID]
 - What was implemented
@@ -44,12 +46,12 @@ If you discover a **reusable pattern** that future iterations should know, add i
 
 Only add patterns that are **general and reusable**, not story-specific details.
 
-## Update CLAUDE.md Files
+## Update this AGENTS.md Files
 
-Before committing, check if any edited files have learnings worth preserving in nearby CLAUDE.md files:
+Before committing, check if any edited files have learnings worth preserving in nearby AGENTS.md files:
 
 1. **Identify directories with edited files** - Look at which directories you modified
-2. **Check for existing CLAUDE.md** - Look for CLAUDE.md in those directories or parent directories
+2. **Check for existing AGENTS.md** - Look for AGENTS.md in those directories or parent directories
 3. **Add valuable learnings** - If you discovered something future developers/agents should know:
    - API patterns or conventions specific to that module
    - Gotchas or non-obvious requirements
@@ -57,18 +59,20 @@ Before committing, check if any edited files have learnings worth preserving in 
    - Testing approaches for that area
    - Configuration or environment requirements
 
-**Examples of good CLAUDE.md additions:**
+**Examples of good AGENTS.md additions:**
+
 - "When modifying X, also update Y to keep them in sync"
 - "This module uses pattern Z for all API calls"
 - "Tests require the dev server running on PORT 3000"
 - "Field names must match the template exactly"
 
 **Do NOT add:**
+
 - Story-specific implementation details
 - Temporary debugging notes
 - Information already in progress.txt
 
-Only update CLAUDE.md if you have **genuinely reusable knowledge** that would help future work in that directory.
+Only update AGENTS.md if you have **genuinely reusable knowledge** that would help future work in that directory.
 
 ## Quality Requirements
 
