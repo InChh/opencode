@@ -284,4 +284,199 @@ describe("Swarm admin", () => {
       expect(detail.discussions[0]?.raw[0]?.entries.length).toBeGreaterThan(0)
     })
   })
+
+  test("reads approved alignment writeback state after role approval", async () => {
+    await withInstance(async () => {
+      const id = "SW-approved-read"
+      const now = Date.now()
+      await seed(id, { status: "active", stage: "planning" })
+      await SwarmState.putRole({
+        role: {
+          id: "pm",
+          name: "PM",
+          purpose: "Own scope",
+          perspective: "User impact first",
+          default_when: "Trade-offs affect product direction",
+          version: 1,
+        },
+        actor: "alice",
+        run_id: id,
+      })
+      await SwarmState.mutate(id, {
+        actor: "coordinator",
+        reason: "seed approval flow",
+        fn: (state) => {
+          state.swarm.status = "paused"
+          state.swarm.stage = "planning"
+          state.swarm.resume.stage = "planning"
+          state.swarm.reason = "Material role delta requires user review"
+          state.alignment.contract = {
+            goal: "Build a Swarm admin UI",
+            scope: "Approve PM updates",
+            constraints: [],
+            roles: [
+              { role_id: "pm", name: "PM", purpose: null, perspective: "Outcome-first trade-offs", default_when: null },
+            ],
+            mode: "execute",
+            assumptions: [],
+            risks: [],
+            discussion_reason: null,
+            created_at: now,
+          }
+          state.alignment.gate = {
+            value: "G2",
+            reason: "Material role delta requires user review",
+            input: {
+              action_sensitive: false,
+              material_role_delta: true,
+              ambiguous: false,
+              valid_options: 1,
+              trade_offs: false,
+              confidence: "high",
+              routine: true,
+            },
+            evaluated_at: now,
+          }
+          state.alignment.role_delta = {
+            material: true,
+            roles: [{ role_id: "pm", name: "PM", state: "modified", fields: ["perspective"] }],
+            updated_at: now,
+          }
+          state.alignment.pending_confirmation = {
+            kind: "run",
+            gate: "G2",
+            requested_at: now,
+            requested_by: "coordinator",
+            reason: "Confirm the updated direction before delegation continues",
+            roles: ["pm"],
+          }
+          state.alignment.summary = SwarmState.summarize({
+            contract: state.alignment.contract,
+            role_delta: state.alignment.role_delta,
+            gate: state.alignment.gate,
+            pending_confirmation: state.alignment.pending_confirmation,
+          })
+        },
+      })
+
+      await Swarm.approveRoles(id, { actor: "bob", roles: ["pm"] })
+
+      const detail = await SwarmAdmin.get(id)
+      const align = await SwarmState.readAlignment()
+      expect(detail.alignment.gate.value).toBe("G0")
+      expect(detail.alignment.pending_confirmation).toBeNull()
+      expect(detail.alignment.role_delta.material).toBe(false)
+      expect(detail.alignment.summary).toBeNull()
+      expect(align.catalog.roles.pm?.perspective).toBe("Outcome-first trade-offs")
+      expect(align.catalog.roles.pm?.audit.actor).toBe("bob")
+      expect(align.catalog.roles.pm?.audit.run_id).toBe(id)
+      expect(align.confirmations.users.bob?.pm?.version).toBe(2)
+    })
+  })
+
+  test("reads escalated alignment state after a later risky turn", async () => {
+    await withInstance(async () => {
+      const id = "SW-escalated-read"
+      const now = Date.now()
+      await seed(id, { status: "active", stage: "planning" })
+      await SwarmState.putRole({
+        role: {
+          id: "pm",
+          name: "PM",
+          purpose: "Own scope",
+          perspective: "User impact first",
+          default_when: "Trade-offs affect product direction",
+          version: 1,
+        },
+        actor: "alice",
+        run_id: id,
+      })
+      const catalog = (await SwarmState.readAlignment()).catalog.roles
+      await SwarmState.mutate(id, {
+        actor: "coordinator",
+        reason: "seed approved state",
+        fn: (state) => {
+          state.swarm.status = "active"
+          state.swarm.stage = "planning"
+          state.swarm.resume.stage = null
+          state.swarm.reason = null
+          state.alignment.contract = {
+            goal: "Build a Swarm admin UI",
+            scope: "Delegate PM analysis",
+            constraints: [],
+            roles: [{ role_id: "pm", name: "PM", purpose: null, perspective: null, default_when: null }],
+            mode: "execute",
+            assumptions: [],
+            risks: [],
+            discussion_reason: null,
+            created_at: now,
+          }
+          state.alignment.gate = {
+            value: "G1",
+            reason: "Novel scope keeps the run visible without blocking",
+            input: {
+              action_sensitive: false,
+              material_role_delta: false,
+              ambiguous: false,
+              valid_options: 1,
+              trade_offs: false,
+              confidence: "low",
+              routine: true,
+            },
+            evaluated_at: now,
+          }
+          state.alignment.role_delta = {
+            material: false,
+            roles: [{ role_id: "pm", name: "PM", state: "unchanged", fields: [] }],
+            updated_at: now,
+          }
+          state.alignment.run_confirmation = {
+            gate: "G1",
+            confirmed_at: now,
+            confirmed_by: "alice",
+          }
+          state.alignment.pending_confirmation = null
+          state.alignment.summary = SwarmState.summarize({
+            contract: state.alignment.contract,
+            role_delta: state.alignment.role_delta,
+            gate: state.alignment.gate,
+            pending_confirmation: null,
+          })
+        },
+      })
+      await SwarmState.mutate(id, {
+        actor: "coordinator",
+        reason: "simulate mid-run escalation",
+        fn: (state) => {
+          const next = SwarmState.preflight({
+            goal: state.swarm.goal,
+            scope: state.alignment.contract?.scope ?? "Delegate PM analysis",
+            discussion: false,
+            role: "PM",
+            gate: { action_sensitive: true },
+            catalog,
+            current: state.alignment,
+          })
+          state.alignment.contract = next.contract
+          state.alignment.role_delta = next.role_delta
+          state.alignment.gate = next.gate
+          state.alignment.run_confirmation = null
+          state.alignment.summary = next.summary
+          state.alignment.pending_confirmation = next.pending_confirmation
+          state.swarm.resume.stage = state.swarm.resume.stage ?? state.swarm.stage
+          state.swarm.status = "paused"
+          state.swarm.reason = next.pending_confirmation?.reason ?? next.gate.reason
+        },
+      })
+
+      const align = await SwarmAdmin.readAlignment(id)
+      const detail = await SwarmAdmin.get(id)
+      expect(align.gate.value).toBe("G3")
+      expect(align.pending_confirmation?.kind).toBe("run")
+      expect(align.pending_confirmation?.reason).toContain("Alignment gate escalated from G1 to G3")
+      expect(align.run_confirmation).toBeNull()
+      expect(detail.overview.status).toBe("paused")
+      expect(detail.alignment.summary?.ask).toContain("Alignment gate escalated")
+    })
+  })
 })

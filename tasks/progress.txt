@@ -15,6 +15,16 @@
 - Use `SwarmState.renderDecision()` for CLI-facing alignment copy when you need gate, reason, and stored summary together without exposing worker prompts.
 - The app swarm dashboard should render alignment UI from `detail.alignment` in `/swarm/:id/admin`; keep the panel derived from that shared read model so web and CLI explain the same gate and approval state.
 - Keep deterministic gate and discussion policy coverage in `packages/opencode/test/session/swarm-state.test.ts`, where `SwarmState.decide()`, `admit()`, and `preflight()` can be asserted directly as pure helpers.
+- Use `SwarmAdmin.readAlignment()` and `SwarmAdmin.get()` to verify approval writeback and escalation transitions, because those are the server-side read models consumed by CLI and web surfaces after alignment state changes.
+
+## 2026-04-11 20:27:22 CST - US-017
+- Added integration coverage in `packages/opencode/test/session/swarm-admin.test.ts` for approved role writeback, catalog audit metadata, mid-run gate escalation, and post-transition server-side alignment reads through `SwarmAdmin.readAlignment()` and `SwarmAdmin.get()`.
+- Files changed: `packages/opencode/test/session/swarm-admin.test.ts`, `packages/opencode/AGENTS.md`, `tasks/prd.json`, `tasks/progress.txt`
+- **Learnings for future iterations:**
+  - Approval integration tests should assert both the shared catalog audit metadata in `board/alignment.json` and the read-model view returned by `SwarmAdmin`, otherwise writeback regressions can hide behind read-only checks.
+  - Escalation coverage is most useful when it starts from an already approved lower gate, then re-runs `SwarmState.preflight()` with stronger risk input and confirms `run_confirmation` is cleared before the admin read model is queried.
+  - Focused `swarm-admin.test.ts` integration coverage and `bun run --cwd packages/opencode typecheck` both passed for this story.
+---
 
 ## 2026-04-11 20:24:38 CST - US-016
 - Added explicit gate and discussion truth-table coverage in `packages/opencode/test/session/swarm-state.test.ts` for low-risk `G0`/`G1`, material-delta `G2`, sensitive `G3`, and the `0/3` through `3/3` discussion admission thresholds.
