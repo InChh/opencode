@@ -39,6 +39,72 @@ type Detail = {
     statuses: string[]
     types: string[]
   }
+  alignment: {
+    contract: {
+      goal: string
+      scope: string
+      constraints: string[]
+      roles: Array<{
+        role_id: string | null
+        name: string
+        purpose: string | null
+        perspective: string | null
+        default_when: string | null
+      }>
+      mode: "execute" | "discussion"
+      assumptions: string[]
+      risks: string[]
+      discussion_reason: string | null
+      created_at: number
+    } | null
+    selected_roles: Array<{
+      role_id: string | null
+      name: string
+      purpose: string | null
+      perspective: string | null
+      default_when: string | null
+    }>
+    gate: {
+      value: "G0" | "G1" | "G2" | "G3" | null
+      reason: string | null
+    }
+    role_delta: {
+      material: boolean
+      roles: Array<{
+        role_id: string | null
+        name: string
+        state: "unchanged" | "added" | "removed" | "modified"
+        fields: Array<"purpose" | "perspective" | "default_when">
+      }>
+    }
+    pending_confirmation: {
+      kind: "run" | "role"
+      gate: "G0" | "G1" | "G2" | "G3" | null
+      reason: string | null
+      roles: string[]
+    } | null
+    run_confirmation: {
+      gate: "G0" | "G1" | "G2" | "G3"
+      confirmed_at: number
+      confirmed_by: string
+    } | null
+    summary: {
+      goal: string
+      scope: string
+      constraints: string[]
+      roles: string[]
+      role_deltas: Array<{
+        role_id: string | null
+        name: string
+        state: "unchanged" | "added" | "removed" | "modified"
+        fields: Array<"purpose" | "perspective" | "default_when">
+      }>
+      assumptions: string[]
+      next_phase: string
+      ask: string | null
+      created_at: number
+    } | null
+  }
   agents: Array<{
     id: string
     label: string
@@ -389,44 +455,90 @@ export default function SwarmDashboard() {
             </div>
 
             <Show when={state.tab === "conductor"}>
-              <div class="grid gap-4 xl:grid-cols-[1.3fr_0.9fr]">
+              <div class="space-y-4">
                 <section class="rounded-2xl border border-border-weak-base bg-surface-base p-4">
-                  <div class="text-11-medium uppercase tracking-[0.18em] text-text-weak">Conductor Summary</div>
-                  <Show when={!item().plan_empty} fallback={<EmptyCopy text={item().plan_empty_copy} />}>
-                    <div class="mt-3 space-y-4">
-                      <Panel title="Plan Summary" text={item().plan_summary} />
-                      <Panel title="Risk Summary" text={item().risk_summary} />
-                      <div class="rounded-xl border border-border-weak-base bg-background-base p-3">
-                        <div class="text-11-medium uppercase tracking-[0.16em] text-text-weak">Last Decision</div>
-                        <div class="mt-1 text-13-regular text-text-base">{ago(item().last_decision_at)}</div>
+                  <div class="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+                    <div>
+                      <div class="text-11-medium uppercase tracking-[0.18em] text-text-weak">Alignment Panel</div>
+                      <div class="mt-2 max-w-3xl text-13-regular text-text-base">{alignmentCopy(item().alignment)}</div>
+                    </div>
+                    <div class="flex flex-wrap gap-2">
+                      <Show when={item().alignment.gate.value}>
+                        <span
+                          class={`rounded-full border px-2.5 py-1 text-11-medium uppercase tracking-[0.18em] ${gateTone(item().alignment.gate.value)}`}
+                        >
+                          {item().alignment.gate.value}
+                        </span>
+                      </Show>
+                      <Show when={item().alignment.contract}>
+                        <span class="rounded-full border border-border-weak-base bg-background-base px-2.5 py-1 text-11-medium uppercase tracking-[0.18em] text-text-base">
+                          {item().alignment.contract!.mode}
+                        </span>
+                      </Show>
+                      <Show when={item().alignment.pending_confirmation}>
+                        <span class="rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-11-medium uppercase tracking-[0.18em] text-amber-100">
+                          pending approval
+                        </span>
+                      </Show>
+                    </div>
+                  </div>
+
+                  <Show
+                    when={item().alignment.contract}
+                    fallback={
+                      <div class="mt-4">
+                        <EmptyCopy text="No alignment contract has been recorded for this swarm yet." />
                       </div>
+                    }
+                  >
+                    <div class="mt-4 grid gap-4 xl:grid-cols-2">
+                      <Panel title="Gate Decision" text={gateDetail(item().alignment)} />
+                      <Panel title="Run Contract" text={contractDetail(item().alignment)} />
+                      <Panel title="Selected Roles" text={rolesDetail(item().alignment)} />
+                      <Panel title="Role Delta Summary" text={deltaDetail(item().alignment)} />
                     </div>
                   </Show>
                 </section>
 
-                <section class="rounded-2xl border border-border-weak-base bg-surface-base p-4">
-                  <div class="text-11-medium uppercase tracking-[0.18em] text-text-weak">Latest Actions</div>
-                  <div class="mt-3 space-y-3">
-                    <For each={item().actions}>
-                      {(entry) => (
+                <div class="grid gap-4 xl:grid-cols-[1.3fr_0.9fr]">
+                  <section class="rounded-2xl border border-border-weak-base bg-surface-base p-4">
+                    <div class="text-11-medium uppercase tracking-[0.18em] text-text-weak">Conductor Summary</div>
+                    <Show when={!item().plan_empty} fallback={<EmptyCopy text={item().plan_empty_copy} />}>
+                      <div class="mt-3 space-y-4">
+                        <Panel title="Plan Summary" text={item().plan_summary} />
+                        <Panel title="Risk Summary" text={item().risk_summary} />
                         <div class="rounded-xl border border-border-weak-base bg-background-base p-3">
-                          <div class="flex items-center justify-between gap-3">
-                            <span
-                              class={`rounded-full border px-2 py-0.5 text-11-medium ${stateTone(entry.kind === "stop" ? "stopped" : item().overview.status)}`}
-                            >
-                              {entry.kind}
-                            </span>
-                            <span class="text-11-regular text-text-weak">{ago(entry.time)}</span>
-                          </div>
-                          <div class="mt-2 text-13-regular text-text-base">{entry.summary}</div>
+                          <div class="text-11-medium uppercase tracking-[0.16em] text-text-weak">Last Decision</div>
+                          <div class="mt-1 text-13-regular text-text-base">{ago(item().last_decision_at)}</div>
                         </div>
-                      )}
-                    </For>
-                    <Show when={item().actions.length === 0}>
-                      <EmptyCopy text="No structured conductor actions yet." />
+                      </div>
                     </Show>
-                  </div>
-                </section>
+                  </section>
+
+                  <section class="rounded-2xl border border-border-weak-base bg-surface-base p-4">
+                    <div class="text-11-medium uppercase tracking-[0.18em] text-text-weak">Latest Actions</div>
+                    <div class="mt-3 space-y-3">
+                      <For each={item().actions}>
+                        {(entry) => (
+                          <div class="rounded-xl border border-border-weak-base bg-background-base p-3">
+                            <div class="flex items-center justify-between gap-3">
+                              <span
+                                class={`rounded-full border px-2 py-0.5 text-11-medium ${stateTone(entry.kind === "stop" ? "stopped" : item().overview.status)}`}
+                              >
+                                {entry.kind}
+                              </span>
+                              <span class="text-11-regular text-text-weak">{ago(entry.time)}</span>
+                            </div>
+                            <div class="mt-2 text-13-regular text-text-base">{entry.summary}</div>
+                          </div>
+                        )}
+                      </For>
+                      <Show when={item().actions.length === 0}>
+                        <EmptyCopy text="No structured conductor actions yet." />
+                      </Show>
+                    </div>
+                  </section>
+                </div>
               </div>
             </Show>
 
@@ -774,6 +886,72 @@ function Panel(props: { title: string; text: string }) {
       <div class="mt-2 whitespace-pre-wrap text-13-regular text-text-base">{props.text}</div>
     </div>
   )
+}
+
+function gateTone(value: "G0" | "G1" | "G2" | "G3" | null) {
+  if (value === "G0") return "border-emerald-500/30 bg-emerald-500/10 text-emerald-200"
+  if (value === "G1") return "border-sky-500/30 bg-sky-500/10 text-sky-200"
+  if (value === "G2") return "border-amber-500/30 bg-amber-500/10 text-amber-100"
+  if (value === "G3") return "border-red-500/30 bg-red-500/10 text-red-200"
+  return "border-border-weak-base bg-background-base text-text-base"
+}
+
+function alignmentCopy(align: Detail["alignment"]) {
+  if (!align.gate.value) return "No alignment decision has been recorded for this swarm yet."
+  if (align.pending_confirmation)
+    return `Swarm paused at ${align.gate.value} until the current alignment checkpoint is approved.`
+  if (align.gate.value === "G0")
+    return "Routine work auto-ran at G0 because the current contract stayed low risk and aligned with the confirmed role set."
+  if (align.gate.value === "G1")
+    return "Swarm continued at G1 without blocking because the run needed visibility, not a fresh approval gate."
+  if (align.run_confirmation)
+    return `The current ${align.gate.value} contract was approved by ${align.run_confirmation.confirmed_by} and resumed without exposing worker prompts.`
+  return `This swarm is currently operating under ${align.gate.value}.`
+}
+
+function gateDetail(align: Detail["alignment"]) {
+  const lines = [`Gate: ${align.gate.value ?? "unknown"}`]
+  if (align.gate.reason) lines.push(`Reason: ${align.gate.reason}`)
+  if (align.pending_confirmation)
+    lines.push(`Pause reason: ${align.pending_confirmation.reason ?? "Awaiting approval"}`)
+  else if (align.summary) lines.push(`Next phase: ${align.summary.next_phase}`)
+  if (align.run_confirmation) {
+    lines.push(`Approved by: ${align.run_confirmation.confirmed_by}`)
+    lines.push(`Approved: ${ago(align.run_confirmation.confirmed_at)}`)
+  }
+  return lines.join("\n")
+}
+
+function contractDetail(align: Detail["alignment"]) {
+  if (!align.contract) return "No run contract recorded."
+  const lines = [`Scope: ${align.contract.scope}`]
+  if (align.contract.constraints.length > 0) lines.push(`Constraints: ${align.contract.constraints.join(", ")}`)
+  if (align.summary?.assumptions.length) lines.push(`Assumptions: ${align.summary.assumptions.join(", ")}`)
+  if (align.contract.risks.length > 0) lines.push(`Risks: ${align.contract.risks.join(", ")}`)
+  if (align.contract.discussion_reason) lines.push(`Discussion reason: ${align.contract.discussion_reason}`)
+  if (align.summary?.ask) lines.push(`Approval ask: ${align.summary.ask}`)
+  return lines.join("\n")
+}
+
+function rolesDetail(align: Detail["alignment"]) {
+  if (align.selected_roles.length === 0) return "No roles selected."
+  return align.selected_roles
+    .map((role) => {
+      const lines = [role.name]
+      if (role.purpose) lines.push(`purpose: ${role.purpose}`)
+      if (role.perspective) lines.push(`perspective: ${role.perspective}`)
+      if (role.default_when) lines.push(`default when: ${role.default_when}`)
+      return lines.join(" - ")
+    })
+    .join("\n")
+}
+
+function deltaDetail(align: Detail["alignment"]) {
+  const list = align.role_delta.roles.filter((role) => role.state !== "unchanged")
+  if (list.length === 0) return "No material role deltas."
+  return list
+    .map((role) => `${role.name}: ${role.state}${role.fields.length ? ` (${role.fields.join(", ")})` : ""}`)
+    .join("\n")
 }
 
 function EmptyCopy(props: { text: string }) {

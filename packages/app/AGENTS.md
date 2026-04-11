@@ -13,6 +13,7 @@
 ## SolidJS
 
 - Always prefer `createStore` over multiple `createSignal` calls
+- Swarm dashboard alignment UI should read the `alignment` payload from `/swarm/:id/admin`; keep gate, contract, and approval copy derived from that read model instead of reconstructing worker prompt details client-side.
 
 ## Tool Calling
 

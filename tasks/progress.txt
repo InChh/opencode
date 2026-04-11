@@ -13,6 +13,16 @@
 - `SwarmState.preflight()` can accept later-phase gate overrides; when the new gate outranks the stored gate, clear stale run confirmation and surface an explicit escalation reason in the fresh pending confirmation.
 - Reuse `SwarmAdmin.Alignment` for server reads: expose it directly at `/swarm/:id/alignment` for CLI consumers and embed it into `SwarmAdmin.Detail` so web panels read the same alignment snapshot.
 - Use `SwarmState.renderDecision()` for CLI-facing alignment copy when you need gate, reason, and stored summary together without exposing worker prompts.
+- The app swarm dashboard should render alignment UI from `detail.alignment` in `/swarm/:id/admin`; keep the panel derived from that shared read model so web and CLI explain the same gate and approval state.
+
+## 2026-04-11 20:22:36 CST - US-015
+- Added a dedicated alignment panel to `packages/app/src/pages/swarm/swarm-dashboard.tsx` that shows gate, mode, selected roles, role delta summary, contract details, pending approval state, and the non-blocking explanation for `G0`/`G1` runs without exposing worker prompts.
+- Files changed: `packages/app/src/pages/swarm/swarm-dashboard.tsx`, `packages/app/AGENTS.md`, `tasks/prd.json`, `tasks/progress.txt`
+- **Learnings for future iterations:**
+  - The dashboard already gets `alignment` from the admin detail payload, so new swarm UI should extend that typed read model instead of adding extra client fetches.
+  - Gate-specific explainer copy belongs in the web panel because `G0` and `G1` need a user-facing reason for auto-run even when there is no blocking approval dialog.
+  - `bun run --cwd packages/app typecheck` and `bun run --cwd packages/app test:unit` passed; browser-tool verification could not run because the local browser extension host was offline (`browser_status.hostConnected=false`), so manual browser re-check is still advisable.
+---
 
 ## 2026-04-11 20:18:57 CST - US-014
 - Added `SwarmState.renderDecision()` in `packages/opencode/src/session/swarm-state.ts` and wired `packages/opencode/src/tool/delegate-task.ts` to show alignment gate summaries for non-blocking `G1` runs and blocking `G2`/`G3` pauses before any raw worker output.
