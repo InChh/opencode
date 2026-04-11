@@ -165,6 +165,8 @@ import type {
   SwarmAdminDetailErrors,
   SwarmAdminDetailResponses,
   SwarmAdminListResponses,
+  SwarmAlignmentErrors,
+  SwarmAlignmentResponses,
   SwarmArchiveErrors,
   SwarmArchiveResponses,
   SwarmDeleteErrors,
@@ -4207,6 +4209,40 @@ export class Swarm extends HeyApiClient {
     )
     return (options?.client ?? this.client).get<SwarmStatusResponses, SwarmStatusErrors, ThrowOnError>({
       url: "/swarm/{id}",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Get Swarm alignment state
+   *
+   * Get the swarm alignment read model for CLI and web consumers.
+   */
+  public alignment<ThrowOnError extends boolean = false>(
+    parameters: {
+      id: string
+      directory?: string
+      workspace?: string
+      include_deleted?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "id" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "query", key: "include_deleted" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<SwarmAlignmentResponses, SwarmAlignmentErrors, ThrowOnError>({
+      url: "/swarm/{id}/alignment",
       ...options,
       ...params,
     })

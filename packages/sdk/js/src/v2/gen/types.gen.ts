@@ -900,6 +900,283 @@ export type EventBackgroundTaskCancelled = {
   }
 }
 
+export type EventSwarmTransition = {
+  type: "swarm.transition"
+  properties: {
+    swarm_id: string
+    snapshot: {
+      schema_version: 3
+      rev: number
+      seq: number
+      swarm: {
+        id: string
+        goal: string
+        conductor: string
+        status: "active" | "paused" | "blocked" | "completed" | "failed" | "stopped"
+        stage: "planning" | "dispatching" | "executing" | "discussing" | "verifying" | "repairing" | "idle"
+        reason?: string | null
+        visibility?: {
+          archived_at?: number | null
+        }
+        resume?: {
+          stage?: "planning" | "dispatching" | "executing" | "discussing" | "verifying" | "repairing" | "idle" | null
+        }
+        config: {
+          max_workers?: number
+          auto_escalate?: boolean
+          verify_on_complete?: boolean
+          wait_timeout_seconds?: number
+        }
+        time: {
+          created: number
+          updated: number
+          completed?: number | null
+          stopped?: number | null
+          archived?: number | null
+          deleted?: number | null
+        }
+      }
+      workers?: {
+        [key: string]: {
+          id: string
+          session_id: string
+          agent: string
+          role?: string | null
+          task_id?: string | null
+          status:
+            | "queued"
+            | "starting"
+            | "running"
+            | "waiting"
+            | "blocked"
+            | "completed"
+            | "failed"
+            | "cancelled"
+            | "stopped"
+          updated_at: number
+          reason?: string | null
+          evidence?: Array<string>
+        }
+      }
+      tasks?: {
+        [key: string]: {
+          id: string
+          subject: string
+          description?: string | null
+          status: "pending" | "ready" | "in_progress" | "verifying" | "completed" | "blocked" | "failed" | "cancelled"
+          blocked_by?: Array<string>
+          blocks?: Array<string>
+          assignee?: string | null
+          type: "implement" | "review" | "test" | "investigate" | "fix" | "refactor" | "discuss"
+          scope?: Array<string>
+          artifacts?: Array<string>
+          verify_required?: boolean
+          metadata?: {
+            [key: string]: unknown
+          }
+          created_at: number
+          updated_at: number
+          reason?: string | null
+        }
+      }
+      discussions?: {
+        [key: string]: {
+          id: string
+          channel: string
+          topic: string
+          status:
+            | "idle"
+            | "collecting"
+            | "round_complete"
+            | "consensus_ready"
+            | "decided"
+            | "exhausted"
+            | "failed"
+            | "cancelled"
+          current_round: number
+          max_rounds?: number
+          participants?: Array<string>
+          received?: Array<string>
+          updated_at: number
+        }
+      }
+      alignment: {
+        catalog?: {
+          scope?: "project"
+          roles?: {
+            [key: string]: {
+              id: string
+              name: string
+              purpose: string
+              perspective: string
+              default_when: string
+              version: number
+              created_at: number
+              updated_at: number
+              audit?: {
+                created_at?: number | null
+                updated_at?: number | null
+                actor?: string | null
+                run_id?: string | null
+              }
+            }
+          }
+        }
+        confirmations?: {
+          scope?: "user"
+          users?: {
+            [key: string]: {
+              [key: string]: {
+                role_id: string
+                version: number
+                confirmed_at: number
+                run_id?: string | null
+              }
+            }
+          }
+        }
+        contract?: {
+          goal: string
+          scope: string
+          constraints?: Array<string>
+          roles?: Array<{
+            role_id?: string | null
+            name: string
+            purpose?: string | null
+            perspective?: string | null
+            default_when?: string | null
+          }>
+          mode: "execute" | "discussion"
+          assumptions?: Array<string>
+          risks?: Array<string>
+          discussion_reason?: string | null
+          created_at: number
+        } | null
+        gate?: {
+          value?: "G0" | "G1" | "G2" | "G3" | null
+          reason?: string | null
+          input?: {
+            action_sensitive?: boolean | null
+            material_role_delta?: boolean | null
+            ambiguous?: boolean | null
+            valid_options?: number | null
+            trade_offs?: boolean | null
+            confidence?: "low" | "high" | null
+            routine?: boolean | null
+          } | null
+          evaluated_at?: number | null
+        }
+        role_delta?: {
+          material?: boolean
+          roles?: Array<{
+            role_id?: string | null
+            name: string
+            state: "unchanged" | "added" | "removed" | "modified"
+            fields?: Array<"purpose" | "perspective" | "default_when">
+          }>
+          updated_at?: number | null
+        }
+        run_confirmation?: {
+          gate: "G0" | "G1" | "G2" | "G3"
+          confirmed_at: number
+          confirmed_by: string
+        } | null
+        summary?: {
+          goal: string
+          scope: string
+          constraints?: Array<string>
+          roles?: Array<string>
+          role_deltas?: Array<{
+            role_id?: string | null
+            name: string
+            state: "unchanged" | "added" | "removed" | "modified"
+            fields?: Array<"purpose" | "perspective" | "default_when">
+          }>
+          assumptions?: Array<string>
+          next_phase: string
+          ask?: string | null
+          created_at: number
+        } | null
+        pending_confirmation?: {
+          kind: "run" | "role"
+          gate?: "G0" | "G1" | "G2" | "G3" | null
+          requested_at: number
+          requested_by?: string | null
+          reason?: string | null
+          roles?: Array<string>
+        } | null
+        audit?: {
+          catalog?: {
+            created_at?: number | null
+            updated_at?: number | null
+            actor?: string | null
+            run_id?: string | null
+          }
+          confirmations?: {
+            created_at?: number | null
+            updated_at?: number | null
+            actor?: string | null
+            run_id?: string | null
+          }
+          contract?: {
+            created_at?: number | null
+            updated_at?: number | null
+            actor?: string | null
+            run_id?: string | null
+          }
+          gate?: {
+            created_at?: number | null
+            updated_at?: number | null
+            actor?: string | null
+            run_id?: string | null
+          }
+          pending_confirmation?: {
+            created_at?: number | null
+            updated_at?: number | null
+            actor?: string | null
+            run_id?: string | null
+          }
+        }
+      }
+      verify: {
+        status: "idle" | "pending" | "running" | "passed" | "failed" | "repair_required" | "skipped" | "cancelled"
+        result?: string | null
+        required?: boolean
+        waiver?: {
+          actor: string
+          reason: string
+          at: number
+        } | null
+        updated_at: number
+      }
+      audit: {
+        last_txn?: string | null
+        entries?: Array<{
+          txn: string
+          actor: string
+          reason: string
+          at: number
+          rev: number
+          seq: number
+        }>
+        illegal?: Array<{
+          actor: string
+          reason: string
+          at: number
+        }>
+      }
+    }
+    transition: {
+      seq: number
+      rev: number
+      txn: string
+      actor: string
+      reason: string
+      at: number
+    }
+  }
+}
+
 export type EventPersistentTaskCreated = {
   type: "persistent-task.created"
   properties: {
@@ -1164,145 +1441,6 @@ export type EventMemoryWarning = {
     type: string
     agent: string
     model: string
-  }
-}
-
-export type EventSwarmTransition = {
-  type: "swarm.transition"
-  properties: {
-    swarm_id: string
-    snapshot: {
-      schema_version: 2
-      rev: number
-      seq: number
-      swarm: {
-        id: string
-        goal: string
-        conductor: string
-        status: "active" | "paused" | "blocked" | "completed" | "failed" | "stopped"
-        stage: "planning" | "dispatching" | "executing" | "discussing" | "verifying" | "repairing" | "idle"
-        reason?: string | null
-        visibility?: {
-          archived_at?: number | null
-        }
-        resume?: {
-          stage?: "planning" | "dispatching" | "executing" | "discussing" | "verifying" | "repairing" | "idle" | null
-        }
-        config: {
-          max_workers?: number
-          auto_escalate?: boolean
-          verify_on_complete?: boolean
-          wait_timeout_seconds?: number
-        }
-        time: {
-          created: number
-          updated: number
-          completed?: number | null
-          stopped?: number | null
-          archived?: number | null
-          deleted?: number | null
-        }
-      }
-      workers?: {
-        [key: string]: {
-          id: string
-          session_id: string
-          agent: string
-          role?: string | null
-          task_id?: string | null
-          status:
-            | "queued"
-            | "starting"
-            | "running"
-            | "waiting"
-            | "blocked"
-            | "completed"
-            | "failed"
-            | "cancelled"
-            | "stopped"
-          updated_at: number
-          reason?: string | null
-          evidence?: Array<string>
-        }
-      }
-      tasks?: {
-        [key: string]: {
-          id: string
-          subject: string
-          description?: string | null
-          status: "pending" | "ready" | "in_progress" | "verifying" | "completed" | "blocked" | "failed" | "cancelled"
-          blocked_by?: Array<string>
-          blocks?: Array<string>
-          assignee?: string | null
-          type: "implement" | "review" | "test" | "investigate" | "fix" | "refactor" | "discuss"
-          scope?: Array<string>
-          artifacts?: Array<string>
-          verify_required?: boolean
-          metadata?: {
-            [key: string]: unknown
-          }
-          created_at: number
-          updated_at: number
-          reason?: string | null
-        }
-      }
-      discussions?: {
-        [key: string]: {
-          id: string
-          channel: string
-          topic: string
-          status:
-            | "idle"
-            | "collecting"
-            | "round_complete"
-            | "consensus_ready"
-            | "decided"
-            | "exhausted"
-            | "failed"
-            | "cancelled"
-          current_round: number
-          max_rounds?: number
-          participants?: Array<string>
-          received?: Array<string>
-          updated_at: number
-        }
-      }
-      verify: {
-        status: "idle" | "pending" | "running" | "passed" | "failed" | "repair_required" | "skipped" | "cancelled"
-        result?: string | null
-        required?: boolean
-        waiver?: {
-          actor: string
-          reason: string
-          at: number
-        } | null
-        updated_at: number
-      }
-      audit: {
-        last_txn?: string | null
-        entries?: Array<{
-          txn: string
-          actor: string
-          reason: string
-          at: number
-          rev: number
-          seq: number
-        }>
-        illegal?: Array<{
-          actor: string
-          reason: string
-          at: number
-        }>
-      }
-    }
-    transition: {
-      seq: number
-      rev: number
-      txn: string
-      actor: string
-      reason: string
-      at: number
-    }
   }
 }
 
@@ -1899,6 +2037,7 @@ export type Event =
   | EventBackgroundTaskCompleted
   | EventBackgroundTaskFailed
   | EventBackgroundTaskCancelled
+  | EventSwarmTransition
   | EventPersistentTaskCreated
   | EventPersistentTaskUpdated
   | EventPersistentTaskDeleted
@@ -1911,7 +2050,6 @@ export type Event =
   | EventMemoryCapacityWarning
   | EventMemoryTeamCandidates
   | EventMemoryWarning
-  | EventSwarmTransition
   | EventBoardTaskCreated
   | EventBoardTaskUpdated
   | EventBoardTaskDeleted
@@ -6732,6 +6870,85 @@ export type SwarmAdminDetailResponses = {
       statuses: Array<string>
       types: Array<string>
     }
+    alignment: {
+      contract: {
+        goal: string
+        scope: string
+        constraints?: Array<string>
+        roles?: Array<{
+          role_id?: string | null
+          name: string
+          purpose?: string | null
+          perspective?: string | null
+          default_when?: string | null
+        }>
+        mode: "execute" | "discussion"
+        assumptions?: Array<string>
+        risks?: Array<string>
+        discussion_reason?: string | null
+        created_at: number
+      } | null
+      selected_roles: Array<{
+        role_id?: string | null
+        name: string
+        purpose?: string | null
+        perspective?: string | null
+        default_when?: string | null
+      }>
+      gate: {
+        value?: "G0" | "G1" | "G2" | "G3" | null
+        reason?: string | null
+        input?: {
+          action_sensitive?: boolean | null
+          material_role_delta?: boolean | null
+          ambiguous?: boolean | null
+          valid_options?: number | null
+          trade_offs?: boolean | null
+          confidence?: "low" | "high" | null
+          routine?: boolean | null
+        } | null
+        evaluated_at?: number | null
+      }
+      role_delta: {
+        material?: boolean
+        roles?: Array<{
+          role_id?: string | null
+          name: string
+          state: "unchanged" | "added" | "removed" | "modified"
+          fields?: Array<"purpose" | "perspective" | "default_when">
+        }>
+        updated_at?: number | null
+      }
+      pending_confirmation: {
+        kind: "run" | "role"
+        gate?: "G0" | "G1" | "G2" | "G3" | null
+        requested_at: number
+        requested_by?: string | null
+        reason?: string | null
+        roles?: Array<string>
+      } | null
+      run_confirmation: {
+        gate: "G0" | "G1" | "G2" | "G3"
+        confirmed_at: number
+        confirmed_by: string
+      } | null
+      summary: {
+        goal: string
+        scope: string
+        constraints?: Array<string>
+        roles?: Array<string>
+        role_deltas?: Array<{
+          role_id?: string | null
+          name: string
+          state: "unchanged" | "added" | "removed" | "modified"
+          fields?: Array<"purpose" | "perspective" | "default_when">
+        }>
+        assumptions?: Array<string>
+        next_phase: string
+        ask?: string | null
+        created_at: number
+      } | null
+    }
     agents: Array<{
       id: string
       label: string
@@ -6838,6 +7055,115 @@ export type SwarmAdminDetailResponses = {
 }
 
 export type SwarmAdminDetailResponse = SwarmAdminDetailResponses[keyof SwarmAdminDetailResponses]
+
+export type SwarmAlignmentData = {
+  body?: never
+  path: {
+    id: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+    include_deleted?: string
+  }
+  url: "/swarm/{id}/alignment"
+}
+
+export type SwarmAlignmentErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type SwarmAlignmentError = SwarmAlignmentErrors[keyof SwarmAlignmentErrors]
+
+export type SwarmAlignmentResponses = {
+  /**
+   * Swarm alignment state
+   */
+  200: {
+    contract: {
+      goal: string
+      scope: string
+      constraints?: Array<string>
+      roles?: Array<{
+        role_id?: string | null
+        name: string
+        purpose?: string | null
+        perspective?: string | null
+        default_when?: string | null
+      }>
+      mode: "execute" | "discussion"
+      assumptions?: Array<string>
+      risks?: Array<string>
+      discussion_reason?: string | null
+      created_at: number
+    } | null
+    selected_roles: Array<{
+      role_id?: string | null
+      name: string
+      purpose?: string | null
+      perspective?: string | null
+      default_when?: string | null
+    }>
+    gate: {
+      value?: "G0" | "G1" | "G2" | "G3" | null
+      reason?: string | null
+      input?: {
+        action_sensitive?: boolean | null
+        material_role_delta?: boolean | null
+        ambiguous?: boolean | null
+        valid_options?: number | null
+        trade_offs?: boolean | null
+        confidence?: "low" | "high" | null
+        routine?: boolean | null
+      } | null
+      evaluated_at?: number | null
+    }
+    role_delta: {
+      material?: boolean
+      roles?: Array<{
+        role_id?: string | null
+        name: string
+        state: "unchanged" | "added" | "removed" | "modified"
+        fields?: Array<"purpose" | "perspective" | "default_when">
+      }>
+      updated_at?: number | null
+    }
+    pending_confirmation: {
+      kind: "run" | "role"
+      gate?: "G0" | "G1" | "G2" | "G3" | null
+      requested_at: number
+      requested_by?: string | null
+      reason?: string | null
+      roles?: Array<string>
+    } | null
+    run_confirmation: {
+      gate: "G0" | "G1" | "G2" | "G3"
+      confirmed_at: number
+      confirmed_by: string
+    } | null
+    summary: {
+      goal: string
+      scope: string
+      constraints?: Array<string>
+      roles?: Array<string>
+      role_deltas?: Array<{
+        role_id?: string | null
+        name: string
+        state: "unchanged" | "added" | "removed" | "modified"
+        fields?: Array<"purpose" | "perspective" | "default_when">
+      }>
+      assumptions?: Array<string>
+      next_phase: string
+      ask?: string | null
+      created_at: number
+    } | null
+  }
+}
+
+export type SwarmAlignmentResponse = SwarmAlignmentResponses[keyof SwarmAlignmentResponses]
 
 export type SwarmInterveneData = {
   body?: {

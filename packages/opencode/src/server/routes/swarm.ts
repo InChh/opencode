@@ -649,6 +649,34 @@ export const SwarmRoutes = lazy(() =>
         return c.json(info)
       },
     )
+    .get(
+      "/:id/alignment",
+      describeRoute({
+        summary: "Get Swarm alignment state",
+        description: "Get the swarm alignment read model for CLI and web consumers.",
+        operationId: "swarm.alignment",
+        responses: {
+          200: {
+            description: "Swarm alignment state",
+            content: { "application/json": { schema: resolver(SwarmAdmin.Alignment) } },
+          },
+          ...errors(400),
+        },
+      }),
+      validator("param", z.object({ id: z.string() })),
+      validator(
+        "query",
+        z.object({
+          include_deleted: flag,
+        }),
+      ),
+      async (c) => {
+        const info = await SwarmAdmin.readAlignment(c.req.valid("param").id, {
+          include_deleted: c.req.valid("query").include_deleted,
+        })
+        return c.json(info)
+      },
+    )
     .post(
       "/:id/intervene",
       describeRoute({

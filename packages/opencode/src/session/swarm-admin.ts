@@ -149,6 +149,17 @@ export namespace SwarmAdmin {
   })
   export type DiscussionInfo = z.infer<typeof DiscussionInfo>
 
+  export const Alignment = z.object({
+    contract: SwarmState.RunContract.nullable(),
+    selected_roles: z.array(SwarmState.RunRole),
+    gate: SwarmState.GateState,
+    role_delta: SwarmState.DeltaState,
+    pending_confirmation: SwarmState.Pending.nullable(),
+    run_confirmation: SwarmState.RunConfirmation.nullable(),
+    summary: SwarmState.Summary.nullable(),
+  })
+  export type Alignment = z.infer<typeof Alignment>
+
   export const Detail = z.object({
     overview: Overview,
     goal: z.string(),
@@ -166,6 +177,7 @@ export namespace SwarmAdmin {
       statuses: z.array(z.string()),
       types: z.array(z.string()),
     }),
+    alignment: Alignment,
     agents: z.array(AgentInfo),
     discussions: z.array(DiscussionInfo),
     recent_signals: z.array(BoardSignal.Info),
@@ -183,6 +195,18 @@ export namespace SwarmAdmin {
       .map((item) => item.trim())
       .find(Boolean)
     return text(line ?? value, 140)
+  }
+
+  function alignment(state: SwarmState.Snapshot | undefined) {
+    return Alignment.parse({
+      contract: state?.alignment.contract ?? null,
+      selected_roles: state?.alignment.contract?.roles ?? [],
+      gate: state?.alignment.gate ?? { value: null, reason: null, input: null, evaluated_at: null },
+      role_delta: state?.alignment.role_delta ?? { material: false, roles: [], updated_at: null },
+      pending_confirmation: state?.alignment.pending_confirmation ?? null,
+      run_confirmation: state?.alignment.run_confirmation ?? null,
+      summary: state?.alignment.summary ?? null,
+    })
   }
 
   function sum(signal: BoardSignal.Info) {
@@ -530,7 +554,7 @@ export namespace SwarmAdmin {
       needs_attention: attention.length > 0,
       attention,
     })
-    return { info, tasks, arts, sigs, taskList, disc, item }
+    return { info, snap, tasks, arts, sigs, taskList, disc, item }
   }
 
   function agents(info: Swarm.Info, tasks: TaskInfo[], sigs: BoardSignal.Info[], disc: DiscussionInfo[]) {
@@ -664,9 +688,14 @@ export namespace SwarmAdmin {
         statuses: [...new Set(base.taskList.map((task) => task.status))].toSorted(),
         types: [...new Set(base.taskList.map((task) => task.type))].toSorted(),
       },
+      alignment: alignment(base.snap),
       agents: people,
       discussions: base.disc,
       recent_signals: base.sigs.toSorted((a, b) => b.timestamp - a.timestamp).slice(0, 20),
     })
+  }
+
+  export async function readAlignment(id: string, input?: { include_deleted?: boolean }) {
+    return alignment((await collect(id, input?.include_deleted)).snap)
   }
 }

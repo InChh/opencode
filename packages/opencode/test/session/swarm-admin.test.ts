@@ -7,6 +7,7 @@ import { Global } from "../../src/global"
 import { Instance } from "../../src/project/instance"
 import { SwarmAdmin } from "../../src/session/swarm-admin"
 import { Swarm } from "../../src/session/swarm"
+import { SwarmState } from "../../src/session/swarm-state"
 import { resetDatabase } from "../fixture/db"
 import { tmpdir } from "../fixture/fixture"
 
@@ -147,6 +148,61 @@ describe("Swarm admin", () => {
     await withInstance(async () => {
       const id = "SW-detail"
       await seed(id, { status: "active", stage: "executing" })
+      await SwarmState.mutate(id, {
+        actor: "coordinator",
+        reason: "seed alignment",
+        fn: (state) => {
+          state.alignment.contract = {
+            goal: "Build a Swarm admin UI",
+            scope: "Explain why the run is blocked",
+            constraints: ["No raw prompts"],
+            roles: [{ role_id: "pm", name: "PM", purpose: null, perspective: null, default_when: null }],
+            mode: "execute",
+            assumptions: ["Shared state is current"],
+            risks: ["Workers may drift"],
+            discussion_reason: null,
+            created_at: Date.now(),
+          }
+          state.alignment.gate = {
+            value: "G2",
+            reason: "Material role delta requires review",
+            input: {
+              action_sensitive: false,
+              material_role_delta: true,
+              ambiguous: false,
+              valid_options: 1,
+              trade_offs: false,
+              confidence: "high",
+              routine: true,
+            },
+            evaluated_at: Date.now(),
+          }
+          state.alignment.role_delta = {
+            material: true,
+            roles: [{ role_id: "pm", name: "PM", state: "modified", fields: ["perspective"] }],
+            updated_at: Date.now(),
+          }
+          state.alignment.summary = {
+            goal: "Build a Swarm admin UI",
+            scope: "Explain why the run is blocked",
+            constraints: ["No raw prompts"],
+            roles: ["PM"],
+            role_deltas: [{ role_id: "pm", name: "PM", state: "modified", fields: ["perspective"] }],
+            assumptions: ["Shared state is current"],
+            next_phase: "Pause before delegation until the user confirms this run",
+            ask: "Confirm the updated direction before delegation continues",
+            created_at: Date.now(),
+          }
+          state.alignment.pending_confirmation = {
+            kind: "run",
+            gate: "G2",
+            requested_at: Date.now(),
+            requested_by: "coordinator",
+            reason: "Confirm the updated direction before delegation continues",
+            roles: ["pm"],
+          }
+        },
+      })
       const done = await BoardTask.create({
         subject: "Prepare plan",
         type: "implement",
@@ -200,6 +256,7 @@ describe("Swarm admin", () => {
       })
 
       const overview = await SwarmAdmin.list({ needs_attention: true })
+      const align = await SwarmAdmin.readAlignment(id)
       const detail = await SwarmAdmin.get(id)
 
       expect(overview).toHaveLength(1)
@@ -214,6 +271,10 @@ describe("Swarm admin", () => {
       expect(detail.risk_summary).toContain("Conductor note")
       expect(detail.actions[0]).toMatchObject({ kind: "decision" })
       expect(detail.task_filters.assignees).toContain("SE-worker-1")
+      expect(align.gate.value).toBe("G2")
+      expect(align.pending_confirmation?.kind).toBe("run")
+      expect(detail.alignment.summary?.roles).toEqual(["PM"])
+      expect(detail.alignment.role_delta.material).toBe(true)
       expect(detail.tasks.find((task) => task.id === stuck.id)?.blocked_reason).toContain("Waiting on API contract")
       expect(detail.agents.find((agent) => agent.label === "PM")?.discussion_channels).toContain("debate-delete")
       expect(detail.discussions[0]).toMatchObject({

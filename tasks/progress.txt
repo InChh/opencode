@@ -11,6 +11,7 @@
 - Persist approved high-risk runs in `alignment.run_confirmation`; reuse that approval only while the stored contract and gate still match, and keep `Swarm.resume()` blocked until pending run confirmation is cleared.
 - Use `SwarmState.writeback()` for approved role changes so only `modified` or `added` deltas update the shared catalog, while unchanged roles stay untouched and user confirmation state stays in sync.
 - `SwarmState.preflight()` can accept later-phase gate overrides; when the new gate outranks the stored gate, clear stale run confirmation and surface an explicit escalation reason in the fresh pending confirmation.
+- Reuse `SwarmAdmin.Alignment` for server reads: expose it directly at `/swarm/:id/alignment` for CLI consumers and embed it into `SwarmAdmin.Detail` so web panels read the same alignment snapshot.
 
 ## 2026-04-11 19:15:48 CST - US-001
 - Added canonical alignment state to `packages/opencode/src/session/swarm-state.ts` for project-scoped role catalog data, user-scoped confirmations, run contract, gate state, role delta state, pending confirmations, and alignment audit metadata.
@@ -109,4 +110,13 @@
   - Mid-run escalation should compare gate ranks, not just gate inequality, so lateral changes like `G2` to `G2` do not create noisy re-approval loops.
   - Later-phase risk checks need explicit gate-input overrides because the default preflight inputs only cover the routine delegation case.
   - Clear stale `run_confirmation` as soon as preflight stops matching the stored contract and gate, otherwise read models can imply the higher-risk turn was already approved.
+---
+
+## 2026-04-11 19:47:52 CST - US-012
+- Added `SwarmAdmin.Alignment`, embedded it into the admin detail read model, exposed it at `/swarm/:id/alignment`, and regenerated `packages/sdk/js/src/v2/gen/*` so both CLI and web clients can read the same run contract, gate, role delta, pending confirmation, and summary state.
+- Files changed: `packages/opencode/src/session/swarm-admin.ts`, `packages/opencode/src/server/routes/swarm.ts`, `packages/opencode/test/session/swarm-admin.test.ts`, `packages/opencode/AGENTS.md`, `packages/sdk/js/src/v2/gen/*`, `tasks/prd.json`, `tasks/progress.txt`
+- **Learnings for future iterations:**
+  - Keep alignment read shapes curated instead of exposing raw `SwarmState.Alignment`; `SwarmAdmin.Alignment` is the stable contract for client surfaces.
+  - Embed the same alignment read model into detail endpoints and dedicated alignment routes so CLI and web stay in sync without duplicating projection logic.
+  - Regenerate the JavaScript SDK after swarm route schema changes before re-running package builds, or local package resolution may fail against stale generated exports.
 ---
