@@ -139,20 +139,27 @@ export namespace Swarm {
     )
     SwarmState.align(state)
     if (prev.schema_version === state.schema_version) SwarmState.check(prev, state)
+    let transition: SwarmState.Transition | undefined
     if (prev.schema_version === state.schema_version) {
       state.rev = prev.rev + 1
       state.seq = prev.seq + 1
       state.audit.last_txn = crypto.randomUUID()
-      state.audit.entries.push({
+      transition = {
         txn: state.audit.last_txn,
         actor: "coordinator",
         reason: "sync swarm info",
         at: Date.now(),
         rev: state.rev,
         seq: state.seq,
-      })
+      }
+      state.audit.entries.push(transition)
     }
-    await SwarmState.write(SwarmState.Snapshot.parse(state))
+    const checked = SwarmState.Snapshot.parse(state)
+    await SwarmState.write(checked)
+    if (transition) {
+      Bus.publish(SwarmState.Event.Transition, { swarm_id: checked.swarm.id, snapshot: checked, transition })
+      log.info("swarm transition", { swarmID: checked.swarm.id, ...transition })
+    }
   }
 
   export async function save(info: Info) {

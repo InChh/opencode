@@ -9,6 +9,7 @@ import { Discussion } from "../../board/discussion"
 import { errors } from "../error"
 import { lazy } from "../../util/lazy"
 import { SwarmAdmin } from "../../session/swarm-admin"
+import { SwarmState } from "../../session/swarm-state"
 
 const flag = z
   .string()
@@ -813,45 +814,19 @@ export const SwarmRoutes = lazy(() =>
         return streamSSE(c, async (stream) => {
           const subs: Array<() => void> = []
 
-          function send(type: string, payload: unknown) {
+          function send(type: "snapshot" | "transition", payload: unknown) {
             stream.writeSSE({
               data: JSON.stringify({ type, payload, timestamp: Date.now() }),
             })
           }
 
+          const snapshot = await SwarmState.read(swarm)
+          if (snapshot) send("snapshot", snapshot)
+
           subs.push(
-            Bus.subscribe(BoardTask.Event.Updated, (evt) => {
-              if (evt.properties.task.swarm_id === swarm) send("task.updated", evt.properties)
-            }),
-          )
-          subs.push(
-            Bus.subscribe(BoardArtifact.Event.Created, (evt) => {
-              if (evt.properties.artifact.swarm_id === swarm) send("artifact.created", evt.properties)
-            }),
-          )
-          subs.push(
-            Bus.subscribe(BoardSignal.Event.Signal, (evt) => {
-              if (evt.properties.signal.swarm_id === swarm) send("signal", evt.properties)
-            }),
-          )
-          subs.push(
-            Bus.subscribe(Swarm.Event.Updated, (evt) => {
-              if (evt.properties.swarm.id === swarm) send("swarm.updated", evt.properties)
-            }),
-          )
-          subs.push(
-            Bus.subscribe(Swarm.Event.Completed, (evt) => {
-              if (evt.properties.swarm.id === swarm) {
-                send("swarm.completed", evt.properties)
-                stream.close()
-              }
-            }),
-          )
-          subs.push(
-            Bus.subscribe(Swarm.Event.Failed, (evt) => {
-              if (evt.properties.swarm.id === swarm) {
-                send("swarm.failed", evt.properties)
-                stream.close()
+            Bus.subscribe(SwarmState.Event.Transition, (evt) => {
+              if (evt.properties.swarm_id === swarm) {
+                send("transition", evt.properties)
               }
             }),
           )

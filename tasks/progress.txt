@@ -86,3 +86,11 @@
   - Treat directory `fsync` failures after `rename` as warnings, not rollbacks, because disk state is already authoritative once the rename succeeds.
   - `rev` and `seq` are easiest to reason about when every successful authoritative write bumps both together, even for legacy sync commits.
 ---
+
+## 2026-04-11 12:36:39 CST - US-010
+- Published authoritative transition bus events from `packages/opencode/src/session/swarm-state.ts` and `packages/opencode/src/session/swarm.ts`, then simplified `packages/opencode/src/server/routes/swarm.ts` SSE output to a connect-time `snapshot` plus seq-bearing `transition` messages only.
+- **Learnings for future iterations:**
+  - The easiest way to keep SSE authoritative is to emit only from snapshot commits, never from side-channel signals or artifacts.
+  - Including the latest snapshot alongside transition metadata makes clients simple: they can de-duplicate by `seq` and refetch when a gap is detected.
+  - Legacy board signals can still feed logs and admin views, but they should not drive the authoritative event stream anymore.
+---

@@ -1,6 +1,8 @@
 import fs from "fs/promises"
 import path from "path"
 import z from "zod"
+import { Bus } from "@/bus"
+import { BusEvent } from "@/bus/bus-event"
 import { Global } from "../global"
 import { Instance } from "../project/instance"
 import { Lock } from "../util/lock"
@@ -8,6 +10,16 @@ import { Log } from "../util/log"
 
 export namespace SwarmState {
   const log = Log.create({ service: "swarm.state" })
+
+  export const Transition = z.object({
+    seq: z.number().int().nonnegative(),
+    rev: z.number().int().nonnegative(),
+    txn: z.string(),
+    actor: z.string(),
+    reason: z.string(),
+    at: z.number(),
+  })
+  export type Transition = z.infer<typeof Transition>
 
   export const StatusNext: Record<Status, readonly Status[]> = {
     active: ["active", "paused", "blocked", "completed", "failed", "stopped"],
@@ -359,6 +371,17 @@ export namespace SwarmState {
   })
   export type Snapshot = z.infer<typeof Snapshot>
 
+  export const Event = {
+    Transition: BusEvent.define(
+      "swarm.transition",
+      z.object({
+        swarm_id: z.string(),
+        snapshot: Snapshot,
+        transition: Transition,
+      }),
+    ),
+  }
+
   export const Example = Snapshot.parse({
     schema_version: 2,
     rev: 3,
@@ -554,16 +577,19 @@ export namespace SwarmState {
     next.rev = state.rev + 1
     next.seq = state.seq + 1
     next.audit.last_txn = crypto.randomUUID()
-    next.audit.entries.push({
+    const transition: Transition = {
       txn: next.audit.last_txn,
       actor: input.actor,
       reason: input.reason,
       at: Date.now(),
       rev: next.rev,
       seq: next.seq,
-    })
+    }
+    next.audit.entries.push(transition)
     const checked = Snapshot.parse(next)
     await write(checked)
+    Bus.publish(Event.Transition, { swarm_id: id, snapshot: checked, transition })
+    log.info("swarm transition", { swarm: id, ...transition })
     return checked
   }
 
