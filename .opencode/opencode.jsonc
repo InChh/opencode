@@ -6,6 +6,11 @@
     },
   },
   "mcp": {},
+  "hooks": {
+    "directory-readme-injector": {
+      "enabled": false,
+    },
+  },
   "tools": {
     "github-triage": false,
     "github-pr-search": false,
@@ -27,6 +32,6 @@
         "edit": "deny",
         "write": "deny",
       },
-    }
-  }
+    },
+  },
 }
