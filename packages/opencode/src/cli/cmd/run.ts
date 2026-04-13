@@ -1,6 +1,7 @@
 import type { Argv } from "yargs"
 import path from "path"
 import { pathToFileURL } from "bun"
+import * as prompts from "@clack/prompts"
 import { UI } from "../ui"
 import { cmd } from "./cmd"
 import { Flag } from "../../flag/flag"
@@ -381,11 +382,6 @@ export const RunCommand = cmd({
 
     const rules: PermissionNext.Ruleset = [
       {
-        permission: "question",
-        action: "deny",
-        pattern: "*",
-      },
-      {
         permission: "plan_enter",
         action: "deny",
         pattern: "*",
@@ -434,6 +430,8 @@ export const RunCommand = cmd({
     }
 
     async function execute(sdk: OpencodeClient) {
+      let sessionID = ""
+
       function tool(part: ToolPart) {
         try {
           if (part.tool === "bash") return bash(props<typeof BashTool>(part))
@@ -464,7 +462,99 @@ export const RunCommand = cmd({
       }
 
       const events = await sdk.event.subscribe()
+      const follow = new Set<string>()
       let error: string | undefined
+      let idle = false
+
+      async function answer(req: {
+        id: string
+        sessionID: string
+        questions: {
+          header: string
+          question: string
+          options: { label: string; description: string }[]
+          multiple?: boolean
+          custom?: boolean
+        }[]
+      }) {
+        if (!process.stdout.isTTY || !process.stdin.isTTY) {
+          UI.println(
+            UI.Style.TEXT_WARNING_BOLD + "!",
+            UI.Style.TEXT_NORMAL + `question requested by ${req.sessionID}; auto-rejecting in non-interactive mode`,
+          )
+          await sdk.question.reject({ requestID: req.id })
+          return false
+        }
+
+        const answers = [] as string[][]
+        const custom = "__custom__"
+        UI.empty()
+        UI.println(UI.Style.TEXT_INFO_BOLD + "?", UI.Style.TEXT_NORMAL + `Question from ${req.sessionID}`)
+
+        for (const item of req.questions) {
+          if (item.header.trim()) UI.println(UI.Style.TEXT_DIM_BOLD + item.header + UI.Style.TEXT_NORMAL)
+          const opts = item.options.map((opt) => ({
+            label: opt.label,
+            value: opt.label,
+            hint: opt.description,
+          }))
+          if (item.custom !== false) {
+            opts.push({
+              label: "Type your own answer",
+              value: custom,
+              hint: "Enter a custom response",
+            })
+          }
+
+          if (item.multiple) {
+            const pick = await prompts.multiselect({
+              message: item.question,
+              options: opts,
+            })
+            if (prompts.isCancel(pick)) {
+              await sdk.question.reject({ requestID: req.id })
+              return false
+            }
+            const list = pick.filter((entry) => entry !== custom)
+            if (pick.includes(custom)) {
+              const text = await prompts.text({
+                message: "Type your answer",
+              })
+              if (prompts.isCancel(text)) {
+                await sdk.question.reject({ requestID: req.id })
+                return false
+              }
+              if (text.trim()) list.push(text.trim())
+            }
+            answers.push(list)
+            continue
+          }
+
+          const pick = await prompts.select({
+            message: item.question,
+            options: opts,
+          })
+          if (prompts.isCancel(pick)) {
+            await sdk.question.reject({ requestID: req.id })
+            return false
+          }
+          if (pick === custom) {
+            const text = await prompts.text({
+              message: "Type your answer",
+            })
+            if (prompts.isCancel(text)) {
+              await sdk.question.reject({ requestID: req.id })
+              return false
+            }
+            answers.push(text.trim() ? [text.trim()] : [])
+            continue
+          }
+          answers.push([pick])
+        }
+
+        await sdk.question.reply({ requestID: req.id, answers })
+        return true
+      }
 
       async function loop() {
         const toggles = new Map<string, boolean>()
@@ -487,6 +577,12 @@ export const RunCommand = cmd({
             if (part.sessionID !== sessionID) continue
 
             if (part.type === "tool" && (part.state.status === "completed" || part.state.status === "error")) {
+              if (part.state.status === "completed") {
+                const meta =
+                  "metadata" in part.state ? (part.state.metadata as Record<string, unknown> | undefined) : undefined
+                const hit = typeof meta?.conductorSession === "string" ? meta.conductorSession : undefined
+                if ((part.tool === "swarm_launch" || part.tool === "swarm_discuss") && hit) follow.add(hit)
+              }
               if (emit("tool_use", { part })) continue
               if (part.state.status === "completed") {
                 tool(part)
@@ -558,12 +654,22 @@ export const RunCommand = cmd({
             UI.error(err)
           }
 
-          if (
-            event.type === "session.status" &&
-            event.properties.sessionID === sessionID &&
-            event.properties.status.type === "idle"
-          ) {
-            break
+          if (event.type === "question.asked") {
+            const req = event.properties
+            if (req.sessionID !== sessionID && !follow.has(req.sessionID)) continue
+            await answer(req)
+            follow.delete(req.sessionID)
+            if (idle && follow.size === 0) break
+            continue
+          }
+
+          if (event.type === "session.status" && event.properties.status.type === "idle") {
+            if (event.properties.sessionID === sessionID) {
+              idle = true
+              if (follow.size === 0) break
+              continue
+            }
+            if (follow.delete(event.properties.sessionID) && idle && follow.size === 0) break
           }
 
           if (event.type === "permission.asked") {
@@ -644,11 +750,12 @@ export const RunCommand = cmd({
         return args.agent
       })()
 
-      const sessionID = await session(sdk)
-      if (!sessionID) {
+      const next = await session(sdk)
+      if (!next) {
         UI.error("Session not found")
         process.exit(1)
       }
+      sessionID = next
       await share(sdk, sessionID)
 
       loop().catch((e) => {

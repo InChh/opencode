@@ -355,6 +355,8 @@ export namespace Agent {
             task: "allow",
             persistent_task: "allow",
             question: "allow",
+            swarm_launch: "deny",
+            swarm_discuss: "deny",
             read: "allow",
             grep: "allow",
             glob: "allow",

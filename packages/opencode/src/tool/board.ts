@@ -86,14 +86,22 @@ export const BoardReadTool = Tool.define("board_read", {
 // --- board_write ---
 export const BoardWriteTool = Tool.define("board_write", {
   description: "Write data to the SharedBoard. Create or update tasks, publish artifacts, or send signals.",
-  parameters: z.object({
-    operation: z
-      .enum(["create_task", "update_task", "post_artifact", "signal", "advance_round"])
-      .describe("What to write"),
-    swarm_id: z.string().describe("The Swarm ID"),
-    data: z.record(z.string(), z.unknown()).describe("Data for the operation"),
-  }),
+  parameters: z
+    .object({
+      operation: z
+        .enum(["create_task", "update_task", "post_artifact", "signal", "advance_round"])
+        .describe("What to write"),
+      swarm_id: z.string().describe("The Swarm ID"),
+      data: z.record(z.string(), z.unknown()).optional().describe("Data for the operation"),
+    })
+    .catchall(z.unknown()),
   async execute(params, ctx): Promise<{ title: string; metadata: BoardMeta; output: string }> {
+    const data =
+      params.data ??
+      Object.fromEntries(
+        Object.entries(params).filter(([key]) => key !== "operation" && key !== "swarm_id" && key !== "data"),
+      )
+
     if (params.operation === "create_task") {
       const actor = await coordinator(params.swarm_id, ctx?.sessionID)
       if (!actor) {
@@ -104,22 +112,23 @@ export const BoardWriteTool = Tool.define("board_write", {
         return { title: "Error", metadata: {}, output: "Only the coordinator can create authoritative tasks" }
       }
       const task = await BoardTask.create({
-        subject: (params.data.subject as string) ?? "",
-        description: params.data.description as string | undefined,
-        type: (params.data.type as BoardTask.Type) ?? "implement",
-        scope: (params.data.scope as string[]) ?? [],
+        subject: (data.subject as string) ?? (data.title as string) ?? "",
+        description: data.description as string | undefined,
+        type: (data.type as BoardTask.Type) ?? "implement",
+        scope: (data.scope as string[]) ?? [],
         swarm_id: params.swarm_id,
-        blockedBy: (params.data.blockedBy as string[]) ?? [],
-        blocks: (params.data.blocks as string[]) ?? [],
-        assignee: params.data.assignee as string | undefined,
+        blockedBy: (data.blockedBy as string[]) ?? [],
+        blocks: (data.blocks as string[]) ?? [],
+        assignee: (data.assignee as string | undefined) ?? (data.owner as string | undefined),
+        metadata: data.metadata as Record<string, unknown> | undefined,
         actor,
       })
       return { title: `Created task ${task.id}`, metadata: { taskId: task.id }, output: JSON.stringify(task, null, 2) }
     }
     if (params.operation === "update_task") {
-      const id = params.data.id as string
+      const id = data.id as string
       if (!id) return { title: "Error", metadata: {}, output: "Missing task id in data" }
-      const changes: Record<string, unknown> = { ...params.data }
+      const changes: Record<string, unknown> = { ...data }
       delete changes.id
       const actor = await coordinator(params.swarm_id, ctx?.sessionID)
       if (!actor) {
@@ -127,13 +136,13 @@ export const BoardWriteTool = Tool.define("board_write", {
         const type =
           next === "completed" ? "done" : next === "failed" ? "failed" : next === "blocked" ? "blocked" : "progress"
         const signal = await BoardSignal.send({
-          channel: (params.data.channel as string) ?? "general",
+          channel: (data.channel as string) ?? "general",
           type: type as BoardSignal.Type,
-          from: (params.data.from as string) ?? ctx?.sessionID ?? "worker",
+          from: (data.from as string) ?? ctx?.sessionID ?? "worker",
           payload: {
             task_id: id,
             status: next ?? null,
-            summary: (params.data.summary as string) ?? `Worker reported ${next ?? "task progress"}`,
+            summary: (data.summary as string) ?? `Worker reported ${next ?? "task progress"}`,
           },
           swarm_id: params.swarm_id,
         })
@@ -158,13 +167,13 @@ export const BoardWriteTool = Tool.define("board_write", {
     }
     if (params.operation === "post_artifact") {
       const artifact = await BoardArtifact.post({
-        type: (params.data.type as BoardArtifact.Type) ?? "finding",
-        task_id: (params.data.task_id as string) ?? "",
+        type: (data.type as BoardArtifact.Type) ?? "finding",
+        task_id: (data.task_id as string) ?? "",
         swarm_id: params.swarm_id,
-        author: (params.data.author as string) ?? "",
-        content: (params.data.content as string) ?? "",
-        files: (params.data.files as string[]) ?? [],
-        supersedes: params.data.supersedes as string | undefined,
+        author: (data.author as string) ?? "",
+        content: (data.content as string) ?? "",
+        files: (data.files as string[]) ?? [],
+        supersedes: data.supersedes as string | undefined,
       })
       return {
         title: `Posted artifact ${artifact.id}`,
@@ -173,7 +182,7 @@ export const BoardWriteTool = Tool.define("board_write", {
       }
     }
     if (params.operation === "advance_round") {
-      const channel = params.data.channel as string
+      const channel = data.channel as string
       if (!channel) return { title: "Error", metadata: {}, output: "Missing data.channel for advance_round" }
       const actor = await coordinator(params.swarm_id, ctx?.sessionID)
       if (!actor) {
@@ -191,10 +200,10 @@ export const BoardWriteTool = Tool.define("board_write", {
       }
     }
     const signal = await BoardSignal.send({
-      channel: (params.data.channel as string) ?? "general",
-      type: (params.data.type as BoardSignal.Type) ?? "progress",
-      from: (params.data.from as string) ?? "",
-      payload: (params.data.payload as Record<string, unknown>) ?? {},
+      channel: (data.channel as string) ?? "general",
+      type: (data.type as BoardSignal.Type) ?? "progress",
+      from: (data.from as string) ?? "",
+      payload: (data.payload as Record<string, unknown>) ?? {},
       swarm_id: params.swarm_id,
     })
     return { title: "Signal sent", metadata: { signalId: signal.id }, output: JSON.stringify(signal, null, 2) }
