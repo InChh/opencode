@@ -80,7 +80,7 @@ describe("swarm tools", () => {
         id: "SW-b",
         goal: "Investigate stale worker cleanup.",
         workers: 0,
-        status: "completed",
+        status: "stopped",
         stage: "idle",
       })
 
