@@ -1934,7 +1934,7 @@ export default function Layout(props: ParentProps) {
                           </Button>
                         </TooltipKeybind>
                       </div>
-                      <SidebarSwarm />
+                      <SidebarSwarm dir={base64Encode(p().worktree)} />
                       <div class="flex-1 min-h-0">
                         <LocalWorkspace
                           ctx={workspaceSidebarCtx}

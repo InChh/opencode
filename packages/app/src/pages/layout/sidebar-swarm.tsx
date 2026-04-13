@@ -1,7 +1,7 @@
-import { A, useParams } from "@solidjs/router"
+import { A } from "@solidjs/router"
 import { createResource, For, Show } from "solid-js"
 import { createStore } from "solid-js/store"
-import { useSDK } from "@/context/sdk"
+import { useGlobalSDK } from "@/context/global-sdk"
 
 interface SwarmInfo {
   id: string
@@ -20,9 +20,8 @@ const colors: Record<string, string> = {
   stopped: "bg-orange-500/10 text-orange-300",
 }
 
-export function SidebarSwarm() {
-  const params = useParams()
-  const sdk = useSDK()
+export function SidebarSwarm(props: { dir: string }) {
+  const sdk = useGlobalSDK()
 
   const [swarms, { refetch }] = createResource(async () => {
     const resp = await fetch(`${sdk.url}/swarm`).catch(() => null)
@@ -66,7 +65,7 @@ export function SidebarSwarm() {
     <div class="flex flex-col gap-1 px-2 py-2 border-b border-border-weak-base">
       <div class="flex items-center justify-between px-2">
         <A
-          href={`/${params.dir}/swarm`}
+          href={`/${props.dir}/swarm`}
           class="text-12-medium text-text-base uppercase tracking-wider hover:text-text-strong"
         >
           Swarms
@@ -102,7 +101,7 @@ export function SidebarSwarm() {
       <For each={active()}>
         {(s) => (
           <A
-            href={`/${params.dir}/swarm/${s.id}/run`}
+            href={`/${props.dir}/swarm/${s.id}/run`}
             class="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-surface-base-hover text-14-regular"
           >
             <span class={`px-1.5 py-0.5 rounded text-[10px] ${colors[s.status] ?? colors.paused}`}>{s.status}</span>
@@ -115,7 +114,7 @@ export function SidebarSwarm() {
       <For each={done()}>
         {(s) => (
           <A
-            href={`/${params.dir}/swarm/${s.id}/run`}
+            href={`/${props.dir}/swarm/${s.id}/run`}
             class="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-surface-base-hover text-14-regular opacity-50"
           >
             <span class={`px-1.5 py-0.5 rounded text-[10px] ${colors[s.status] ?? colors.paused}`}>{s.status}</span>
