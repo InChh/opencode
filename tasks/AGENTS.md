@@ -96,7 +96,7 @@ If no browser tools are available, note in your progress report that manual brow
 After completing a user story, check if ALL stories have `passes: true`.
 
 If ALL stories are complete and passing, reply with:
-<promise>COMPLETE</promise>
+<promise>DONE</promise>
 
 If there are still stories with `passes: false`, end your response normally (another iteration will pick up the next story).
 
