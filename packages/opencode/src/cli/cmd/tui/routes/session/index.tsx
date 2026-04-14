@@ -29,7 +29,15 @@ import {
   RGBA,
 } from "@opentui/core"
 import { Prompt, type PromptRef } from "@tui/component/prompt"
-import type { AssistantMessage, Part, ToolPart, UserMessage, TextPart, ReasoningPart } from "@opencode-ai/sdk/v2"
+import type {
+  AssistantMessage,
+  Part,
+  ToolPart,
+  UserMessage,
+  TextPart,
+  ReasoningPart,
+  Session as SessionInfo,
+} from "@opencode-ai/sdk/v2"
 import { useLocal } from "@tui/context/local"
 import { Locale } from "@/util/locale"
 import type { Tool } from "@/tool/tool"
@@ -137,6 +145,12 @@ export function Session() {
     if (session()?.parentID) return []
     return children().flatMap((x) => sync.data.question[x.id] ?? [])
   })
+  const loops = createMemo(() => {
+    if (session()?.parentID) return []
+    return children()
+      .filter((x) => x.id !== route.sessionID && /^(ULW|Ralph) Loop #\d+$/.test(x.title))
+      .toSorted((a, b) => a.time.created - b.time.created)
+  })
 
   const pending = createMemo(() => {
     return messages().findLast((x) => x.role === "assistant" && !x.time.completed)?.id
@@ -230,6 +244,13 @@ export function Session() {
         })
         return navigate({ type: "home" })
       })
+  })
+
+  createEffect(() => {
+    if (session()?.parentID) return
+    const list = loops()
+    if (list.length === 0) return
+    void Promise.all(list.map((item) => sync.session.sync(item.id).catch(() => undefined)))
   })
 
   const toast = useToast()
@@ -1196,6 +1217,11 @@ export function Session() {
                   </Switch>
                 )}
               </For>
+              <Show when={loops().length > 0}>
+                <box marginTop={messages().length > 0 ? 1 : 0}>
+                  <For each={loops()}>{(item) => <LoopCard session={item} />}</For>
+                </box>
+              </Show>
             </scrollbox>
             <box flexShrink={0}>
               <Show when={permissions().length > 0}>
@@ -1442,6 +1468,172 @@ function AssistantMessage(props: { message: AssistantMessage; parts: Part[]; las
         </Match>
       </Switch>
     </>
+  )
+}
+
+function LoopCard(props: { session: SessionInfo }) {
+  const { theme } = useTheme()
+  const sync = useSync()
+  const { navigate } = useRoute()
+  const renderer = useRenderer()
+  const [expanded, setExpanded] = createSignal(false)
+  const [toggleHover, setToggleHover] = createSignal(false)
+  const [openHover, setOpenHover] = createSignal(false)
+  const toolTitle = (state: unknown) => {
+    if (typeof state !== "object" || !state) return
+    if (!("title" in state)) return
+    return typeof state.title === "string" ? state.title : undefined
+  }
+  const texts = (sessionID: string) => {
+    return (sync.data.message[sessionID] ?? []).flatMap((msg) =>
+      (sync.data.part[msg.id] ?? []).flatMap((part) => {
+        if (part.type !== "text" || part.synthetic) return []
+        return [part.text]
+      }),
+    )
+  }
+  const messages = createMemo(() => sync.data.message[props.session.id] ?? [])
+  const oracle = createMemo(() => sync.data.session.filter((x) => x.parentID === props.session.id))
+  createEffect(() => {
+    const list = oracle()
+    if (list.length === 0) return
+    void Promise.all(list.map((item) => sync.session.sync(item.id).catch(() => undefined)))
+  })
+  const first = createMemo(() => {
+    const user = messages().find((x) => x.role === "user")
+    if (!user) return ""
+    return texts(props.session.id).join("\n")
+  })
+  const childText = createMemo(() =>
+    oracle()
+      .flatMap((item) => texts(item.id))
+      .join("\n"),
+  )
+  const tools = createMemo(() => {
+    return messages().flatMap((msg) =>
+      (sync.data.part[msg.id] ?? [])
+        .filter((part): part is ToolPart => part.type === "tool")
+        .map((part) => ({ tool: part.tool, state: part.state })),
+    )
+  })
+  const current = createMemo(() => tools().findLast((x) => toolTitle(x.state)))
+  const status = createMemo(() => sync.session.status(props.session.id))
+  const kind = createMemo(() => (props.session.title.startsWith("ULW") ? "ULW" : "RALPH"))
+  const step = createMemo(() => /#(\d+)$/.exec(props.session.title)?.[1] ?? "?")
+  const label = createMemo(() => {
+    if (childText().includes("<promise>VERIFIED</promise>")) return "verified"
+    if (first().includes("ULTRAWORK LOOP VERIFICATION FAILED")) return "failed"
+    if (first().includes("ULTRAWORK LOOP VERIFICATION")) {
+      if (status() === "working") return "verifying"
+      if (oracle().length > 0) return "rejected"
+      return "verifying"
+    }
+    if (texts(props.session.id).join("\n").includes("<promise>DONE</promise>")) return "done"
+    if (status() === "working") return "running"
+    return "idle"
+  })
+  const duration = createMemo(() => {
+    const first = messages().find((x) => x.role === "user")?.time.created
+    const last = messages().findLast((x) => x.role === "assistant")?.time.completed
+    if (!first || !last) return undefined
+    return last - first
+  })
+  const summary = createMemo(() => {
+    const result = [] as string[]
+    if (tools().length > 0) result.push(`${tools().length} toolcall${tools().length === 1 ? "" : "s"}`)
+    if (duration()) result.push(Locale.duration(duration()!))
+    return result.join(" · ")
+  })
+  const badge = createMemo(() => {
+    if (label() === "verified") return theme.success
+    if (label() === "done") return theme.primary
+    if (label() === "verifying") return theme.warning
+    if (label() === "failed" || label() === "rejected") return theme.error
+    if (label() === "running") return theme.accent
+    return theme.textMuted
+  })
+
+  return (
+    <box
+      border={["left"]}
+      borderColor={expanded() ? theme.borderActive : theme.background}
+      customBorderChars={SplitBorder.customBorderChars}
+      marginTop={1}
+    >
+      <box
+        paddingTop={1}
+        paddingBottom={1}
+        paddingLeft={2}
+        backgroundColor={toggleHover() ? theme.backgroundMenu : theme.backgroundPanel}
+        flexDirection="column"
+        gap={1}
+      >
+        <box
+          flexDirection="row"
+          justifyContent="space-between"
+          gap={1}
+          onMouseOver={() => setToggleHover(true)}
+          onMouseOut={() => setToggleHover(false)}
+          onMouseUp={() => {
+            if (renderer.getSelection()?.getSelectedText()) return
+            setExpanded(!expanded())
+          }}
+        >
+          <text fg={theme.text}>
+            {expanded() ? "▼" : "▶"} <span style={{ bg: theme.backgroundElement, fg: theme.text }}> {kind()} </span>{" "}
+            <span style={{ bg: theme.backgroundElement, fg: theme.textMuted }}> #{step()} </span>{" "}
+            <span style={{ bg: badge(), fg: theme.background }}> {label().toUpperCase()} </span>{" "}
+            <b>{props.session.title}</b>
+          </text>
+          <text fg={theme.textMuted}>{summary()}</text>
+        </box>
+        <box
+          onMouseOver={() => setOpenHover(true)}
+          onMouseOut={() => setOpenHover(false)}
+          onMouseUp={() => {
+            if (renderer.getSelection()?.getSelectedText()) return
+            navigate({ type: "session", sessionID: props.session.id })
+          }}
+        >
+          <text fg={openHover() ? theme.text : theme.textMuted}>Open child session</text>
+        </box>
+        <Show when={status() === "working" && current()}>
+          <text fg={theme.textMuted}>
+            <Spinner /> {Locale.titlecase(current()!.tool)} {toolTitle(current()!.state)}
+          </text>
+        </Show>
+        <Show when={expanded()}>
+          <box flexDirection="column">
+            <For each={messages()}>
+              {(message, index) => (
+                <Switch>
+                  <Match when={message.role === "user"}>
+                    <UserMessage
+                      index={index()}
+                      onMouseUp={() => undefined}
+                      message={message as UserMessage}
+                      parts={sync.data.part[message.id] ?? []}
+                    />
+                  </Match>
+                  <Match when={message.role === "assistant"}>
+                    <AssistantMessage
+                      last={index() === messages().length - 1}
+                      message={message as AssistantMessage}
+                      parts={sync.data.part[message.id] ?? []}
+                    />
+                  </Match>
+                </Switch>
+              )}
+            </For>
+            <Show when={messages().length === 0}>
+              <text paddingLeft={3} fg={theme.textMuted}>
+                Loading iteration output...
+              </text>
+            </Show>
+          </box>
+        </Show>
+      </box>
+    </box>
   )
 }
 
