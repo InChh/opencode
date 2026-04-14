@@ -703,6 +703,31 @@ describe("SwarmState", () => {
     ).toBe("discussion")
   })
 
+  test("infers discussion signals from research and planning goals", () => {
+    const cues = SwarmState.infer({
+      goal: "Research architecture options and propose a migration plan",
+      scope: "Compare alternatives, analyze trade-offs, and recommend a direction",
+    })
+    expect(cues.multiple_valid_options).toBe(true)
+    expect(cues.meaningful_trade_offs).toBe(true)
+    expect(cues.direction_change).toBe(true)
+    expect(SwarmState.admit(cues).mode).toBe("discussion")
+  })
+
+  test("auto-promotes research swarms into visible discussion mode", () => {
+    const next = SwarmState.preflight({
+      goal: "Study Claude Code patterns and propose an implementation roadmap",
+      scope: "Compare architecture options and synthesize a plan",
+      discussion: false,
+      catalog: {},
+      current: SwarmState.Example.alignment,
+    })
+    expect(next.contract.mode).toBe("discussion")
+    expect(next.contract.discussion_reason).toContain("Auto-start discussion")
+    expect(next.gate.value).toBe("G1")
+    expect(next.summary?.next_phase).toContain("Start role discussion")
+  })
+
   test("builds alignment preflight state before delegation", () => {
     const now = Date.now()
     const flagged = SwarmState.preflight({

@@ -1,7 +1,9 @@
 import { describe, test, expect, beforeEach } from "bun:test"
 import { Instance } from "../../src/project/instance"
 import { Memory } from "../../src/memory/memory"
+import { MemoryInject } from "../../src/memory/engine/injector"
 import { MemoryStorage } from "../../src/memory/storage"
+import { Token } from "../../src/util/token"
 import { tmpdir } from "../fixture/fixture"
 
 async function withInstance<T>(fn: () => Promise<T>): Promise<T> {
@@ -16,6 +18,22 @@ async function withInstance<T>(fn: () => Promise<T>): Promise<T> {
 }
 
 describe("Memory", () => {
+  function fake(content: string, category: Memory.Category = "style", id = crypto.randomUUID()) {
+    const now = Date.now()
+    return Memory.Info.parse({
+      id: `mem_${id}`,
+      content,
+      categories: [category],
+      scope: "personal",
+      source: {
+        sessionID: "ses_test",
+        method: "manual",
+      },
+      createdAt: now,
+      updatedAt: now,
+    })
+  }
+
   describe("data model", () => {
     test("Info schema validates correct data", () => {
       const now = Date.now()
@@ -93,6 +111,29 @@ describe("Memory", () => {
 
     test("Status enum has pending and confirmed", () => {
       expect(Memory.Status.options).toEqual(["pending", "confirmed"])
+    })
+  })
+
+  describe("injector", () => {
+    test("selectForPrompt respects inject limit", () => {
+      const memories = [
+        fake("alpha ".repeat(30), "style"),
+        fake("beta ".repeat(30), "pattern"),
+        fake("gamma ".repeat(30), "tool"),
+      ]
+      const picked = MemoryInject.selectForPrompt(memories, 80)
+      const prompt = MemoryInject.formatMemoriesForPrompt(memories, 80)
+
+      expect(picked.length).toBeLessThan(memories.length)
+      expect(Token.estimate(prompt)).toBeLessThanOrEqual(80)
+    })
+
+    test("selectForPrompt keeps at least one memory", () => {
+      const memories = [fake("delta ".repeat(80), "style")]
+      const picked = MemoryInject.selectForPrompt(memories, 1)
+
+      expect(picked).toHaveLength(1)
+      expect(picked[0]?.id).toBe(memories[0]?.id)
     })
   })
 

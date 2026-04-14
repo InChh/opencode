@@ -633,7 +633,7 @@ describe("session.message-v2.toModelMessage", () => {
       {
         role: "assistant",
         content: [
-          { type: "reasoning", text: "thinking", providerOptions: undefined },
+          { type: "reasoning", text: "[Earlier reasoning omitted for replay]", providerOptions: undefined },
           { type: "text", text: "partial answer" },
         ],
       },
@@ -673,6 +673,89 @@ describe("session.message-v2.toModelMessage", () => {
       {
         role: "assistant",
         content: [{ type: "text", text: "second" }],
+      },
+    ])
+  })
+
+  test("replaces historical reasoning with a compact placeholder", () => {
+    const input: MessageV2.WithParts[] = [
+      {
+        info: assistantInfo("m-assistant-1", "m-parent"),
+        parts: [
+          {
+            ...basePart("m-assistant-1", "a1"),
+            type: "reasoning",
+            text: "very long reasoning one",
+            time: { start: 0 },
+          },
+          {
+            ...basePart("m-assistant-1", "a2"),
+            type: "text",
+            text: "first",
+          },
+        ] as MessageV2.Part[],
+      },
+      {
+        info: assistantInfo("m-assistant-2", "m-parent"),
+        parts: [
+          {
+            ...basePart("m-assistant-2", "b1"),
+            type: "reasoning",
+            text: "latest reasoning",
+            time: { start: 0 },
+          },
+          {
+            ...basePart("m-assistant-2", "b2"),
+            type: "text",
+            text: "second",
+          },
+        ] as MessageV2.Part[],
+      },
+    ]
+
+    expect(MessageV2.toModelMessages(input, model)).toStrictEqual([
+      {
+        role: "assistant",
+        content: [
+          { type: "reasoning", text: "[Earlier reasoning omitted for replay]", providerOptions: undefined },
+          { type: "text", text: "first" },
+        ],
+      },
+      {
+        role: "assistant",
+        content: [
+          { type: "reasoning", text: "latest reasoning", providerOptions: undefined },
+          { type: "text", text: "second" },
+        ],
+      },
+    ])
+  })
+
+  test("drops synthetic reasoning when stripSynthetic is enabled", () => {
+    const input: MessageV2.WithParts[] = [
+      {
+        info: assistantInfo("m-assistant-1", "m-parent"),
+        parts: [
+          {
+            ...basePart("m-assistant-1", "a1"),
+            type: "reasoning",
+            text: "placeholder",
+            time: { start: 0 },
+            synthetic: true,
+          },
+          {
+            ...basePart("m-assistant-1", "a2"),
+            type: "text",
+            text: "answer",
+          },
+        ] as MessageV2.Part[],
+      },
+    ]
+
+    expect(MessageV2.toModelMessages(input, model, { stripSynthetic: true })).toStrictEqual([
+      {
+        role: "assistant",
+        content: [{ type: "text", text: "answer" }],
       },
     ])
   })

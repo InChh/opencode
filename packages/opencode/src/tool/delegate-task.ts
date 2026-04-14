@@ -55,6 +55,52 @@ type DelegateMetadata = {
   [key: string]: unknown
 }
 
+type SwarmTask = {
+  id: string
+  subject: string
+  description?: string
+  status: string
+  type: string
+  scope: string[]
+  blockedBy: string[]
+  blocks: string[]
+  assignee?: string
+}
+
+export function renderSwarmEnvelope(input: { swarmID: string; task?: SwarmTask; role?: string; discussion?: string }) {
+  const lines = ["<task_envelope>", `swarm_id: ${input.swarmID}`]
+  if (input.task) {
+    lines.push(`task_id: ${input.task.id}`)
+    lines.push(`subject: ${input.task.subject}`)
+    lines.push(`type: ${input.task.type}`)
+    lines.push(`status: ${input.task.status}`)
+    if (input.task.assignee) lines.push(`assignee: ${input.task.assignee}`)
+    if (input.task.scope.length > 0) {
+      lines.push("scope:")
+      lines.push(...input.task.scope.map((item) => `- ${item}`))
+    }
+    if (input.task.blockedBy.length > 0) {
+      lines.push("blocked_by:")
+      lines.push(...input.task.blockedBy.map((item) => `- ${item}`))
+    }
+    if (input.task.blocks.length > 0) {
+      lines.push("blocks:")
+      lines.push(...input.task.blocks.map((item) => `- ${item}`))
+    }
+    if (input.task.description) {
+      lines.push("description:")
+      lines.push(input.task.description)
+    }
+  }
+  if (input.role) lines.push(`role: ${input.role}`)
+  if (input.discussion) lines.push(`discussion_channel: ${input.discussion}`)
+  lines.push(
+    "Treat this envelope as authoritative task context. Stay within scope and report progress against this task.",
+  )
+  lines.push("</task_envelope>")
+  return lines.join("\n")
+}
+
 export const DelegateTaskTool = Tool.define("delegate_task", async (ctx) => {
   const agents = await Agent.list().then((x) => x.filter((a) => a.mode !== "primary"))
 
@@ -170,7 +216,25 @@ export const DelegateTaskTool = Tool.define("delegate_task", async (ctx) => {
         return parts.length > 0 ? "\n\n" + parts.join("\n\n") : ""
       })
 
-      const promptWithSkills = params.prompt + skillContent
+      const promptWithSkills = await iife(async () => {
+        const prompt = params.prompt + skillContent
+        if (!isSwarm || !params.swarm_id) return prompt
+        const task = await iife(async () => {
+          if (!params.task_id) return undefined
+          const { BoardTask } = await import("../board/task")
+          return BoardTask.get(params.swarm_id!, params.task_id!).catch(() => undefined)
+        })
+        return [
+          renderSwarmEnvelope({
+            swarmID: params.swarm_id,
+            task,
+            role: params.role_name,
+            discussion: params.discussion_channel,
+          }),
+          "",
+          prompt,
+        ].join("\n")
+      })
 
       let note: string | null = null
 

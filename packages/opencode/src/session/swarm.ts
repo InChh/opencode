@@ -299,6 +299,45 @@ export namespace Swarm {
       time: { created: now, updated: now },
     }
     await save(info)
+    const align = await SwarmState.readAlignment()
+    await SwarmState.mutate(id, {
+      actor: "coordinator",
+      reason: "seed alignment preflight",
+      fn: (state) => {
+        const next = SwarmState.preflight({
+          goal: input.goal,
+          scope: input.goal,
+          discussion: false,
+          catalog: align.catalog.roles,
+          current: state.alignment,
+        })
+        state.alignment.contract = next.contract
+        state.alignment.role_delta = next.role_delta
+        state.alignment.gate = next.gate
+        state.alignment.run_confirmation = next.confirmed ? state.alignment.run_confirmation : null
+        state.alignment.summary = next.summary
+        state.alignment.pending_confirmation = next.pending_confirmation
+        const now = Date.now()
+        state.alignment.audit.contract = {
+          created_at: state.alignment.audit.contract.created_at ?? now,
+          updated_at: now,
+          actor: "coordinator",
+          run_id: id,
+        }
+        state.alignment.audit.gate = {
+          created_at: state.alignment.audit.gate.created_at ?? now,
+          updated_at: now,
+          actor: "coordinator",
+          run_id: id,
+        }
+        state.alignment.audit.pending_confirmation = {
+          created_at: state.alignment.audit.pending_confirmation.created_at ?? now,
+          updated_at: now,
+          actor: "coordinator",
+          run_id: id,
+        }
+      },
+    })
     DeliveryStore.launch({
       id,
       goal: input.goal,

@@ -9,6 +9,7 @@ import { ScopeLock } from "../../board/scope-lock"
 import { BoardTask } from "../../board/task"
 import { BoardSignal } from "../../board/signal"
 import { Discussion } from "../../board/discussion"
+import { SwarmState } from "../swarm-state"
 
 const STRATEGY_FILE = "conductor-strategy.md"
 const SWARM_DIR = "swarm"
@@ -87,45 +88,43 @@ export namespace SwarmHooks {
         const cached = cache.get(ctx.sessionID)
         if (cached !== undefined) {
           if (cached) ctx.system.push(cached)
-          return
+        } else {
+          let content = await readStrategy()
+          if (!content) content = await scaffold()
+          if (!content) {
+            cache.set(ctx.sessionID, null)
+            return
+          }
+          const injection = `\n## Strategy\n\n${content}`
+          cache.set(ctx.sessionID, injection)
+          ctx.system.push(injection)
+          log.info("injected conductor strategy", { sessionID: ctx.sessionID })
         }
-
-        let content = await readStrategy()
-        if (!content) content = await scaffold()
-        if (!content) {
-          cache.set(ctx.sessionID, null)
-          return
-        }
-        const injection = `\n## Strategy\n\n${content}`
-        cache.set(ctx.sessionID, injection)
-        ctx.system.push(injection)
-        log.info("injected conductor strategy", { sessionID: ctx.sessionID })
 
         // Check for discussion tasks and inject discussion protocol
-        const dcached = discussionCache.get(ctx.sessionID)
-        if (dcached !== undefined) {
-          if (dcached) ctx.system.push(dcached)
-          return
-        }
         const swarm = ctx.metadata?.swarm_id as string | undefined
-        if (!swarm) {
-          discussionCache.set(ctx.sessionID, null)
+        if (swarm) {
+          const state = await SwarmState.read(swarm)
+          if (state?.alignment.summary || state?.alignment.gate.value) {
+            ctx.system.push(
+              `\n## Current Run Alignment\n\n${SwarmState.renderDecision({ gate: state.alignment.gate, summary: state.alignment.summary })}`,
+            )
+          }
+        }
+        const dcached = discussionCache.get(ctx.sessionID)
+        if (dcached) {
+          ctx.system.push(dcached)
           return
         }
+        if (!swarm) return
         const tasks = await BoardTask.list(swarm)
         const hasDiscuss = tasks.some((t) => t.type === "discuss")
-        if (!hasDiscuss) {
-          discussionCache.set(ctx.sessionID, null)
-          return
-        }
+        if (!hasDiscuss) return
         const dp = path.join(import.meta.dir, "../../agent/prompt/conductor-discussion.txt")
         const dcontent = await Bun.file(dp)
           .text()
           .catch(() => "")
-        if (!dcontent) {
-          discussionCache.set(ctx.sessionID, null)
-          return
-        }
+        if (!dcontent) return
         discussionCache.set(ctx.sessionID, dcontent)
         ctx.system.push(dcontent)
         log.info("injected discussion protocol", { sessionID: ctx.sessionID })

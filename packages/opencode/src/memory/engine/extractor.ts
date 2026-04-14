@@ -90,13 +90,23 @@ export namespace MemoryExtractor {
     if (agent?.model) {
       return Provider.parseModel(agent.model)
     }
-    if (cfg.memory?.recallProvider && cfg.memory?.recallModel) {
-      return { providerID: cfg.memory.recallProvider, modelID: cfg.memory.recallModel }
+    if (cfg.memory?.recallModel) {
+      const primary = await Provider.defaultModel()
+      return {
+        providerID: cfg.memory.recallProvider ?? primary.providerID,
+        modelID: cfg.memory.recallModel,
+      }
     }
     const primary = await Provider.defaultModel()
+    const small = await Provider.getSmallModel(primary.providerID)
+    if (small) {
+      return { providerID: small.providerID, modelID: small.id }
+    }
     if (!warned.has("extractor")) {
       warned.add("extractor")
-      log.warn("memory-extractor using primary model, consider config.agent.memory-extractor.model")
+      log.warn(
+        "memory-extractor using primary model, consider config.agent.memory-extractor.model or config.small_model",
+      )
       Bus.publish(MemoryEvent.Warning, {
         type: "memory_model_cost",
         agent: "memory-extractor",

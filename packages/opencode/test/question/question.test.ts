@@ -2,6 +2,10 @@ import { test, expect } from "bun:test"
 import { Question } from "../../src/question"
 import { Instance } from "../../src/project/instance"
 import { tmpdir } from "../fixture/fixture"
+import { Global } from "../../src/global"
+import { Identifier } from "../../src/id/id"
+import fs from "fs/promises"
+import path from "path"
 
 test("ask - returns pending promise", async () => {
   await using tmp = await tmpdir({ git: true })
@@ -295,6 +299,72 @@ test("list - returns empty when no pending", async () => {
     fn: async () => {
       const pending = await Question.list()
       expect(pending.length).toBe(0)
+    },
+  })
+})
+
+test("list - reads pending requests from storage", async () => {
+  await using tmp = await tmpdir({ git: true })
+  await Instance.provide({
+    directory: tmp.path,
+    fn: async () => {
+      const id = Identifier.ascending("question")
+      const dir = path.join(Global.Path.data, "projects", Instance.project.id, "question")
+      await fs.mkdir(dir, { recursive: true })
+      await Bun.write(
+        path.join(dir, `${id}.json`),
+        JSON.stringify({
+          id,
+          sessionID: "ses_test",
+          questions: [
+            {
+              question: "Stored question?",
+              header: "Stored",
+              options: [{ label: "Yes", description: "Yes" }],
+            },
+          ],
+          status: "pending",
+          updated_at: Date.now(),
+        }),
+      )
+
+      const pending = await Question.list()
+      expect(pending.map((item) => item.id)).toContain(id)
+    },
+  })
+})
+
+test("ask - resolves when storage is updated by another process", async () => {
+  await using tmp = await tmpdir({ git: true })
+  await Instance.provide({
+    directory: tmp.path,
+    fn: async () => {
+      const ask = Question.ask({
+        sessionID: "ses_test",
+        questions: [
+          {
+            question: "What would you like to do?",
+            header: "Action",
+            options: [{ label: "Option 1", description: "First option" }],
+          },
+        ],
+      })
+
+      const [item] = await Question.list()
+      const dir = path.join(Global.Path.data, "projects", Instance.project.id, "question")
+      const target = path.join(dir, `${item.id}.json`)
+      while (!(await Bun.file(target).exists())) await Bun.sleep(50)
+      await Bun.write(
+        target,
+        JSON.stringify({
+          ...item,
+          status: "replied",
+          answers: [["Option 1"]],
+          updated_at: Date.now(),
+        }),
+      )
+
+      await expect(ask).resolves.toEqual({ answers: [["Option 1"]] })
     },
   })
 })

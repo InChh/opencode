@@ -709,23 +709,9 @@ export namespace SessionPrompt {
           const startsWithReasoning = msg.parts.length > 0 && msg.parts[0].type === "reasoning"
           if (startsWithReasoning) continue
 
-          // Find previous reasoning content to use, or fall back to placeholder
-          let previousReasoning = ""
-          for (let j = i - 1; j >= 0; j--) {
-            const prev = msgs[j]
-            if (prev.info.role !== "assistant") continue
-            for (const part of prev.parts) {
-              if (part.type === "reasoning" && "text" in part && part.text?.trim()) {
-                previousReasoning = part.text
-                break
-              }
-            }
-            if (previousReasoning) break
-          }
-
           msg.parts.unshift({
             type: "reasoning",
-            text: previousReasoning || "[Continuing from previous reasoning]",
+            text: "[Earlier reasoning omitted for replay]",
             time: { start: Date.now() },
             synthetic: true,
           } as MessageV2.ReasoningPart & { synthetic: boolean })

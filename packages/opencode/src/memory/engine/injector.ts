@@ -4,11 +4,13 @@ import { load, injectSections } from "../prompt/loader"
 import { render } from "../prompt/template"
 import { ConfigPaths } from "@/config/paths"
 import { Instance } from "@/project/instance"
+import { Token } from "@/util/token"
 
 export namespace MemoryInject {
   const log = Log.create({ service: "memory.injector" })
 
   const DEFAULT_POOL_LIMIT = 200
+  const DEFAULT_INJECT_LIMIT = 2000
   const RECALL_THRESHOLD = 3
   const RE_RECALL_INTERVAL = 5
   const MAX = 160
@@ -215,9 +217,34 @@ export namespace MemoryInject {
   /**
    * Format memories for injection into system prompt.
    */
-  export function formatMemoriesForPrompt(memories: Memory.Info[]): string {
-    if (memories.length === 0) return ""
+  export function formatMemoriesForPrompt(memories: Memory.Info[], limit = DEFAULT_INJECT_LIMIT): string {
+    const picked = selectForPrompt(memories, limit)
+    if (picked.length === 0) return ""
+    return wrap(picked)
+  }
 
+  export function selectForPrompt(memories: Memory.Info[], limit = DEFAULT_INJECT_LIMIT): Memory.Info[] {
+    if (memories.length === 0) return []
+
+    const cap = Math.max(1, limit)
+    const picked: Memory.Info[] = []
+    for (const memory of ordered(memories)) {
+      const next = [...picked, memory]
+      if (picked.length === 0 || Token.estimate(wrap(next)) <= cap) {
+        picked.push(memory)
+      }
+    }
+    if (picked.length < memories.length) {
+      log.info("trimmed memory injection", {
+        limit: cap,
+        before: memories.length,
+        after: picked.length,
+      })
+    }
+    return picked
+  }
+
+  function wrap(memories: Memory.Info[]): string {
     return [
       "<memory>",
       "Apply only the relevant memories. Do not mention them unless asked.",
@@ -249,13 +276,14 @@ export namespace MemoryInject {
   /**
    * Format memories for injection using template loader (async version).
    */
-  export async function formatMemoriesAsync(memories: Memory.Info[]): Promise<string> {
-    if (memories.length === 0) return ""
+  export async function formatMemoriesAsync(memories: Memory.Info[], limit = DEFAULT_INJECT_LIMIT): Promise<string> {
+    const picked = selectForPrompt(memories, limit)
+    if (picked.length === 0) return ""
 
     const tpl = await load("inject", await ConfigPaths.directories(Instance.directory, Instance.worktree))
     const parts = injectSections(tpl)
 
-    return render(parts.injection, { MEMORY_ITEMS: block(memories).join("\n") })
+    return render(parts.injection, { MEMORY_ITEMS: block(picked).join("\n") })
   }
 
   /**
@@ -282,6 +310,10 @@ export namespace MemoryInject {
       (m): m is { role: string } =>
         typeof m === "object" && m !== null && "role" in m && (m as { role: string }).role === "user",
     ).length
+  }
+
+  function ordered(memories: Memory.Info[]): Memory.Info[] {
+    return order.flatMap((category) => memories.filter((memory) => memory.categories[0] === category))
   }
 
   function block(memories: Memory.Info[]): string[] {

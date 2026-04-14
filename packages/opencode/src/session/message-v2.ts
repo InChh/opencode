@@ -503,6 +503,7 @@ export namespace MessageV2 {
   ): ModelMessage[] {
     const result: UIMessage[] = []
     const toolNames = new Set<string>()
+    const last = [...input].reverse().find((msg) => msg.info.role === "assistant")?.info.id
     // Track media from tool results that need to be injected as user messages
     // for providers that don't support media in tool results.
     //
@@ -625,6 +626,7 @@ export namespace MessageV2 {
           role: "assistant",
           parts: [],
         }
+        let kept = false
         for (const part of msg.parts) {
           if (part.type === "text")
             assistantMessage.parts.push({
@@ -694,6 +696,16 @@ export namespace MessageV2 {
               })
           }
           if (part.type === "reasoning") {
+            if (options?.stripSynthetic && "synthetic" in part && part.synthetic) continue
+            if (msg.info.id !== last) {
+              if (kept) continue
+              kept = true
+              assistantMessage.parts.push({
+                type: "reasoning",
+                text: "[Earlier reasoning omitted for replay]",
+              })
+              continue
+            }
             assistantMessage.parts.push({
               type: "reasoning",
               text: part.text,

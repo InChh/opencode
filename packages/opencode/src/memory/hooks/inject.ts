@@ -67,8 +67,9 @@ export function registerMemoryInjector(): void {
           return
         }
 
-        const limit = config.memory?.injectPoolLimit
-        const pool = MemoryInject.buildCandidatePool(allMemories, limit)
+        const injectLimit = config.memory?.injectLimit
+        const poolLimit = config.memory?.injectPoolLimit
+        const pool = MemoryInject.buildCandidatePool(allMemories, poolLimit)
         if (pool.length === 0) {
           MemoryInject.saveEmpty(ctx.sessionID, count)
           return
@@ -78,15 +79,24 @@ export function registerMemoryInjector(): void {
 
         if (phase === "full") {
           // Phase 1: inject entire candidate pool + batch track usage
-          const memory = MemoryInject.formatMemoriesForPrompt(pool)
+          const picked = MemoryInject.selectForPrompt(pool, injectLimit)
+          if (picked.length === 0) {
+            MemoryInject.saveEmpty(ctx.sessionID, count)
+            return
+          }
+          const memory = MemoryInject.formatMemoriesForPrompt(picked)
           ctx.system.push(memory)
-          await Memory.batchIncrementUseCount(pool.map((m) => m.id))
+          await Memory.batchIncrementUseCount(picked.map((m) => m.id))
           MemoryInject.saveResolved(ctx.sessionID, {
             memory,
-            ids: pool.map((m) => m.id),
+            ids: picked.map((m) => m.id),
             count,
           })
-          log.info("phase 1 injection", { sessionID: ctx.sessionID, poolSize: pool.length })
+          log.info("phase 1 injection", {
+            sessionID: ctx.sessionID,
+            poolSize: pool.length,
+            injected: picked.length,
+          })
           return
         }
 
@@ -116,11 +126,16 @@ export function registerMemoryInjector(): void {
             })
           } catch (err) {
             log.error("recall agent failed, falling back to full injection", { error: err })
-            const memory = MemoryInject.formatMemoriesForPrompt(pool)
+            const picked = MemoryInject.selectForPrompt(pool, injectLimit)
+            if (picked.length === 0) {
+              MemoryInject.saveEmpty(ctx.sessionID, count)
+              return
+            }
+            const memory = MemoryInject.formatMemoriesForPrompt(picked)
             ctx.system.push(memory)
             MemoryInject.saveResolved(ctx.sessionID, {
               memory,
-              ids: pool.map((m) => m.id),
+              ids: picked.map((m) => m.id),
               count,
             })
             return
@@ -130,11 +145,16 @@ export function registerMemoryInjector(): void {
         const cached = MemoryInject.getCachedRecall(ctx.sessionID)
         if (!cached) {
           // Cache miss — fallback to full injection
-          const memory = MemoryInject.formatMemoriesForPrompt(pool)
+          const picked = MemoryInject.selectForPrompt(pool, injectLimit)
+          if (picked.length === 0) {
+            MemoryInject.saveEmpty(ctx.sessionID, count)
+            return
+          }
+          const memory = MemoryInject.formatMemoriesForPrompt(picked)
           ctx.system.push(memory)
           MemoryInject.saveResolved(ctx.sessionID, {
             memory,
-            ids: pool.map((m) => m.id),
+            ids: picked.map((m) => m.id),
             count,
           })
           return
@@ -142,10 +162,11 @@ export function registerMemoryInjector(): void {
 
         // Inject filtered memories
         const relevant = allMemories.filter((m) => cached.relevant.includes(m.id))
-        const memory = relevant.length > 0 ? MemoryInject.formatMemoriesForPrompt(relevant) : ""
-        if (relevant.length > 0) {
+        const picked = MemoryInject.selectForPrompt(relevant, injectLimit)
+        const memory = picked.length > 0 ? MemoryInject.formatMemoriesForPrompt(picked) : ""
+        if (picked.length > 0) {
           ctx.system.push(memory)
-          await Memory.batchIncrementUseCount(relevant.map((m) => m.id))
+          await Memory.batchIncrementUseCount(picked.map((m) => m.id))
         }
 
         // Handle conflicts
@@ -162,7 +183,7 @@ export function registerMemoryInjector(): void {
           MemoryInject.saveResolved(ctx.sessionID, {
             memory,
             conflict,
-            ids: relevant.map((m) => m.id),
+            ids: picked.map((m) => m.id),
             conflicts: cached.conflicts,
             count,
           })
@@ -172,7 +193,7 @@ export function registerMemoryInjector(): void {
 
         await Bus.publish(MemoryEvent.RecallComplete, {
           sessionID: ctx.sessionID,
-          injectedCount: relevant.length,
+          injectedCount: picked.length,
           recalledCount: cached.relevant.length,
         })
       } catch (err) {

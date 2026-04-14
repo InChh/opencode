@@ -1,7 +1,12 @@
 import { describe, expect, test } from "bun:test"
 import { tmpdir } from "../fixture/fixture"
 import { Instance } from "../../src/project/instance"
-import { DelegateTaskTool, BackgroundOutputTool, BackgroundCancelTool } from "../../src/tool/delegate-task"
+import {
+  DelegateTaskTool,
+  BackgroundOutputTool,
+  BackgroundCancelTool,
+  renderSwarmEnvelope,
+} from "../../src/tool/delegate-task"
 import { BackgroundManager } from "../../src/agent/background/manager"
 import { Categories } from "../../src/agent/background/categories"
 
@@ -31,6 +36,32 @@ describe("delegate-task tools", () => {
   // --- DelegateTaskTool ---
 
   describe("DelegateTaskTool", () => {
+    test("renderSwarmEnvelope includes structured task context", () => {
+      const output = renderSwarmEnvelope({
+        swarmID: "SW-1",
+        role: "RD",
+        discussion: "design",
+        task: {
+          id: "BT-1",
+          subject: "Audit memory path",
+          description: "Inspect memory injection and recall flow",
+          status: "ready",
+          type: "investigate",
+          scope: ["src/memory/**"],
+          blockedBy: ["BT-0"],
+          blocks: ["BT-2"],
+          assignee: "worker-token",
+        },
+      })
+
+      expect(output).toContain("<task_envelope>")
+      expect(output).toContain("swarm_id: SW-1")
+      expect(output).toContain("task_id: BT-1")
+      expect(output).toContain("scope:")
+      expect(output).toContain("- src/memory/**")
+      expect(output).toContain("Treat this envelope as authoritative task context")
+    })
+
     test("tool id is delegate_task", () => {
       expect(DelegateTaskTool.id).toBe("delegate_task")
     })

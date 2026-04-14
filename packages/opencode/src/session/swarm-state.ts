@@ -1025,6 +1025,55 @@ export namespace SwarmState {
   })
   export type DiscussionInput = z.infer<typeof DiscussionInput>
 
+  const option = [
+    /\bcompare\b/i,
+    /\bcomparison\b/i,
+    /\boptions?\b/i,
+    /\balternatives?\b/i,
+    /\btrade[ -]?offs?\b/i,
+    /\bpros?\s+and\s+cons?\b/i,
+    /\bversus\b/i,
+    /\bvs\.?\b/i,
+  ]
+  const trade = [
+    /\barchitecture\b/i,
+    /\bdesign\b/i,
+    /\bplan\b/i,
+    /\bproposal\b/i,
+    /\bstrategy\b/i,
+    /\broadmap\b/i,
+    /\brationale\b/i,
+    /\btrade[ -]?offs?\b/i,
+  ]
+  const direction = [
+    /\bresearch\b/i,
+    /\binvestigat/i,
+    /\bexplor/i,
+    /\bstudy\b/i,
+    /\bsurvey\b/i,
+    /\banaly[sz]e\b/i,
+    /\banalysis\b/i,
+    /\bimprove\b/i,
+    /\bbetter\b/i,
+    /\bapproach\b/i,
+    /\bdirection\b/i,
+  ]
+  const benefit = [/\bresearch\b/i, /\banaly[sz]e\b/i, /\banalysis\b/i, /\bcompare\b/i, /\breview\b/i]
+
+  function hit(text: string, list: RegExp[]) {
+    return list.some((item) => item.test(text))
+  }
+
+  export function infer(input: { goal: string; scope: string }) {
+    const text = `${input.goal}\n${input.scope}`
+    return DiscussionInput.parse({
+      multiple_valid_options: hit(text, option),
+      meaningful_trade_offs: hit(text, trade),
+      direction_change: hit(text, direction),
+      role_benefit: hit(text, benefit),
+    })
+  }
+
   export function admit(input: DiscussionInput) {
     const primary = [input.multiple_valid_options, input.meaningful_trade_offs, input.direction_change].filter(
       Boolean,
@@ -1108,11 +1157,16 @@ export namespace SwarmState {
     catalog: Record<string, Role>
     current: Alignment
   }) {
+    const cues = infer({ goal: input.goal, scope: input.scope })
+    const admitted = admit(cues)
+    const auto = !input.discussion && !input.current.contract && admitted.mode === "discussion"
+    const discussion = input.discussion || input.current.contract?.mode === "discussion" || auto
+    const reason = auto ? (input.reason ?? `Auto-start discussion: ${admitted.reason}`) : input.reason
     const contract = draft({
       goal: input.goal,
       scope: input.scope,
-      discussion: input.discussion,
-      reason: input.reason,
+      discussion,
+      reason,
       role: input.role,
       catalog: input.catalog,
       current: input.current.contract,
@@ -1122,9 +1176,9 @@ export namespace SwarmState {
       GateInput.parse({
         action_sensitive: false,
         material_role_delta: role_delta.material,
-        ambiguous: input.discussion,
-        valid_options: input.discussion ? 2 : 1,
-        trade_offs: input.discussion,
+        ambiguous: discussion,
+        valid_options: discussion ? 2 : 1,
+        trade_offs: discussion,
         confidence: "high",
         routine: !input.discussion,
         ...input.gate,

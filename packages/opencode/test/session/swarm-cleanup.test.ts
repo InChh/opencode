@@ -44,6 +44,22 @@ describe("SwarmCleanup", () => {
         expect(state?.schema_version).toBe(3)
         expect(state?.alignment.catalog.scope).toBe("project")
         expect(state?.alignment.catalog.roles).toEqual({})
+        expect(state?.alignment.contract?.goal).toBe("Ready for v3")
+        expect(state?.alignment.contract?.mode).toBe("execute")
+      },
+    })
+  })
+
+  test("seeds discussion alignment for research-heavy swarm goals", async () => {
+    await using tmp = await tmpdir({ git: true, config: {} })
+    await Instance.provide({
+      directory: tmp.path,
+      fn: async () => {
+        await SwarmCleanup.run({ dry_run: false, confirm: "purge-legacy-swarms" })
+        const info = await Swarm.launch({ goal: "Research architecture options and propose a roadmap" })
+        const state = await SwarmState.read(info.id)
+        expect(state?.alignment.contract?.mode).toBe("discussion")
+        expect(state?.alignment.summary?.next_phase).toContain("Start role discussion")
       },
     })
   })

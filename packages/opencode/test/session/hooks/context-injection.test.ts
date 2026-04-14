@@ -233,7 +233,7 @@ describe("ContextInjectionHooks", () => {
       )
     })
 
-    test("medium prompt level skips AGENTS.md injection", async () => {
+    test("medium prompt level skips AGENTS.md, README.md, and rules injection", async () => {
       await withInstance(
         async () => {
           const ctx: HookChain.PreLLMContext = {
@@ -247,11 +247,38 @@ describe("ContextInjectionHooks", () => {
 
           await HookChain.execute("pre-llm", ctx)
 
-          const injected = ctx.system.find((s) => s.includes("AGENTS.md"))
-          expect(injected).toBeUndefined()
+          expect(ctx.system.find((s) => s.includes("AGENTS.md"))).toBeUndefined()
+          expect(ctx.system.find((s) => s.includes("README.md"))).toBeUndefined()
+          expect(ctx.system.find((s) => s.includes("Custom rules from"))).toBeUndefined()
         },
         async (dir) => {
           await Bun.write(path.join(dir, "AGENTS.md"), "# Agents\nShould not appear.")
+          await Bun.write(path.join(dir, "README.md"), "# Readme\nShould not appear.")
+          await fs.mkdir(path.join(dir, ".opencode", "rules"), { recursive: true })
+          await Bun.write(path.join(dir, ".opencode", "rules", "memory.md"), "# Rules\nShould not appear.")
+        },
+      )
+    })
+
+    test("clips large README injection to a prompt budget", async () => {
+      await withInstance(
+        async () => {
+          const ctx: HookChain.PreLLMContext = {
+            sessionID: "s1",
+            system: ["base"],
+            agent: "build",
+            model: "claude-sonnet-4-5-20250929",
+            messages: [],
+          }
+
+          await HookChain.execute("pre-llm", ctx)
+
+          const injected = ctx.system.find((s) => s.includes("Project README.md"))
+          expect(injected).toBeDefined()
+          expect(injected).toContain("[Truncated to fit prompt budget]")
+        },
+        async (dir) => {
+          await Bun.write(path.join(dir, "README.md"), "A".repeat(10_000))
         },
       )
     })

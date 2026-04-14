@@ -3,9 +3,12 @@ import { Log } from "../../util/log"
 import { HookChain } from "./index"
 import { Instance } from "../../project/instance"
 import { InstructionPrompt } from "../instruction"
+import { Token } from "@/util/token"
 
 export namespace ContextInjectionHooks {
   const log = Log.create({ service: "hooks.context-injection" })
+  const README_LIMIT = 1200
+  const RULE_LIMIT = 600
 
   // --- Per-session caches ---
 
@@ -21,6 +24,14 @@ export namespace ContextInjectionHooks {
     rulesCache.clear()
     compactionContext.clear()
     compactionTodos.clear()
+  }
+
+  function fit(label: string, content: string, limit: number): string {
+    const text = `${label}\n${content}`
+    if (Token.estimate(text) <= limit) return text
+    const note = "\n\n[Truncated to fit prompt budget]"
+    const budget = Math.max(0, limit * 4 - label.length - note.length - 1)
+    return `${label}\n${content.slice(0, budget).trimEnd()}${note}`
   }
 
   // --- directory-agents-injector (PreLLMChain, priority 100) ---
@@ -95,6 +106,7 @@ export namespace ContextInjectionHooks {
       "pre-llm",
       110,
       async (ctx) => {
+        if ((ctx.level ?? "full") !== "full") return
         const currentDir = Instance.directory
         const cached = readmeCache.get(ctx.sessionID)
 
@@ -107,7 +119,7 @@ export namespace ContextInjectionHooks {
           return
         }
 
-        const injection = `Project README.md (${result.path}):\n${result.content}`
+        const injection = fit(`Project README.md (${result.path}):`, result.content, README_LIMIT)
         readmeCache.set(ctx.sessionID, { dir: currentDir, content: injection })
         ctx.system.push(injection)
         log.info("injected README.md", { sessionID: ctx.sessionID, path: result.path })
@@ -157,6 +169,7 @@ export namespace ContextInjectionHooks {
       "pre-llm",
       120,
       async (ctx) => {
+        if ((ctx.level ?? "full") !== "full") return
         const cached = rulesCache.get(ctx.sessionID)
         if (cached !== undefined) {
           if (cached) cached.forEach((r) => ctx.system.push(r))
@@ -169,9 +182,7 @@ export namespace ContextInjectionHooks {
           return
         }
 
-        const injections = ruleFiles.map((f) => {
-          return `Custom rules from ${f.path}:\n${f.content}`
-        })
+        const injections = ruleFiles.map((f) => fit(`Custom rules from ${f.path}:`, f.content, RULE_LIMIT))
 
         rulesCache.set(ctx.sessionID, injections)
         injections.forEach((r) => ctx.system.push(r))
