@@ -196,3 +196,13 @@
   - For rollout diagnostics, include both config gates and derived bank identity in inspect output so enablement mistakes and worktree-scope mismatches are visible in one command.
   - Regression tests for read-only inspect commands should assert both returned payload shape and on-disk non-mutation when optional state files are absent.
 ---
+
+## 2026-04-15 18:05:00 CST - US-007
+- Corrected the previously overstated recall integration by updating `packages/opencode/src/memory/engine/recall.ts` to actually query `MemoryHindsightRecall.query()`, pass only ranked authoritative candidates with optional `rank` and `score` hints into the `memory-recall` prompt, and fall back to the full candidate pool when Hindsight returns nothing usable.
+- Updated `packages/opencode/src/memory/prompt/default/recall.txt` so the recall agent treats Hindsight `rank` and `score` as tie-break hints rather than replacing relevance judgment, and added focused regression coverage in `packages/opencode/test/memory/recall.test.ts` for ranked-candidate propagation and full-pool fallback.
+- Files changed: `packages/opencode/src/memory/engine/recall.ts`, `packages/opencode/src/memory/prompt/default/recall.txt`, `packages/opencode/test/memory/recall.test.ts`, `tasks/prd.json`, `tasks/progress.txt`
+- **Learnings for future iterations:**
+  - If a story claims an engine integration, keep at least one focused engine-level regression that proves the integration point is actually invoked, not just that downstream helpers exist.
+  - For Hindsight-ranked recall, build the `memory-recall` candidate JSON from resolved authoritative memories and carry `rank` or `score` as optional hints so the prompt contract stays backward compatible.
+  - When semantic recall returns zero authoritative candidates, fall back before prompt construction so the existing full-pool behavior remains unchanged.
+---

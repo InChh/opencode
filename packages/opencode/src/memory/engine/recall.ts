@@ -10,6 +10,7 @@ import { ConfigPaths } from "@/config/paths"
 import { Instance } from "@/project/instance"
 import { Session } from "@/session"
 import { SessionPrompt } from "@/session/prompt"
+import { MemoryHindsightRecall } from "../hindsight/recall"
 
 export namespace MemoryRecall {
   const log = Log.create({ service: "memory.recall" })
@@ -75,6 +76,10 @@ export namespace MemoryRecall {
     return result.success ? result.data : undefined
   }
 
+  function error(err: unknown) {
+    return err instanceof Error ? err.message : String(err)
+  }
+
   /**
    * Invoke the recall agent to filter candidate memories for relevance.
    *
@@ -87,17 +92,34 @@ export namespace MemoryRecall {
     recentMessages: Array<{ role: string; content: string }>
   }): Promise<Result> {
     try {
-      const candidates = input.memories.map((m) => ({
-        id: m.id,
-        content: m.content,
-        categories: m.categories,
-        tags: m.tags,
-      }))
-
-      const context = input.recentMessages
-        .slice(-6)
-        .map((m) => `[${m.role}]: ${m.content}`)
-        .join("\n---\n")
+      const recent = input.recentMessages.slice(-6).map((m) => `[${m.role}]: ${m.content}`)
+      const context = recent.join("\n---\n")
+      const ranked = await MemoryHindsightRecall.query({
+        query: context,
+        pool: input.memories,
+      }).catch((err) => {
+        log.warn("hindsight ranking failed, using full candidate pool", { error: error(err) })
+        return undefined
+      })
+      const pool = ranked && ranked.candidates.length > 0 ? ranked.candidates : input.memories
+      const candidates = pool.map((item) => {
+        if ("memory" in item) {
+          return {
+            id: item.memory.id,
+            content: item.memory.content,
+            categories: item.memory.categories,
+            tags: item.memory.tags,
+            rank: item.rank,
+            score: item.score,
+          }
+        }
+        return {
+          id: item.id,
+          content: item.content,
+          categories: item.categories,
+          tags: item.tags,
+        }
+      })
 
       // System prompt: role definition + candidate memories + conversation context
       const base = await load("recall", await ConfigPaths.directories(Instance.directory, Instance.worktree))
@@ -148,6 +170,8 @@ export namespace MemoryRecall {
 
       log.info("recall complete", {
         candidates: input.memories.length,
+        ranked: ranked?.candidates.length ?? 0,
+        fallback: ranked && ranked.candidates.length === 0 ? "full_pool" : undefined,
         relevant: parsed.relevant.length,
         conflicts: parsed.conflicts.length,
       })
