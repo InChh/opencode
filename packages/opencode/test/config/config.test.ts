@@ -88,6 +88,60 @@ test("applies hindsight defaults when configured", async () => {
   })
 })
 
+test("parses explicit hindsight rollout settings", async () => {
+  await using tmp = await tmpdir({
+    init: async (dir) => {
+      await writeConfig(dir, {
+        $schema: "https://opencode.ai/config.json",
+        memory: {
+          hindsight: {
+            enabled: true,
+            mode: "embedded",
+            extract: false,
+            recall: false,
+            backfill: false,
+            auto_start: false,
+            workspace_scope: "worktree",
+            bank_prefix: "lab",
+            startup_timeout_ms: 123,
+            query_timeout_ms: 456,
+            retain_limit: 7,
+            recall_limit: 8,
+            observation_limit: 9,
+            context_max_items: 10,
+            context_max_tokens: 11,
+            log_level: "DEBUG",
+          },
+        },
+      })
+    },
+  })
+  await Instance.provide({
+    directory: tmp.path,
+    fn: async () => {
+      const config = await Config.get()
+      expect(config.memory?.hindsight).toEqual({
+        enabled: true,
+        mode: "embedded",
+        extract: false,
+        recall: false,
+        backfill: false,
+        auto_start: false,
+        workspace_scope: "worktree",
+        bank_prefix: "lab",
+        startup_timeout_ms: 123,
+        query_timeout_ms: 456,
+        retain_limit: 7,
+        recall_limit: 8,
+        observation_limit: 9,
+        context_max_items: 10,
+        context_max_tokens: 11,
+        log_level: "DEBUG",
+      })
+    },
+  })
+})
+
 test("throws error for invalid hindsight config", async () => {
   await using tmp = await tmpdir({
     init: async (dir) => {

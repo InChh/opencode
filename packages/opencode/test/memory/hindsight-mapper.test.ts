@@ -143,5 +143,38 @@ describe("MemoryHindsightMap", () => {
       direct: false,
       reason: "document_id",
     })
+    expect(
+      MemoryHindsightMap.resolve(
+        {
+          document_id: `obs:${MemoryHindsightBank.worktreeHash(root)}:sess_1:abc123`,
+        },
+        root,
+      ),
+    ).toEqual({
+      kind: "obs",
+      document_id: `obs:${MemoryHindsightBank.worktreeHash(root)}:sess_1:abc123`,
+      direct: false,
+      reason: "document_id",
+    })
+  })
+
+  test("trims metadata memory ids before direct resolve", () => {
+    expect(
+      MemoryHindsightMap.resolve(
+        {
+          metadata: {
+            workspace_id: MemoryHindsightBank.worktreeHash(root),
+            memory_id: "  memory_7  ",
+          },
+        },
+        root,
+      ),
+    ).toEqual({
+      kind: "mem",
+      memory_id: "memory_7",
+      document_id: undefined,
+      direct: true,
+      reason: "metadata",
+    })
   })
 })

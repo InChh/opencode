@@ -286,8 +286,8 @@
         "Typecheck passes"
       ],
       "priority": 19,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Added targeted regression coverage for explicit Hindsight config parsing, stable bank-id generation, metadata-normalized resolve rules, direct vs indirect hit resolution, and engine-level recall fallback so future changes cannot silently break ranked-authority selection."
     },
     {
       "id": "US-020",

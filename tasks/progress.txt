@@ -206,3 +206,13 @@
   - For Hindsight-ranked recall, build the `memory-recall` candidate JSON from resolved authoritative memories and carry `rank` or `score` as optional hints so the prompt contract stays backward compatible.
   - When semantic recall returns zero authoritative candidates, fall back before prompt construction so the existing full-pool behavior remains unchanged.
 ---
+
+## 2026-04-15 18:35:00 CST - US-019
+- Added targeted Hindsight regression coverage in `packages/opencode/test/config/config.test.ts` for explicit rollout-setting parsing, in `packages/opencode/test/memory/hindsight-bank.test.ts` for stable worktree bank identity, and in `packages/opencode/test/memory/hindsight-mapper.test.ts` for indirect `obs:` hits plus trimmed metadata-memory resolution.
+- Extended `packages/opencode/test/memory/recall.test.ts` with an engine-level fallback case for thrown Hindsight ranking queries, while keeping the existing `packages/opencode/test/memory/hindsight-recall.test.ts` authority-resolve coverage as the guard for stale-hit dropping and score or rank propagation.
+- Files changed: `packages/opencode/test/config/config.test.ts`, `packages/opencode/test/memory/hindsight-bank.test.ts`, `packages/opencode/test/memory/hindsight-mapper.test.ts`, `packages/opencode/test/memory/recall.test.ts`, `packages/opencode/AGENTS.md`, `tasks/prd.json`, `tasks/progress.txt`
+- **Learnings for future iterations:**
+  - Keep Hindsight regression coverage split by layer: config parsing in `test/config`, mapping or bank identity in dedicated `test/memory/hindsight-*.test.ts` files, and engine fallback in `test/memory/recall.test.ts`.
+  - Mapper regressions should cover both indirect `sess:` or `obs:` ids and metadata-only fallback, because authority bugs often hide in normalization edges rather than primary happy paths.
+  - Engine fallback tests should force `MemoryHindsightRecall.query()` to throw, not just return empty results, so degraded local-only behavior stays protected.
+---

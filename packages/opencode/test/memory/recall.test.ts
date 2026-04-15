@@ -213,6 +213,52 @@ describe("MemoryRecall", () => {
       expect(sys).not.toContain('"rank"')
       expect(sys).not.toContain('"score":0.99')
     })
+
+    test("falls back to the full pool when hindsight query throws", async () => {
+      await using tmp = await tmpdir({
+        git: true,
+        config: {
+          memory: {
+            hindsight: cfg(),
+          },
+        },
+      })
+
+      let sys = ""
+      spies.push(
+        spyOn(Provider, "defaultModel").mockResolvedValue({
+          providerID: "test",
+          modelID: "primary",
+        }),
+        spyOn(Provider, "getSmallModel").mockResolvedValue(undefined),
+        spyOn(MemoryHindsightRecall, "query").mockRejectedValue(new Error("boom")),
+        spyOn(SessionPrompt, "prompt").mockImplementation((async (opts) => {
+          sys = opts.system ?? ""
+          return {
+            info: {} as never,
+            parts: [{ type: "text", text: JSON.stringify({ relevant: ["mem_1"], conflicts: [] }) }],
+          }
+        }) as typeof SessionPrompt.prompt),
+      )
+
+      const result = await Instance.provide({
+        directory: tmp.path,
+        fn: async () => {
+          const session = await Session.create({})
+          return MemoryRecall.invoke({
+            sessionID: session.id,
+            memories: [mem("mem_1"), mem("mem_2")],
+            recentMessages: [{ role: "user", content: "hello" }],
+          })
+        },
+      })
+
+      expect(result).toEqual({ relevant: ["mem_1"], conflicts: [] })
+      expect(sys).toContain('"id":"mem_1"')
+      expect(sys).toContain('"id":"mem_2"')
+      expect(sys).not.toContain('"rank"')
+      expect(sys).not.toContain('"score"')
+    })
   })
 
   describe("invoke — error paths", () => {
