@@ -4,6 +4,7 @@ import { MemoryHindsightBackfill } from "../../src/memory/hindsight/backfill"
 import { MemoryHindsightClient } from "../../src/memory/hindsight/client"
 import { MemoryHindsightMap } from "../../src/memory/hindsight/mapper"
 import { MemoryHindsightRetain } from "../../src/memory/hindsight/retain"
+import { MemoryHindsightService } from "../../src/memory/hindsight/service"
 import { MemoryHindsightState } from "../../src/memory/hindsight/state"
 import { MemoryStorage } from "../../src/memory/storage"
 import { Instance } from "../../src/project/instance"
@@ -427,4 +428,91 @@ describe("MemoryHindsightBackfill", () => {
     expect(text).toContain("reason=batch_unavailable")
     expect(text).toContain("hindsight backfill failed")
   })
+
+  test("records degraded failure when the embedded service is unavailable", async () => {
+    const at = await mark()
+    await using tmp = await tmpdir({
+      git: true,
+      config: {
+        memory: {
+          hindsight: cfg(),
+        },
+      },
+    })
+
+    spyOn(MemoryHindsightService, "ready").mockResolvedValue(undefined)
+
+    await Instance.provide({
+      directory: tmp.path,
+      fn: async () => {
+        await seed([item(1), item(2)])
+
+        expect(await MemoryHindsightBackfill.run()).toEqual({
+          status: "failed",
+          processed: 1,
+          succeeded: 0,
+          failed: 1,
+          cursor: undefined,
+        })
+        expect(await MemoryHindsightState.load()).toMatchObject({
+          backfill: {
+            status: "failed",
+            processed: 1,
+            succeeded: 0,
+            failed: 1,
+            failures: [
+              {
+                memory_id: "memory_1",
+                document_id: MemoryHindsightMap.memoryDocumentId(item(1), tmp.path),
+                error: "retain returned no result",
+              },
+            ],
+          },
+        })
+      },
+    })
+
+    const text = await logs(at)
+    expect(text).toContain("hindsight client unavailable")
+    expect(text).toContain("reason=service_unavailable")
+    expect(text).toContain("hindsight backfill batch fallback")
+    expect(text).toContain("hindsight backfill failed")
+  })
 })
+
+if (process.env.OPENCODE_HINDSIGHT_SMOKE === "1") {
+  test("runs the opt-in embedded-daemon backfill smoke path", async () => {
+    await using tmp = await tmpdir({
+      git: true,
+      config: {
+        memory: {
+          hindsight: cfg(),
+        },
+      },
+    })
+
+    await Instance.provide({
+      directory: tmp.path,
+      fn: async () => {
+        await seed([item(1)])
+
+        expect(await MemoryHindsightBackfill.run()).toEqual({
+          status: "completed",
+          processed: 1,
+          succeeded: 1,
+          failed: 0,
+          cursor: "memory_1",
+        })
+        expect(await MemoryHindsightState.load()).toMatchObject({
+          backfill: {
+            status: "completed",
+            cursor: "memory_1",
+            processed: 1,
+            succeeded: 1,
+            failed: 0,
+          },
+        })
+      },
+    })
+  })
+}

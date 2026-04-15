@@ -525,6 +525,126 @@ describe("MemoryExtractor", () => {
 
       expect(called).toBe(true)
     })
+
+    test("updates one authoritative memory in place with bounded hindsight context", async () => {
+      await using tmp = await tmpdir({
+        git: true,
+        config: {
+          memory: {
+            hindsight: {
+              enabled: true,
+              mode: "embedded",
+              extract: true,
+              recall: true,
+              backfill: true,
+              workspace_scope: "worktree",
+              context_max_items: 2,
+              context_max_tokens: 1200,
+            },
+          },
+        },
+      })
+
+      let sys = ""
+      spies.push(
+        spyOn(Provider, "defaultModel").mockResolvedValue({
+          providerID: "test",
+          modelID: "primary",
+        }),
+        spyOn(Provider, "getSmallModel").mockResolvedValue(undefined),
+        spyOn(MemoryHindsightRetain, "session").mockResolvedValue({
+          status: "retained",
+          document_id: "sess:test:sess_13:0:2",
+          result: { success: true, bank_id: "bank_1", items_count: 1, async: false },
+        }),
+        spyOn(MemoryHindsightRetain, "memory").mockResolvedValue({
+          status: "retained",
+          document_id: "mem:test:mem_1",
+          result: { success: true, bank_id: "bank_1", items_count: 1, async: false },
+        }),
+        spyOn(MemoryHindsightRecall, "context").mockResolvedValue({
+          raw: { results: [] } as never,
+          hits: 2,
+          items: [
+            { text: "Keep memory wording self-contained", kind: "obs", id: "obs_1", score: 0.91 },
+            {
+              text: "Merge lookup terms into tags instead of duplicating memories",
+              kind: "doc",
+              id: "doc_1",
+              score: 0.82,
+            },
+            { text: "This third hint should be trimmed", kind: "doc", id: "doc_2", score: 0.71 },
+          ],
+        }),
+        spyOn(SessionPrompt, "prompt").mockImplementation((async (opts) => {
+          sys = opts.system ?? ""
+          return {
+            info: {} as never,
+            parts: [
+              {
+                type: "text",
+                text: JSON.stringify({
+                  items: [
+                    {
+                      action: "update",
+                      targetID: "memory_existing",
+                      content: "Use Hono for APIs and Bun.file for file reads",
+                      categories: ["tool"],
+                      tags: ["bun", "hono"],
+                      citations: ["doc-2"],
+                    },
+                  ],
+                }),
+              },
+            ],
+          }
+        }) as typeof SessionPrompt.prompt),
+      )
+
+      await Instance.provide({
+        directory: tmp.path,
+        fn: async () => {
+          await MemoryStorage.clear()
+          await MemoryStorage.save(
+            Memory.Info.parse({
+              id: "memory_existing",
+              content: "Use Hono for APIs",
+              categories: ["tool"],
+              scope: "personal",
+              status: "confirmed",
+              tags: ["api"],
+              source: { sessionID: "sess_seed", method: "manual" },
+              citations: ["doc-1"],
+              score: 1,
+              baseScore: 1,
+              useCount: 0,
+              hitCount: 0,
+              inject: false,
+              createdAt: 1,
+              updatedAt: 1,
+            }),
+          )
+
+          const result = await MemoryExtractor.extractFromSession("sess_13", [
+            { role: "user", content: "Remember that we use Hono and Bun.file" },
+            { role: "assistant", content: "Okay, I will update the memory." },
+          ])
+          const list = await Memory.list()
+
+          expect(result).toHaveLength(1)
+          expect(result[0]?.id).toBe("memory_existing")
+          expect(list).toHaveLength(1)
+          expect(list[0]?.content).toBe("Use Hono for APIs and Bun.file for file reads")
+          expect(list[0]?.tags).toEqual(["api", "bun", "hono"])
+          expect(list[0]?.citations).toEqual(["doc-1", "doc-2"])
+        },
+      })
+
+      expect(sys).toContain("## Hindsight context")
+      expect(sys).toContain("Keep memory wording self-contained")
+      expect(sys).toContain("Merge lookup terms into tags instead of duplicating memories")
+      expect(sys).not.toContain("This third hint should be trimmed")
+    })
   })
 
   describe("formatHints", () => {

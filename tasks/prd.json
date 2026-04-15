@@ -301,8 +301,8 @@
         "Typecheck passes"
       ],
       "priority": 20,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Added extractor regression coverage proving the Hindsight-aware path can update one authoritative memory in place, merge tags and citations, and keep bounded context trimming, plus backfill regression coverage for degraded `service_unavailable` fallback state and an opt-in `OPENCODE_HINDSIGHT_SMOKE=1` embedded-daemon smoke path."
     }
   ]
 }

@@ -16,6 +16,7 @@
 - Start Hindsight backfill from `InstanceBootstrap()` via a thin `MemoryHindsightBackfill.boot()` wrapper that checks config internally, reuses one in-flight promise per worktree with `Instance.state(...)`, and keeps startup fire-and-forget.
 - Hindsight rollout logs should include structured `duration`, `fallback`, and `reason` fields at service, client, recall, retain, and backfill boundaries; assert them in focused tests with `Bun.file(Log.file()).text()` after each operation instead of relying only on return values.
 - Read-only Hindsight debug commands should expose a pure loader helper that reports config, service, and sidecar state without writing `hindsight.json`; cover that non-mutating contract directly in CLI tests.
+- Keep real embedded-daemon verification opt-in behind `OPENCODE_HINDSIGHT_SMOKE=1`; default backfill regressions should stub `MemoryHindsightService.ready()` to prove degraded fallback without requiring the sidecar in every run.
 
 ## 2026-04-14 23:20:31 CST - US-001
 - Added `memory.hindsight` config parsing in `packages/opencode/src/config/config.ts` with the requested feature gates, rollout knobs, and phase-1 defaults.
@@ -215,4 +216,14 @@
   - Keep Hindsight regression coverage split by layer: config parsing in `test/config`, mapping or bank identity in dedicated `test/memory/hindsight-*.test.ts` files, and engine fallback in `test/memory/recall.test.ts`.
   - Mapper regressions should cover both indirect `sess:` or `obs:` ids and metadata-only fallback, because authority bugs often hide in normalization edges rather than primary happy paths.
   - Engine fallback tests should force `MemoryHindsightRecall.query()` to throw, not just return empty results, so degraded local-only behavior stays protected.
+---
+
+## 2026-04-15 19:10:00 CST - US-020
+- Added extractor regression coverage in `packages/opencode/test/memory/extractor.test.ts` proving the Hindsight-aware path can update one authoritative memory in place, merge tags and citations, and still enforce the extractor context item budget.
+- Extended `packages/opencode/test/memory/hindsight-backfill.test.ts` with degraded embedded-service coverage that records `service_unavailable` fallback state in `hindsight.json`, plus an opt-in `OPENCODE_HINDSIGHT_SMOKE=1` backfill smoke path for real embedded-daemon verification.
+- Files changed: `packages/opencode/test/memory/extractor.test.ts`, `packages/opencode/test/memory/hindsight-backfill.test.ts`, `packages/opencode/AGENTS.md`, `tasks/prd.json`, `tasks/progress.txt`
+- **Learnings for future iterations:**
+  - Extractor update regressions should seed one authoritative memory directly through `MemoryStorage.save()` and assert `Memory.list()` still returns a single merged record after the `update` action.
+  - When proving degraded backfill behavior, stub `MemoryHindsightService.ready()` to `undefined` so the real client logs `reason=service_unavailable` while the runner persists the failed cursor state.
+  - Keep any real embedded-daemon backfill verification behind an env gate so CI and focused local runs stay deterministic by default.
 ---
