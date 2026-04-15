@@ -142,8 +142,17 @@ export namespace MemoryHindsightRecall {
   }): Promise<Result | undefined> {
     const cfg = await Config.get()
     if (!cfg.memory?.hindsight.enabled || !cfg.memory.hindsight.recall) return
+    const at = Date.now()
     const raw = await MemoryHindsightClient.recall({ query: input.query })
-    if (!raw) return
+    if (!raw) {
+      log.warn("hindsight recall query unavailable", {
+        query: input.query,
+        duration: Date.now() - at,
+        fallback: "local",
+        reason: "client_unavailable",
+      })
+      return
+    }
 
     const list = hits(raw)
     const root = input.root ?? Instance.worktree
@@ -200,12 +209,16 @@ export namespace MemoryHindsightRecall {
       })
     })
 
-    log.info("hindsight recall resolved", {
+    log.info("hindsight recall query completed", {
+      query: input.query,
+      duration: Date.now() - at,
       hits: list.length,
       resolved: candidates.length,
       dropped: drops.length,
       stale: drops.filter((item) => item.reason === "stale").length,
       indirect: drops.filter((item) => item.reason === "indirect").length,
+      cross_worktree: drops.filter((item) => item.reason === "cross_worktree").length,
+      unresolved: drops.filter((item) => item.reason === "unresolved").length,
     })
 
     return {
@@ -219,6 +232,7 @@ export namespace MemoryHindsightRecall {
   export async function context(input: { query: string }): Promise<ContextResult | undefined> {
     const cfg = await Config.get()
     if (!cfg.memory?.hindsight.enabled || !cfg.memory.hindsight.extract) return
+    const at = Date.now()
     const raw = await MemoryHindsightClient.recall({
       query: input.query,
       include_source_facts: true,
@@ -226,7 +240,15 @@ export namespace MemoryHindsightRecall {
       max_source_facts_tokens: cfg.memory.hindsight.context_max_tokens,
       max_chunk_tokens: cfg.memory.hindsight.context_max_tokens,
     })
-    if (!raw) return
+    if (!raw) {
+      log.warn("hindsight extract assist unavailable", {
+        query: input.query,
+        duration: Date.now() - at,
+        fallback: "prompt_only",
+        reason: "client_unavailable",
+      })
+      return
+    }
 
     const seen = new Set<string>()
     const items = hits(raw).flatMap((hit) =>
@@ -237,6 +259,15 @@ export namespace MemoryHindsightRecall {
         return true
       }),
     )
+
+    log.info(items.length > 0 ? "hindsight extract assist ready" : "hindsight extract assist empty", {
+      query: input.query,
+      duration: Date.now() - at,
+      hits: hits(raw).length,
+      items: items.length,
+      fallback: items.length > 0 ? undefined : "prompt_only",
+      reason: items.length > 0 ? undefined : "no_usable_context",
+    })
 
     return {
       raw,

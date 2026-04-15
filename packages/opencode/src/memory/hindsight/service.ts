@@ -111,6 +111,7 @@ export namespace MemoryHindsightService {
     await stop(s)
     s.info = info("degraded", error)
     log.warn("hindsight degraded", {
+      fallback: "local",
       error,
       profile: s.info.profile,
       root: s.info.root,
@@ -118,6 +119,7 @@ export namespace MemoryHindsightService {
   }
 
   async function boot(s: State, cfg: Cfg) {
+    const at = Date.now()
     const next = info("starting")
     const server = new HindsightServer({
       profile: next.profile,
@@ -140,14 +142,30 @@ export namespace MemoryHindsightService {
     })
 
     return withTimeout(server.start(), timer(cfg, "startup_timeout_ms"))
-      .then(() => withTimeout(server.checkHealth(), timer(cfg, "query_timeout_ms")))
-      .then(async (ok) => {
+      .then(() => {
+        const probe = Date.now()
+        log.info("hindsight health check started", {
+          mode: "startup",
+          profile: next.profile,
+          root: next.root,
+        })
+        return withTimeout(server.checkHealth(), timer(cfg, "query_timeout_ms")).then((ok) => ({ ok, probe }))
+      })
+      .then(async ({ ok, probe }) => {
+        log.info("hindsight health check completed", {
+          mode: "startup",
+          profile: next.profile,
+          root: next.root,
+          ok,
+          duration: Date.now() - probe,
+        })
         if (!ok) {
           await degrade(s, new Error("Hindsight health check failed"))
           return
         }
         s.info = info("ready")
         log.info("hindsight ready", {
+          duration: Date.now() - at,
           profile: s.info.profile,
           root: s.info.root,
           port: s.info.port,
@@ -204,13 +222,34 @@ export namespace MemoryHindsightService {
     const opts = cfg.memory?.hindsight
     const s = state()
     if (!opts?.enabled || !s.server || s.info.status !== "ready") return false
+    const at = Date.now()
+    log.info("hindsight health check started", {
+      mode: "runtime",
+      profile: s.info.profile,
+      root: s.info.root,
+    })
     return withTimeout(s.server.checkHealth(), timer(opts, "query_timeout_ms"))
       .then(async (ok) => {
+        log.info("hindsight health check completed", {
+          mode: "runtime",
+          profile: s.info.profile,
+          root: s.info.root,
+          ok,
+          duration: Date.now() - at,
+        })
         if (ok) return true
         await degrade(s, new Error("Hindsight health check failed"))
         return false
       })
       .catch(async (err) => {
+        log.warn("hindsight health check failed", {
+          mode: "runtime",
+          profile: s.info.profile,
+          root: s.info.root,
+          duration: Date.now() - at,
+          error: text(err),
+          fallback: "local",
+        })
         await degrade(s, err)
         return false
       })

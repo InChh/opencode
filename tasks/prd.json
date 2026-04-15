@@ -257,8 +257,8 @@
         "Typecheck passes"
       ],
       "priority": 17,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Added structured Hindsight observability across service startup or health, client fallback, retain, recall query, extract assist, and backfill progress with explicit duration or fallback or reason fields, while preserving degraded-mode local-memory fallback and adding focused log assertions for the new behavior."
     },
     {
       "id": "US-018",

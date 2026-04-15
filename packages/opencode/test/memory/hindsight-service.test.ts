@@ -31,6 +31,23 @@ function wait(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
+async function logs(at = 0) {
+  await wait(10)
+  return (
+    await Bun.file(Log.file())
+      .text()
+      .catch(() => "")
+  ).slice(at)
+}
+
+async function mark() {
+  return (
+    await Bun.file(Log.file())
+      .text()
+      .catch(() => "")
+  ).length
+}
+
 mock.module("@vectorize-io/hindsight-all", () => ({
   HindsightServer: class HindsightServer {
     opts: ServerOpts
@@ -123,6 +140,7 @@ afterEach(async () => {
 
 describe("MemoryHindsightService", () => {
   test("starts lazily on loopback and reuses one handle per worktree", async () => {
+    const at = await mark()
     await using tmp = await tmpdir({
       git: true,
       config: {
@@ -156,9 +174,16 @@ describe("MemoryHindsightService", () => {
       readyTimeoutMs: 50,
     })
     expect(calls.client[0]?.baseUrl).toBe(`http://127.0.0.1:${calls.server[0]?.port}`)
+    const text = await logs(at)
+    expect(text).toContain("starting hindsight")
+    expect(text).toContain("hindsight health check started")
+    expect(text).toContain("hindsight health check completed")
+    expect(text).toContain("hindsight ready")
+    expect(text).toContain("duration=")
   })
 
   test("degrades on startup timeout without throwing", async () => {
+    const at = await mark()
     flags.start_ms = 25
 
     await using tmp = await tmpdir({
@@ -176,6 +201,7 @@ describe("MemoryHindsightService", () => {
       directory: tmp.path,
       fn: async () => {
         expect(await MemoryHindsightService.ready()).toBeUndefined()
+        expect(await MemoryHindsightService.ready()).toBeUndefined()
         const info = await MemoryHindsightService.get()
         expect(info.status).toBe("degraded")
         expect(info.error).toContain("Operation timed out after 5ms")
@@ -184,6 +210,10 @@ describe("MemoryHindsightService", () => {
 
     expect(calls.server[0]?.readyTimeoutMs).toBe(5)
     expect(calls.stop).toBe(1)
+    expect(calls.start).toBe(1)
+    const text = await logs(at)
+    expect(text).toContain("hindsight degraded")
+    expect(text).toContain("fallback=local")
   })
 
   test("degrades on slow health checks using query timeout", async () => {

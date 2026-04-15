@@ -9,6 +9,23 @@ import { tmpdir } from "../fixture/fixture"
 
 await Log.init({ print: false })
 
+async function logs(at = 0) {
+  await new Promise((resolve) => setTimeout(resolve, 10))
+  return (
+    await Bun.file(Log.file())
+      .text()
+      .catch(() => "")
+  ).slice(at)
+}
+
+async function mark() {
+  return (
+    await Bun.file(Log.file())
+      .text()
+      .catch(() => "")
+  ).length
+}
+
 function cfg(enabled = true) {
   return {
     enabled,
@@ -68,6 +85,7 @@ afterEach(async () => {
 
 describe("MemoryHindsightRetain", () => {
   test("maps authoritative memories into replace-style retain calls", async () => {
+    const at = await mark()
     await using tmp = await tmpdir({
       git: true,
       config: {
@@ -105,6 +123,10 @@ describe("MemoryHindsightRetain", () => {
         update_mode: "replace",
       },
     ])
+    const text = await logs(at)
+    expect(text).toContain("hindsight memory retained")
+    expect(text).toContain("memory_id=memory_1")
+    expect(text).toContain("duration=")
   })
 
   test("returns a non-fatal failure when retain cannot persist the document", async () => {

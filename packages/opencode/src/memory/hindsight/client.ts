@@ -132,11 +132,29 @@ export namespace MemoryHindsightClient {
 
   async function run<T>(op: string, fn: (state: State) => Promise<T>): Promise<T | undefined> {
     const state = await ready()
-    if (!state) return
-    return withTimeout(fn(state), ms(state.cfg)).catch((err) => {
-      fail(op, state.ready.bank_id, err)
-      return undefined
-    })
+    if (!state) {
+      log.warn("hindsight client unavailable", {
+        op,
+        fallback: "local",
+        reason: "service_unavailable",
+      })
+      return
+    }
+    const at = Date.now()
+    return withTimeout(fn(state), ms(state.cfg))
+      .catch((err) => {
+        fail(op, state.ready.bank_id, err)
+        return undefined
+      })
+      .then((result) => {
+        log.info(result === undefined ? "hindsight client fallback" : "hindsight client completed", {
+          op,
+          bank_id: state.ready.bank_id,
+          duration: Date.now() - at,
+          fallback: result === undefined ? "local" : undefined,
+        })
+        return result
+      })
   }
 
   export function retain(input: RetainInput): Promise<Retain | undefined> {

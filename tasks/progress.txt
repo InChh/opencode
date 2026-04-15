@@ -14,6 +14,7 @@
 - Mirror authoritative memory writes into Hindsight at the `Memory.create()` and `Memory.update()` boundary after the local save succeeds; reuse `MemoryHindsightRetain.memory()` so `mem:` ids stay stable across edits and retain failures remain warn-only.
 - Keep structured Hindsight recovery state in a dedicated `hindsight.json` sidecar beside `personal.json`, keyed by the same encoded project directory; update it through one helper with lock-guarded atomic writes, and trim stored failure samples so backfill metadata cannot grow without bound.
 - Start Hindsight backfill from `InstanceBootstrap()` via a thin `MemoryHindsightBackfill.boot()` wrapper that checks config internally, reuses one in-flight promise per worktree with `Instance.state(...)`, and keeps startup fire-and-forget.
+- Hindsight rollout logs should include structured `duration`, `fallback`, and `reason` fields at service, client, recall, retain, and backfill boundaries; assert them in focused tests with `Bun.file(Log.file()).text()` after each operation instead of relying only on return values.
 
 ## 2026-04-14 23:20:31 CST - US-001
 - Added `memory.hindsight` config parsing in `packages/opencode/src/config/config.ts` with the requested feature gates, rollout knobs, and phase-1 defaults.
@@ -173,4 +174,14 @@
   - Startup-triggered background work should expose a thin `boot()` wrapper instead of overloading the main runner, so bootstrap can stay fire-and-forget while tests still call the core runner directly.
   - Use `Instance.state(...)` to dedupe one in-flight startup task per worktree before async config loading, otherwise repeated bootstrap triggers can race into duplicate work.
   - When adding a config escape hatch that only affects runtime behavior, keep it optional in the schema and check for `=== false` at use sites so existing nested test fixtures do not need broad rewrites.
+---
+
+## 2026-04-15 16:40:00 CST - US-017
+- Added structured Hindsight observability across `packages/opencode/src/memory/hindsight/service.ts`, `packages/opencode/src/memory/hindsight/client.ts`, `packages/opencode/src/memory/hindsight/retain.ts`, `packages/opencode/src/memory/hindsight/recall.ts`, and `packages/opencode/src/memory/hindsight/backfill.ts`, including explicit `duration`, `fallback`, and `reason` fields for service startup or health, client fallback, retain success, recall resolution, extract assist fallback, and backfill resume or batch fallback.
+- Added focused regression coverage in `packages/opencode/test/memory/hindsight-service.test.ts`, `packages/opencode/test/memory/hindsight-retain.test.ts`, `packages/opencode/test/memory/hindsight-recall.test.ts`, and `packages/opencode/test/memory/hindsight-backfill.test.ts` that reads the log file and asserts the new structured observability lines without booting unrelated flows.
+- Files changed: `packages/opencode/src/memory/hindsight/service.ts`, `packages/opencode/src/memory/hindsight/client.ts`, `packages/opencode/src/memory/hindsight/retain.ts`, `packages/opencode/src/memory/hindsight/recall.ts`, `packages/opencode/src/memory/hindsight/backfill.ts`, `packages/opencode/test/memory/hindsight-service.test.ts`, `packages/opencode/test/memory/hindsight-retain.test.ts`, `packages/opencode/test/memory/hindsight-recall.test.ts`, `packages/opencode/test/memory/hindsight-backfill.test.ts`, `packages/opencode/AGENTS.md`, `tasks/prd.json`, `tasks/progress.txt`
+- **Learnings for future iterations:**
+  - Keep Hindsight observability at the integration boundaries instead of deep inside helpers, so each fallback path logs one stable reason field and one duration field that tests can assert.
+  - Focused log assertions should tolerate a missing file by reading `Bun.file(Log.file()).text().catch(() => "")`, because some test setups create the log lazily on first write.
+  - When validating degraded fallback behavior, assert the guard indirectly by calling the same entrypoint twice and proving the startup path only runs once after the first degrade.
 ---

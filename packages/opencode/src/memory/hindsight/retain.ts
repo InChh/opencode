@@ -71,6 +71,7 @@ export namespace MemoryHindsightRetain {
         document_id,
       }
     }
+    const at = Date.now()
     return MemoryHindsightClient.retain({
       content: memory.content,
       timestamp: new Date(memory.updatedAt).toISOString(),
@@ -81,6 +82,11 @@ export namespace MemoryHindsightRetain {
     })
       .then((result) => {
         if (!result) return fail(memory, document_id, "retain returned no result")
+        log.info("hindsight memory retained", {
+          memory_id: memory.id,
+          document_id,
+          duration: Date.now() - at,
+        })
         return {
           status: "retained" as const,
           document_id,
@@ -99,6 +105,7 @@ export namespace MemoryHindsightRetain {
         document_id,
       }
     }
+    const at = Date.now()
     return MemoryHindsightClient.retain({
       content: input.content,
       timestamp: input.updated_at === undefined ? undefined : new Date(input.updated_at).toISOString(),
@@ -109,6 +116,13 @@ export namespace MemoryHindsightRetain {
     })
       .then((result) => {
         if (!result) return failSlice(input, document_id, "retain returned no result")
+        log.info("hindsight session retained", {
+          session_id: input.session_id,
+          document_id,
+          start: input.start,
+          end: input.end,
+          duration: Date.now() - at,
+        })
         return {
           status: "retained" as const,
           document_id,

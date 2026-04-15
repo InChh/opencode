@@ -4,7 +4,27 @@ import type { Memory } from "../../src/memory/memory"
 import { MemoryHindsightBank } from "../../src/memory/hindsight/bank"
 import { MemoryHindsightClient } from "../../src/memory/hindsight/client"
 import { MemoryHindsightRecall } from "../../src/memory/hindsight/recall"
+import { Log } from "../../src/util/log"
 import { tmpdir } from "../fixture/fixture"
+
+await Log.init({ print: false })
+
+async function logs(at = 0) {
+  await new Promise((resolve) => setTimeout(resolve, 10))
+  return (
+    await Bun.file(Log.file())
+      .text()
+      .catch(() => "")
+  ).slice(at)
+}
+
+async function mark() {
+  return (
+    await Bun.file(Log.file())
+      .text()
+      .catch(() => "")
+  ).length
+}
 
 type Hindsight = {
   enabled: boolean
@@ -58,6 +78,7 @@ afterEach(async () => {
 
 describe("MemoryHindsightRecall", () => {
   test("resolves ranked authoritative candidates and drops non-authoritative hits", async () => {
+    const at = await mark()
     await using tmp = await tmpdir({
       git: true,
       config: {
@@ -162,9 +183,18 @@ describe("MemoryHindsightRecall", () => {
         score: 0.5,
       },
     ])
+    const text = await logs(at)
+    expect(text).toContain("hindsight recall query completed")
+    expect(text).toContain("resolved=2")
+    expect(text).toContain("stale=1")
+    expect(text).toContain("indirect=1")
+    expect(text).toContain("cross_worktree=1")
+    expect(text).toContain("unresolved=1")
+    expect(text).toContain("duration=")
   })
 
   test("returns undefined when hindsight recall is disabled or unavailable", async () => {
+    const at = await mark()
     await using off = await tmpdir({
       git: true,
       config: {
@@ -200,9 +230,14 @@ describe("MemoryHindsightRecall", () => {
 
     expect(missing).toBeUndefined()
     expect(spy).toHaveBeenCalledTimes(1)
+    const text = await logs(at)
+    expect(text).toContain("hindsight recall query unavailable")
+    expect(text).toContain("fallback=local")
+    expect(text).toContain("reason=client_unavailable")
   })
 
   test("builds extractor context from source facts, chunks, and direct hit text", async () => {
+    const at = await mark()
     await using tmp = await tmpdir({
       git: true,
       config: {
@@ -258,5 +293,10 @@ describe("MemoryHindsightRecall", () => {
         score: 0.73,
       },
     ])
+    const text = await logs(at)
+    expect(text).toContain("hindsight extract assist ready")
+    expect(text).toContain("hits=3")
+    expect(text).toContain("items=3")
+    expect(text).toContain("duration=")
   })
 })

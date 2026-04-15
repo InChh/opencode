@@ -12,6 +12,23 @@ import { tmpdir } from "../fixture/fixture"
 
 await Log.init({ print: false })
 
+async function logs(at = 0) {
+  await new Promise((resolve) => setTimeout(resolve, 10))
+  return (
+    await Bun.file(Log.file())
+      .text()
+      .catch(() => "")
+  ).slice(at)
+}
+
+async function mark() {
+  return (
+    await Bun.file(Log.file())
+      .text()
+      .catch(() => "")
+  ).length
+}
+
 function cfg() {
   return {
     enabled: true,
@@ -66,6 +83,7 @@ afterEach(async () => {
 
 describe("MemoryHindsightBackfill", () => {
   test("imports authoritative memories in stable replace-style batches", async () => {
+    const at = await mark()
     await using tmp = await tmpdir({
       git: true,
       config: {
@@ -147,6 +165,11 @@ describe("MemoryHindsightBackfill", () => {
         expect(calls).toHaveLength(2)
       },
     })
+    const text = await logs(at)
+    expect(text).toContain("hindsight backfill resumed")
+    expect(text).toContain("hindsight backfill batch retained")
+    expect(text).toContain("hindsight backfill completed")
+    expect(text).toContain("duration=")
   })
 
   test("resumes from the saved cursor instead of re-importing earlier memories", async () => {
@@ -322,6 +345,7 @@ describe("MemoryHindsightBackfill", () => {
   })
 
   test("falls back to per-memory retain, records failure, and resumes from the failed cursor", async () => {
+    const at = await mark()
     await using tmp = await tmpdir({
       git: true,
       config: {
@@ -397,5 +421,10 @@ describe("MemoryHindsightBackfill", () => {
         })
       },
     })
+    const text = await logs(at)
+    expect(text).toContain("hindsight backfill batch fallback")
+    expect(text).toContain("fallback=sequential_retain")
+    expect(text).toContain("reason=batch_unavailable")
+    expect(text).toContain("hindsight backfill failed")
   })
 })

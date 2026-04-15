@@ -196,23 +196,52 @@ export namespace MemoryHindsightBackfill {
       return view(state, "disabled")
     }
 
+    const at = Date.now()
     const n = size(cfg)
     const state = await start(root, n)
     const list = rest(sort(await Memory.list()), state.backfill.cursor)
-    if (list.length === 0) return done(root, n).then((item) => view(item, "completed"))
+    log.info("hindsight backfill resumed", {
+      root,
+      cursor: state.backfill.cursor,
+      pending: list.length,
+      processed: state.backfill.processed,
+      succeeded: state.backfill.succeeded,
+      failed: state.backfill.failed,
+      batch_size: n,
+    })
+    if (list.length === 0)
+      return done(root, n).then((item) => {
+        log.info("hindsight backfill completed", {
+          root,
+          duration: Date.now() - at,
+          processed: item.backfill.processed,
+          succeeded: item.backfill.succeeded,
+          failed: item.backfill.failed,
+        })
+        return view(item, "completed")
+      })
 
     for (const part of chunk(list, n)) {
+      const batch_at = Date.now()
       const batch = await MemoryHindsightClient.retainBatch({ items: part.map((memory) => item(memory, root)) })
       if (batch) {
         log.info("hindsight backfill batch retained", {
           count: part.length,
           cursor: part.at(-1)?.id,
           root,
+          duration: Date.now() - batch_at,
         })
         await pass(part, root, n, ops(batch))
         continue
       }
 
+      log.warn("hindsight backfill batch fallback", {
+        root,
+        count: part.length,
+        duration: Date.now() - batch_at,
+        fallback: "sequential_retain",
+        reason: "batch_unavailable",
+      })
       for (const memory of part) {
         const result = await MemoryHindsightRetain.memory(memory, root)
         if (result.status === "retained") {
@@ -229,6 +258,15 @@ export namespace MemoryHindsightBackfill {
       }
     }
 
-    return done(root, n).then((item) => view(item, "completed"))
+    return done(root, n).then((item) => {
+      log.info("hindsight backfill completed", {
+        root,
+        duration: Date.now() - at,
+        processed: item.backfill.processed,
+        succeeded: item.backfill.succeeded,
+        failed: item.backfill.failed,
+      })
+      return view(item, "completed")
+    })
   }
 }
