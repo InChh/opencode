@@ -9,6 +9,7 @@ import { MemoryStorage } from "../../src/memory/storage"
 import { MemoryInject } from "../../src/memory/engine/injector"
 import { registerMemoryInjector } from "../../src/memory/hooks/inject"
 import { registerHitTracker } from "../../src/memory/hooks/hit-tracker"
+import { MemoryHindsightState } from "../../src/memory/hindsight/state"
 import { MemoryRecall } from "../../src/memory/engine/recall"
 import { HookChain } from "../../src/session/hooks"
 import { tmpdir } from "../fixture/fixture"
@@ -30,6 +31,7 @@ const hindsight = {
   extract: true,
   recall: true,
   backfill: true,
+  auto_start: true,
   workspace_scope: "worktree" as const,
   context_max_items: 6,
   context_max_tokens: 1200,
@@ -377,6 +379,85 @@ describe("Memory Hooks (unit-level)", () => {
         {
           memory: {
             hindsight,
+          },
+        },
+      )
+    })
+
+    test("completed backfill sidecar does not break local reads or injection when hindsight is disabled", async () => {
+      await withInstance(
+        async () => {
+          HookChain.reset()
+          MemoryInject.reset()
+          registerMemoryInjector()
+
+          const mem = await Memory.create({
+            content: "Keep local memory reads authoritative",
+            categories: ["pattern"],
+            scope: "personal",
+            source: { sessionID: "ses_disabled", method: "manual" },
+          })
+
+          await MemoryHindsightState.save({
+            version: 1,
+            bank_id: "bank_done",
+            workspace_hash: "hash_done",
+            workspace_scope: "worktree",
+            updated_at: 0,
+            backfill: {
+              status: "completed",
+              mode: "auto",
+              started_at: 1,
+              updated_at: 0,
+              completed_at: 2,
+              cursor: mem.id,
+              last_memory_id: mem.id,
+              last_document_id: `mem:hash_done:${mem.id}`,
+              processed: 1,
+              succeeded: 1,
+              failed: 0,
+              skipped: 0,
+              batch_size: 1,
+              operation_ids: [],
+              failures: [],
+            },
+          })
+
+          expect((await Memory.list()).map((item) => item.id)).toContain(mem.id)
+
+          const stub = spyOn(MemoryRecall, "invoke").mockResolvedValue({
+            relevant: [mem.id],
+            conflicts: [],
+          })
+
+          try {
+            const ctx: HookChain.PreLLMContext = {
+              sessionID: "ses_disabled",
+              system: ["base"],
+              agent: "sisyphus",
+              model: "claude-sonnet-4-5-20250929",
+              messages: [
+                { role: "user", content: "first" },
+                { role: "assistant", content: "ok" },
+                { role: "user", content: "second" },
+                { role: "assistant", content: "ok" },
+                { role: "user", content: "third" },
+              ],
+            }
+
+            await HookChain.execute("pre-llm", ctx)
+
+            expect(ctx.system.some((item) => item.includes(mem.content))).toBe(true)
+          } finally {
+            stub.mockRestore()
+          }
+        },
+        {
+          memory: {
+            hindsight: {
+              ...hindsight,
+              enabled: false,
+            },
           },
         },
       )

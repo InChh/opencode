@@ -18,6 +18,7 @@ import { SecurityAccess } from "../security/access"
 import { initSandbox, refreshSandboxPolicy } from "../sandbox/init"
 import { TuiEvent } from "@/cli/cmd/tui/event"
 import { recoveryExtract } from "@/memory/hooks/auto-extract"
+import { MemoryHindsightBackfill } from "@/memory/hindsight/backfill"
 
 export async function InstanceBootstrap() {
   Log.Default.info("bootstrapping", { directory: Instance.directory })
@@ -86,6 +87,12 @@ export async function InstanceBootstrap() {
   // Fire-and-forget — does not block startup.
   recoveryExtract().catch((err) => {
     Log.Default.warn("memory recovery extraction failed", {
+      error: err instanceof Error ? err.message : String(err),
+    })
+  })
+
+  MemoryHindsightBackfill.boot().catch((err) => {
+    Log.Default.warn("hindsight backfill bootstrap failed", {
       error: err instanceof Error ? err.message : String(err),
     })
   })

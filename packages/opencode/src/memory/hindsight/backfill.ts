@@ -21,6 +21,8 @@ export namespace MemoryHindsightBackfill {
     cursor?: string
   }
 
+  const gate = Instance.state(() => ({ promise: undefined as Promise<Result | undefined> | undefined }))
+
   function size(cfg: Awaited<ReturnType<typeof Config.get>>) {
     return cfg.memory?.hindsight.retain_limit ?? 50
   }
@@ -155,6 +157,36 @@ export namespace MemoryHindsightBackfill {
       failed: state.backfill.failed,
       cursor: state.backfill.cursor,
     }
+  }
+
+  export function boot(root = Instance.worktree) {
+    const s = gate()
+    if (s.promise) return s.promise
+
+    const task = Config.get()
+      .then((cfg) => {
+        if (
+          !cfg.memory?.hindsight.enabled ||
+          !cfg.memory.hindsight.backfill ||
+          cfg.memory.hindsight.auto_start === false
+        )
+          return
+        log.info("hindsight backfill auto-start triggered", { root })
+        return run(root)
+      })
+      .catch((err) => {
+        log.warn("hindsight backfill auto-start failed", {
+          root,
+          error: err instanceof Error ? err.message : String(err),
+        })
+        return undefined
+      })
+      .finally(() => {
+        if (s.promise === task) s.promise = undefined
+      })
+
+    s.promise = task
+    return task
   }
 
   export async function run(root = Instance.worktree): Promise<Result> {

@@ -19,6 +19,7 @@ function cfg() {
     extract: true,
     recall: true,
     backfill: true,
+    auto_start: true,
     workspace_scope: "worktree" as const,
     retain_limit: 2,
     context_max_items: 6,
@@ -210,6 +211,112 @@ describe("MemoryHindsightBackfill", () => {
           MemoryHindsightMap.memoryDocumentId(list[2]!, tmp.path),
           MemoryHindsightMap.memoryDocumentId(list[3]!, tmp.path),
         ])
+      },
+    })
+  })
+
+  test("auto-start resumes once from the saved cursor when enabled", async () => {
+    await using tmp = await tmpdir({
+      git: true,
+      config: {
+        memory: {
+          hindsight: cfg(),
+        },
+      },
+    })
+
+    const list = [item(1), item(2), item(3), item(4)]
+    const calls: Array<Parameters<typeof MemoryHindsightClient.retainBatch>[0]> = []
+    spyOn(MemoryHindsightClient, "retainBatch").mockImplementation(async (input) => {
+      calls.push(input)
+      return {
+        success: true,
+        bank_id: "bank_1",
+        items_count: input.items.length,
+        async: false,
+      }
+    })
+
+    await Instance.provide({
+      directory: tmp.path,
+      fn: async () => {
+        await seed(list)
+        await MemoryHindsightState.save({
+          version: 1,
+          bank_id: "old_bank",
+          workspace_hash: "old_hash",
+          workspace_scope: "worktree",
+          updated_at: 0,
+          backfill: {
+            status: "failed",
+            mode: "auto",
+            started_at: 1,
+            updated_at: 0,
+            cursor: "memory_2",
+            last_memory_id: "memory_2",
+            last_document_id: MemoryHindsightMap.memoryDocumentId(list[1]!, tmp.path),
+            processed: 2,
+            succeeded: 2,
+            failed: 0,
+            skipped: 0,
+            batch_size: 2,
+            operation_ids: [],
+            failures: [],
+          },
+        })
+
+        const a = MemoryHindsightBackfill.boot()
+        const b = MemoryHindsightBackfill.boot()
+
+        expect(a).toBe(b)
+        expect(await a).toEqual({
+          status: "completed",
+          processed: 4,
+          succeeded: 4,
+          failed: 0,
+          cursor: "memory_4",
+        })
+        expect(calls).toHaveLength(1)
+        expect(calls[0]?.items.map((item) => item.document_id)).toEqual([
+          MemoryHindsightMap.memoryDocumentId(list[2]!, tmp.path),
+          MemoryHindsightMap.memoryDocumentId(list[3]!, tmp.path),
+        ])
+      },
+    })
+  })
+
+  test("auto-start can be disabled for recovery or testing", async () => {
+    await using tmp = await tmpdir({
+      git: true,
+      config: {
+        memory: {
+          hindsight: {
+            ...cfg(),
+            auto_start: false,
+          },
+        },
+      },
+    })
+
+    const batch = spyOn(MemoryHindsightClient, "retainBatch").mockImplementation(async () => {
+      throw new Error("should not run")
+    })
+
+    await Instance.provide({
+      directory: tmp.path,
+      fn: async () => {
+        await seed([item(1)])
+
+        expect(await MemoryHindsightBackfill.boot()).toBeUndefined()
+        expect(batch).not.toHaveBeenCalled()
+        expect(await MemoryHindsightState.load()).toMatchObject({
+          backfill: {
+            status: "idle",
+            processed: 0,
+            succeeded: 0,
+            failed: 0,
+          },
+        })
       },
     })
   })

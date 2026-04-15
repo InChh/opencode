@@ -242,8 +242,8 @@
         "Typecheck passes"
       ],
       "priority": 16,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Added startup-triggered backfill boot through `InstanceBootstrap()` and `MemoryHindsightBackfill.boot()`, with a `memory.hindsight.auto_start` escape hatch, per-worktree in-flight gating, resume-from-cursor coverage, and regression coverage proving disabled Hindsight still leaves local reads and prompt injection intact after backfill state exists."
     },
     {
       "id": "US-017",

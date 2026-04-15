@@ -1032,6 +1032,7 @@ export namespace Config {
       extract: z.boolean().optional().default(true).describe("Enable Hindsight-assisted extraction"),
       recall: z.boolean().optional().default(true).describe("Enable Hindsight-assisted recall ranking"),
       backfill: z.boolean().optional().default(true).describe("Enable Hindsight backfill support"),
+      auto_start: z.boolean().optional().describe("Auto-start Hindsight backfill when enabled"),
       workspace_scope: z
         .enum(["worktree"])
         .optional()
