@@ -10,6 +10,7 @@ import { Provider } from "../../src/provider/provider"
 import { SessionPrompt } from "../../src/session/prompt"
 import { Token } from "../../src/util/token"
 import { MemoryHindsightRetain } from "../../src/memory/hindsight/retain"
+import { MemoryHindsightRecall } from "../../src/memory/hindsight/recall"
 import { tmpdir } from "../fixture/fixture"
 
 async function withMemoryEnv<T>(fn: () => Promise<T>, config?: Partial<Config.Info>): Promise<T> {
@@ -149,6 +150,16 @@ describe("MemoryExtractor", () => {
           modelID: "primary",
         }),
         spyOn(Provider, "getSmallModel").mockResolvedValue(undefined),
+        spyOn(MemoryHindsightRetain, "session").mockResolvedValue({
+          status: "retained",
+          document_id: "sess:test:sess_9:0:2",
+          result: { success: true, bank_id: "bank_1", items_count: 1, async: false },
+        }),
+        spyOn(MemoryHindsightRecall, "context").mockResolvedValue({
+          raw: { results: [] } as never,
+          hits: 0,
+          items: [],
+        }),
         spyOn(SessionPrompt, "prompt").mockImplementation((async (opts) => {
           sys = opts.system ?? ""
           task = opts.parts
@@ -226,6 +237,16 @@ describe("MemoryExtractor", () => {
           modelID: "primary",
         }),
         spyOn(Provider, "getSmallModel").mockResolvedValue(undefined),
+        spyOn(MemoryHindsightRetain, "session").mockResolvedValue({
+          status: "retained",
+          document_id: "sess:test:sess_10:0:2",
+          result: { success: true, bank_id: "bank_1", items_count: 1, async: false },
+        }),
+        spyOn(MemoryHindsightRecall, "context").mockResolvedValue({
+          raw: { results: [] } as never,
+          hits: 0,
+          items: [],
+        }),
         spyOn(SessionPrompt, "prompt").mockImplementation((async (opts) => {
           sys = opts.system ?? ""
           return {
@@ -260,6 +281,125 @@ describe("MemoryExtractor", () => {
       expect(sys).not.toContain("This item should be trimmed by the item budget")
     })
 
+    test("queries hindsight context for extract and injects returned snippets", async () => {
+      await using tmp = await tmpdir({
+        git: true,
+        config: {
+          memory: {
+            hindsight: {
+              enabled: true,
+              mode: "embedded",
+              extract: true,
+              recall: true,
+              backfill: true,
+              workspace_scope: "worktree",
+              context_max_items: 3,
+              context_max_tokens: 1200,
+            },
+          },
+        },
+      })
+
+      let sys = ""
+      spies.push(
+        spyOn(Provider, "defaultModel").mockResolvedValue({
+          providerID: "test",
+          modelID: "primary",
+        }),
+        spyOn(Provider, "getSmallModel").mockResolvedValue(undefined),
+        spyOn(MemoryHindsightRetain, "session").mockResolvedValue({
+          status: "retained",
+          document_id: "sess:test:sess_10b:0:2",
+          result: { success: true, bank_id: "bank_1", items_count: 1, async: false },
+        }),
+        spyOn(MemoryHindsightRecall, "context").mockResolvedValue({
+          raw: { results: [] } as never,
+          hits: 2,
+          items: [
+            { text: "Related observation from session history", kind: "obs", id: "obs_1", score: 0.91 },
+            { text: "Related retained document chunk", kind: "doc", id: "doc_1", score: 0.82 },
+          ],
+        }),
+        spyOn(SessionPrompt, "prompt").mockImplementation((async (opts) => {
+          sys = opts.system ?? ""
+          return {
+            info: {} as never,
+            parts: [{ type: "text", text: JSON.stringify({ items: [] }) }],
+          }
+        }) as typeof SessionPrompt.prompt),
+      )
+
+      await Instance.provide({
+        directory: tmp.path,
+        fn: () =>
+          MemoryExtractor.extractFromSession("sess_10b", [
+            { role: "user", content: "What should we remember about extractor prompts?" },
+            { role: "assistant", content: "We should keep them bounded." },
+          ]),
+      })
+
+      expect(sys).toContain("## Hindsight context")
+      expect(sys).toContain("Related observation from session history")
+      expect(sys).toContain("Related retained document chunk")
+    })
+
+    test("continues without a hindsight section when context query returns no usable items", async () => {
+      await using tmp = await tmpdir({
+        git: true,
+        config: {
+          memory: {
+            hindsight: {
+              enabled: true,
+              mode: "embedded",
+              extract: true,
+              recall: true,
+              backfill: true,
+              workspace_scope: "worktree",
+              context_max_items: 3,
+              context_max_tokens: 1200,
+            },
+          },
+        },
+      })
+
+      let sys = ""
+      spies.push(
+        spyOn(Provider, "defaultModel").mockResolvedValue({
+          providerID: "test",
+          modelID: "primary",
+        }),
+        spyOn(Provider, "getSmallModel").mockResolvedValue(undefined),
+        spyOn(MemoryHindsightRetain, "session").mockResolvedValue({
+          status: "retained",
+          document_id: "sess:test:sess_10c:0:2",
+          result: { success: true, bank_id: "bank_1", items_count: 1, async: false },
+        }),
+        spyOn(MemoryHindsightRecall, "context").mockResolvedValue({
+          raw: { results: [] } as never,
+          hits: 0,
+          items: [],
+        }),
+        spyOn(SessionPrompt, "prompt").mockImplementation((async (opts) => {
+          sys = opts.system ?? ""
+          return {
+            info: {} as never,
+            parts: [{ type: "text", text: JSON.stringify({ items: [] }) }],
+          }
+        }) as typeof SessionPrompt.prompt),
+      )
+
+      await Instance.provide({
+        directory: tmp.path,
+        fn: () =>
+          MemoryExtractor.extractFromSession("sess_10c", [
+            { role: "user", content: "Keep prompts small" },
+            { role: "assistant", content: "Okay." },
+          ]),
+      })
+
+      expect(sys).not.toContain("## Hindsight context")
+    })
+
     test("retains the current session slice before hindsight-assisted extraction", async () => {
       await using tmp = await tmpdir({
         git: true,
@@ -286,6 +426,11 @@ describe("MemoryExtractor", () => {
           modelID: "primary",
         }),
         spyOn(Provider, "getSmallModel").mockResolvedValue(undefined),
+        spyOn(MemoryHindsightRecall, "context").mockResolvedValue({
+          raw: { results: [] } as never,
+          hits: 0,
+          items: [],
+        }),
         spyOn(MemoryHindsightRetain, "session").mockImplementation(async (input) => {
           calls.push(input)
           return {
@@ -350,6 +495,11 @@ describe("MemoryExtractor", () => {
           modelID: "primary",
         }),
         spyOn(Provider, "getSmallModel").mockResolvedValue(undefined),
+        spyOn(MemoryHindsightRecall, "context").mockResolvedValue({
+          raw: { results: [] } as never,
+          hits: 0,
+          items: [],
+        }),
         spyOn(MemoryHindsightRetain, "session").mockResolvedValue({
           status: "failed",
           document_id: "sess:test:sess_12:0:2",

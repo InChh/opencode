@@ -12,6 +12,7 @@ import { Session } from "@/session"
 import { SessionPrompt } from "@/session/prompt"
 import { Token } from "@/util/token"
 import { MemoryHindsightRetain } from "../hindsight/retain"
+import { MemoryHindsightRecall } from "../hindsight/recall"
 
 export namespace MemoryExtractor {
   const log = Log.create({ service: "memory.extractor" })
@@ -247,6 +248,15 @@ export namespace MemoryExtractor {
     })
   }
 
+  function query(messages: Array<{ role: string; content: string }>) {
+    return messages
+      .slice(-6)
+      .filter((item) => item.role === "user")
+      .map((item) => item.content.replace(/\s+/g, " ").trim())
+      .filter(Boolean)
+      .join("\n")
+  }
+
   /**
    * Extract memories from a session's conversation history.
    *
@@ -277,7 +287,13 @@ export namespace MemoryExtractor {
       const existing = await Memory.list()
       await retain(sessionID, messages, contextSnapshot, cfg.name)
 
-      const hints = cfg.name === "extract-hindsight" ? formatHints(options?.context ?? [], cfg) : ""
+      const base = options?.context ?? []
+      const extra =
+        cfg.name === "extract-hindsight"
+          ? await MemoryHindsightRecall.context({ query: query(contextWindow) || contextSnapshot })
+          : undefined
+      const merged = [...base, ...(extra?.items ?? [])]
+      const hints = cfg.name === "extract-hindsight" ? formatHints(merged, cfg) : ""
       const sys = system({
         system: cfg.parts.system,
         existing,
@@ -290,6 +306,8 @@ export namespace MemoryExtractor {
       log.info("extractFromSession: invoking subagent", {
         sessionID,
         prompt: cfg.name,
+        hindsight_used: Boolean(hints),
+        hindsight_hits: extra?.hits ?? 0,
         hints: hints ? hints.split("\n").length : 0,
       })
 

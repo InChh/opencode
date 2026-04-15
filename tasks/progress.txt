@@ -10,6 +10,7 @@
 - Extractor prompt variants should stay in dedicated `memory/extract*.md` files and use `sections(tpl, name)` fallback by prompt name, so Hindsight-specific instructions can diverge without mutating the base extractor contract.
 - Enforce Hindsight extractor context budgets before prompt construction in `MemoryExtractor.formatHints()`: cap by both `context_max_items` and `context_max_tokens` with `Token.estimate()`, and if needed trim only the final included hint instead of overflowing the system prompt.
 - Hindsight-assisted extraction should retain the current session snapshot via `MemoryHindsightRetain.session()` before the LLM call, using stable `sess:` ids built from the active message-window bounds and treating retain failures as non-fatal.
+- Build Hindsight extractor context from `MemoryHindsightRecall.context()` after session retention: prefer `source_facts`, then `chunks`, then direct hit text, dedupe repeated snippets, and omit the whole section when no usable items come back.
 
 ## 2026-04-14 23:20:31 CST - US-001
 - Added `memory.hindsight` config parsing in `packages/opencode/src/config/config.ts` with the requested feature gates, rollout knobs, and phase-1 defaults.
@@ -118,4 +119,15 @@
   - Reuse the existing extractor message window bounds for `sess:` document ids so session-slice retention stays deterministic without inventing a second slicing policy.
   - Keep session-slice metadata string-only and store slice bounds as `slice_start` and `slice_end`; tags should flow through `MemoryHindsightBank.tags({ kind: "session_slice" })` just like memory retains do.
   - Hindsight retain helpers should return structured failure results even for session slices, so extract flows can log degraded state and continue into `SessionPrompt.prompt()`.
+---
+
+## 2026-04-15 16:31:00 CST - US-012
+- Added Hindsight extraction-context retrieval by extending `packages/opencode/src/memory/hindsight/recall.ts` with `MemoryHindsightRecall.context()` that requests related source facts and chunks, normalizes direct hit text fallback, and deduplicates snippets before they reach the extractor.
+- Updated `packages/opencode/src/memory/engine/extractor.ts` to query Hindsight after session-slice retention, merge returned snippets with any caller-provided hints, inject only bounded `## Hindsight context`, and log whether semantic context was actually used.
+- Added regression coverage in `packages/opencode/test/memory/extractor.test.ts` and `packages/opencode/test/memory/hindsight-recall.test.ts` for snippet injection, no-result fallback, and context extraction from source facts, chunks, and direct hit text; documented the reusable pattern in `packages/opencode/AGENTS.md`.
+- Files changed: `packages/opencode/src/memory/engine/extractor.ts`, `packages/opencode/src/memory/hindsight/recall.ts`, `packages/opencode/test/memory/extractor.test.ts`, `packages/opencode/test/memory/hindsight-recall.test.ts`, `packages/opencode/AGENTS.md`, `tasks/prd.json`, `tasks/progress.txt`
+- **Learnings for future iterations:**
+  - Keep extractor semantic-context gathering in `MemoryHindsightRecall.context()` so `extractor.ts` only composes hints instead of parsing Hindsight hit shapes directly.
+  - Prefer `source_facts` over `chunks`, and `chunks` over direct hit text, because facts are the most structured evidence while direct text is only a fallback when richer context is absent.
+  - Stub both `MemoryHindsightRetain.session()` and `MemoryHindsightRecall.context()` in extractor tests when Hindsight extract is enabled, otherwise the embedded wrapper path can make focused tests slow or flaky.
 ---

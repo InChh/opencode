@@ -182,8 +182,8 @@
         "Typecheck passes"
       ],
       "priority": 12,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Updated extraction to query Hindsight for related source facts, chunks, or direct hit text before prompt construction, inject only bounded deduplicated context into the Hindsight-aware extractor, and fall back cleanly when no usable context is returned."
     },
     {
       "id": "US-013",

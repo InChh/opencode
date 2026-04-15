@@ -15,6 +15,20 @@ export namespace MemoryHindsightRecall {
     score?: unknown
     relevance_score?: unknown
     relevanceScore?: unknown
+    text?: unknown
+    content?: unknown
+    original_text?: unknown
+    source_facts?: unknown
+    sourceFacts?: unknown
+    chunks?: unknown
+  }
+
+  type Snippet = {
+    id?: unknown
+    document_id?: unknown
+    text?: unknown
+    content?: unknown
+    original_text?: unknown
   }
 
   export interface Candidate {
@@ -42,6 +56,19 @@ export namespace MemoryHindsightRecall {
     drops: Drop[]
   }
 
+  export interface Context {
+    text: string
+    kind: "doc" | "obs"
+    id?: string
+    score?: number
+  }
+
+  export interface ContextResult {
+    raw: Raw
+    hits: number
+    items: Context[]
+  }
+
   function hits(raw: Raw): Hit[] {
     const data = raw as unknown as { results?: unknown; items?: unknown }
     if (Array.isArray(data.results)) {
@@ -56,6 +83,56 @@ export namespace MemoryHindsightRecall {
   function score(hit: Hit) {
     const value = [hit.score, hit.relevance_score, hit.relevanceScore].find((item) => typeof item === "number")
     return typeof value === "number" && Number.isFinite(value) ? value : undefined
+  }
+
+  function text(value: unknown) {
+    if (typeof value !== "string") return
+    const result = value.replace(/\s+/g, " ").trim()
+    return result || undefined
+  }
+
+  function id(value: unknown) {
+    return typeof value === "string" && value.trim() ? value.trim() : undefined
+  }
+
+  function list(value: unknown) {
+    return Array.isArray(value) ? (value as Snippet[]) : []
+  }
+
+  function snippets(items: Snippet[], kind: Context["kind"], rank?: number) {
+    return items.flatMap((item) => {
+      const value = text(item.text) ?? text(item.content) ?? text(item.original_text)
+      if (!value) return []
+      return [
+        {
+          text: value,
+          kind,
+          id: id(item.document_id) ?? id(item.id),
+          score: rank,
+        },
+      ]
+    })
+  }
+
+  function notes(hit: Hit): Context[] {
+    const value = score(hit)
+    const facts = snippets(list(hit.source_facts ?? hit.sourceFacts), "obs", value)
+    if (facts.length > 0) return facts
+
+    const chunks = snippets(list(hit.chunks), "doc", value)
+    if (chunks.length > 0) return chunks
+
+    const body = text(hit.text) ?? text(hit.content) ?? text(hit.original_text)
+    if (!body) return []
+    const doc = id(hit.document_id)
+    return [
+      {
+        text: body,
+        kind: doc?.startsWith("obs:") ? "obs" : "doc",
+        id: doc,
+        score: value,
+      },
+    ]
   }
 
   export async function query(input: {
@@ -136,6 +213,35 @@ export namespace MemoryHindsightRecall {
       hits: list.length,
       candidates,
       drops,
+    }
+  }
+
+  export async function context(input: { query: string }): Promise<ContextResult | undefined> {
+    const cfg = await Config.get()
+    if (!cfg.memory?.hindsight.enabled || !cfg.memory.hindsight.extract) return
+    const raw = await MemoryHindsightClient.recall({
+      query: input.query,
+      include_source_facts: true,
+      include_chunks: true,
+      max_source_facts_tokens: cfg.memory.hindsight.context_max_tokens,
+      max_chunk_tokens: cfg.memory.hindsight.context_max_tokens,
+    })
+    if (!raw) return
+
+    const seen = new Set<string>()
+    const items = hits(raw).flatMap((hit) =>
+      notes(hit).filter((item) => {
+        const key = `${item.kind}:${item.id ?? ""}:${item.text}`
+        if (seen.has(key)) return false
+        seen.add(key)
+        return true
+      }),
+    )
+
+    return {
+      raw,
+      hits: hits(raw).length,
+      items,
     }
   }
 }

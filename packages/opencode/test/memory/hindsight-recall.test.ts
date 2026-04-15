@@ -201,4 +201,62 @@ describe("MemoryHindsightRecall", () => {
     expect(missing).toBeUndefined()
     expect(spy).toHaveBeenCalledTimes(1)
   })
+
+  test("builds extractor context from source facts, chunks, and direct hit text", async () => {
+    await using tmp = await tmpdir({
+      git: true,
+      config: {
+        memory: {
+          hindsight: cfg({ extract: true }),
+        },
+      },
+    })
+
+    const spy = spyOn(MemoryHindsightClient, "recall").mockResolvedValue({
+      results: [
+        {
+          document_id: `obs:${MemoryHindsightBank.worktreeHash(tmp.path)}:sess_1:abc`,
+          score: 0.91,
+          source_facts: [
+            { id: "fact_1", document_id: "obs_1", text: "Observation from a related session" },
+            { id: "fact_1", document_id: "obs_1", text: "Observation from a related session" },
+          ],
+        },
+        {
+          document_id: `sess:${MemoryHindsightBank.worktreeHash(tmp.path)}:sess_1:0:2`,
+          relevance_score: 0.82,
+          chunks: [{ id: "chunk_1", document_id: "doc_1", text: "Chunk from a retained document" }],
+        },
+        {
+          document_id: `mem:${MemoryHindsightBank.worktreeHash(tmp.path)}:mem_1`,
+          score: 0.73,
+          text: "Direct fallback hit text",
+        },
+      ],
+    } as unknown as Awaited<ReturnType<typeof MemoryHindsightClient.recall>>)
+
+    const result = await Instance.provide({
+      directory: tmp.path,
+      fn: () => MemoryHindsightRecall.context({ query: "extract hints" }),
+    })
+
+    expect(spy).toHaveBeenCalledWith({
+      query: "extract hints",
+      include_source_facts: true,
+      include_chunks: true,
+      max_source_facts_tokens: 1200,
+      max_chunk_tokens: 1200,
+    })
+    expect(result?.hits).toBe(3)
+    expect(result?.items).toEqual([
+      { text: "Observation from a related session", kind: "obs", id: "obs_1", score: 0.91 },
+      { text: "Chunk from a retained document", kind: "doc", id: "doc_1", score: 0.82 },
+      {
+        text: "Direct fallback hit text",
+        kind: "doc",
+        id: `mem:${MemoryHindsightBank.worktreeHash(tmp.path)}:mem_1`,
+        score: 0.73,
+      },
+    ])
+  })
 })
