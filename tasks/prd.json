@@ -77,8 +77,8 @@
         "Typecheck passes"
       ],
       "priority": 5,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Added `MemoryHindsightRetain.memory()` as the single authoritative-memory retain wrapper that maps one local memory record into one stable `mem:` Hindsight document with string-only metadata, normalized tags, replace-style updates, and non-fatal failure results for downstream memory flows."
     },
     {
       "id": "US-006",

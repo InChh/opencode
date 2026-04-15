@@ -3,6 +3,7 @@
 - Keep Hindsight bank identity and resolve rules in dedicated helpers under `packages/opencode/src/memory/hindsight/`; only `mem:` ids should resolve directly to authoritative memories, while `sess:` and `obs:` remain indirect ranking evidence and cross-worktree hashes must be dropped.
 - Workspace-scoped companion services fit `Instance.state(..., dispose)` well: cache one lazy boot promise per worktree, bind the embedded daemon to `127.0.0.1`, and treat startup or health timeouts as degraded fallback instead of throwing into memory flows.
 - When Hindsight needs shared timeout or fallback behavior across retain, recall, and inspect paths, wrap the SDK once in `packages/opencode/src/memory/hindsight/client.ts` and keep downstream memory flows on non-fatal `undefined` results instead of scattering per-call error handling.
+- Authoritative-memory retain helpers should build `document_id`, metadata, and tags through `MemoryHindsightMap`, force `update_mode: "replace"`, and return structured non-fatal results so local writes never depend on companion success.
 
 ## 2026-04-14 23:20:31 CST - US-001
 - Added `memory.hindsight` config parsing in `packages/opencode/src/config/config.ts` with the requested feature gates, rollout knobs, and phase-1 defaults.
@@ -41,4 +42,14 @@
   - Use one `run()` helper around `MemoryHindsightService.ready()` plus `withTimeout()` so Hindsight callers inherit the same degraded fallback semantics without duplicating guards.
   - Keep the high-level SDK wrapper for retain and recall, but use the generated low-level `sdk` with `createClient(createConfig(...))` for document or operation inspection endpoints the class wrapper does not expose.
   - Client wrapper failures should warn and return `undefined` so local authoritative memory flows stay in control of fallback decisions.
+---
+
+## 2026-04-15 11:17:00 CST - US-005
+- Added `packages/opencode/src/memory/hindsight/retain.ts` with `MemoryHindsightRetain.memory()` to map one authoritative local memory into one stable `mem:` Hindsight retain call using mapper-derived metadata or tags and replace-style idempotent updates.
+- Exported the retain wrapper from `packages/opencode/src/memory/index.ts` and added `packages/opencode/test/memory/hindsight-retain.test.ts` coverage for successful mapping, disabled-mode skip behavior, and non-fatal retain failure results.
+- Files changed: `packages/opencode/src/memory/hindsight/retain.ts`, `packages/opencode/src/memory/index.ts`, `packages/opencode/test/memory/hindsight-retain.test.ts`, `tasks/prd.json`, `tasks/progress.txt`
+- **Learnings for future iterations:**
+  - Keep authoritative-memory retain mapping in one wrapper so create, update, and backfill flows can reuse the same stable `mem:` id and metadata rules.
+  - Treat `undefined` retain responses as degraded companion failures and surface them as structured results instead of throwing into local memory write paths.
+  - Use targeted Hindsight wrapper tests with `tmpdir({ git: true, config })` plus `spyOn(MemoryHindsightClient, "retain")` when you want to verify mapping without booting the embedded daemon.
 ---
