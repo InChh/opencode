@@ -15,6 +15,7 @@
 - Keep structured Hindsight recovery state in a dedicated `hindsight.json` sidecar beside `personal.json`, keyed by the same encoded project directory; update it through one helper with lock-guarded atomic writes, and trim stored failure samples so backfill metadata cannot grow without bound.
 - Start Hindsight backfill from `InstanceBootstrap()` via a thin `MemoryHindsightBackfill.boot()` wrapper that checks config internally, reuses one in-flight promise per worktree with `Instance.state(...)`, and keeps startup fire-and-forget.
 - Hindsight rollout logs should include structured `duration`, `fallback`, and `reason` fields at service, client, recall, retain, and backfill boundaries; assert them in focused tests with `Bun.file(Log.file()).text()` after each operation instead of relying only on return values.
+- Read-only Hindsight debug commands should expose a pure loader helper that reports config, service, and sidecar state without writing `hindsight.json`; cover that non-mutating contract directly in CLI tests.
 
 ## 2026-04-14 23:20:31 CST - US-001
 - Added `memory.hindsight` config parsing in `packages/opencode/src/config/config.ts` with the requested feature gates, rollout knobs, and phase-1 defaults.
@@ -184,4 +185,14 @@
   - Keep Hindsight observability at the integration boundaries instead of deep inside helpers, so each fallback path logs one stable reason field and one duration field that tests can assert.
   - Focused log assertions should tolerate a missing file by reading `Bun.file(Log.file()).text().catch(() => "")`, because some test setups create the log lazily on first write.
   - When validating degraded fallback behavior, assert the guard indirectly by calling the same entrypoint twice and proving the startup path only runs once after the first degrade.
+---
+
+## 2026-04-15 17:19:08 CST - US-018
+- Added `packages/opencode/src/cli/cmd/debug/hindsight.ts` with `loadHindsightInspect()` and wired it into `packages/opencode/src/cli/cmd/debug/index.ts` so `debug hindsight` reports config gates, bank identity, service status, and backfill sidecar state through a read-only path.
+- Added `packages/opencode/test/cli/hindsight.test.ts` coverage for the non-mutating inspect contract, including the case where no `hindsight.json` exists yet and the case where existing service or backfill state is surfaced verbatim.
+- Files changed: `packages/opencode/src/cli/cmd/debug/hindsight.ts`, `packages/opencode/src/cli/cmd/debug/index.ts`, `packages/opencode/test/cli/hindsight.test.ts`, `packages/opencode/AGENTS.md`, `tasks/prd.json`, `tasks/progress.txt`
+- **Learnings for future iterations:**
+  - Keep internal status commands read-only by loading sidecar and service state through a helper that returns derived JSON instead of letting the CLI path mutate state on demand.
+  - For rollout diagnostics, include both config gates and derived bank identity in inspect output so enablement mistakes and worktree-scope mismatches are visible in one command.
+  - Regression tests for read-only inspect commands should assert both returned payload shape and on-disk non-mutation when optional state files are absent.
 ---

@@ -272,8 +272,8 @@
         "Typecheck passes"
       ],
       "priority": 18,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Added a read-only `debug hindsight` inspect command plus `loadHindsightInspect()` so maintainers can report config, bank identity, service health, and backfill sidecar state without mutating Hindsight data or creating `hindsight.json` during inspection."
     },
     {
       "id": "US-019",
