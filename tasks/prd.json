@@ -92,8 +92,8 @@
         "Typecheck passes"
       ],
       "priority": 6,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Added `packages/opencode/src/memory/hindsight/recall.ts` as the Hindsight recall query wrapper that tolerates current SDK result shapes, preserves hit rank plus raw relevance score on resolved authoritative candidates, and drops unresolved, stale, cross-worktree, and indirect `sess:` or `obs:` hits before downstream recall selection."
     },
     {
       "id": "US-007",

@@ -4,6 +4,7 @@
 - Workspace-scoped companion services fit `Instance.state(..., dispose)` well: cache one lazy boot promise per worktree, bind the embedded daemon to `127.0.0.1`, and treat startup or health timeouts as degraded fallback instead of throwing into memory flows.
 - When Hindsight needs shared timeout or fallback behavior across retain, recall, and inspect paths, wrap the SDK once in `packages/opencode/src/memory/hindsight/client.ts` and keep downstream memory flows on non-fatal `undefined` results instead of scattering per-call error handling.
 - Authoritative-memory retain helpers should build `document_id`, metadata, and tags through `MemoryHindsightMap`, force `update_mode: "replace"`, and return structured non-fatal results so local writes never depend on companion success.
+- Hindsight recall wrappers should tolerate SDK hit-shape drift (`results` vs `items`, `score` vs relevance-score aliases), preserve source rank on resolved candidates, and record stale or indirect drops separately so downstream recall only sees authoritative local memories.
 
 ## 2026-04-14 23:20:31 CST - US-001
 - Added `memory.hindsight` config parsing in `packages/opencode/src/config/config.ts` with the requested feature gates, rollout knobs, and phase-1 defaults.
@@ -52,4 +53,14 @@
   - Keep authoritative-memory retain mapping in one wrapper so create, update, and backfill flows can reuse the same stable `mem:` id and metadata rules.
   - Treat `undefined` retain responses as degraded companion failures and surface them as structured results instead of throwing into local memory write paths.
   - Use targeted Hindsight wrapper tests with `tmpdir({ git: true, config })` plus `spyOn(MemoryHindsightClient, "retain")` when you want to verify mapping without booting the embedded daemon.
+---
+
+## 2026-04-15 11:35:00 CST - US-006
+- Added `packages/opencode/src/memory/hindsight/recall.ts` as the Hindsight recall query and authority-resolve pipeline that reads ranked hits, resolves only authoritative `mem:` or `metadata.memory_id` references against a local pool, and records unresolved, stale, cross-worktree, and indirect `sess:` evidence as drops.
+- Exported the wrapper from `packages/opencode/src/memory/index.ts` and added `packages/opencode/test/memory/hindsight-recall.test.ts` coverage for score or rank propagation, duplicate collapse, indirect-hit dropping, stale detection, and disabled or unavailable fallback behavior.
+- Files changed: `packages/opencode/src/memory/hindsight/recall.ts`, `packages/opencode/src/memory/index.ts`, `packages/opencode/test/memory/hindsight-recall.test.ts`, `tasks/prd.json`, `tasks/progress.txt`
+- **Learnings for future iterations:**
+  - Keep Hindsight recall result parsing tolerant to minor SDK response-shape drift so engine code does not depend on one transient field layout.
+  - Preserve rank from raw hit order even when duplicate memory ids collapse, because downstream selection still needs the original evidence ordering.
+  - Treat `sess:` and `obs:` hits as indirect ranking evidence with explicit drop reasons instead of letting them masquerade as authoritative local memories.
 ---
