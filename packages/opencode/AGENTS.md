@@ -29,6 +29,8 @@
 
 ## Swarm State
 
+- Memory extractor prompt variants should live in separate `src/memory/prompt/default/extract*.txt` files and load through `src/memory/prompt/loader.ts`; when adding a new variant, update the loader name list and use `sections(tpl, name)` so per-section fallback stays aligned with that variant's default.
+
 - Use `SwarmState.mutate` for authoritative swarm, task, and discussion writes; the per-task and per-discussion JSON files are compatibility projections derived from `board/<swarm>/state.json`.
 - When adding canonical swarm snapshot fields, update `SwarmState.Alignment` or the root `Snapshot` shape in `src/session/swarm-state.ts`, and initialize matching defaults in both `SwarmState.Example` and `SwarmState.create()`; current rollout rejects older snapshot schema versions instead of adding compatibility loaders.
 - Project-scoped alignment persistence lives in `board/alignment.json`; keep shared role definitions in `alignment.catalog.roles` and user-specific approvals in `alignment.confirmations.users` so future writes do not mix shared catalog state with per-user confirmation state.

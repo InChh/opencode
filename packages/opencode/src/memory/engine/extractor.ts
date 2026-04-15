@@ -13,6 +13,7 @@ import { SessionPrompt } from "@/session/prompt"
 
 export namespace MemoryExtractor {
   const log = Log.create({ service: "memory.extractor" })
+  type Prompt = "extract" | "extract-hindsight"
 
   // Concurrency guard: prevent multiple extractions on the same session
   const inflight = new Set<string>()
@@ -131,6 +132,31 @@ export namespace MemoryExtractor {
     return result.success ? result.data : undefined
   }
 
+  async function prompt() {
+    const cfg = await Config.get()
+    const name: Prompt = cfg.memory?.hindsight.enabled && cfg.memory.hindsight.extract ? "extract-hindsight" : "extract"
+    const dirs = await ConfigPaths.directories(Instance.directory, Instance.worktree)
+    const tpl = await load(name, dirs)
+    return {
+      name,
+      parts: sections(tpl, name),
+    }
+  }
+
+  function system(input: { system: string; existing: Memory.Info[]; snapshot: string }) {
+    return [
+      input.system,
+      "",
+      "## Existing memories",
+      "",
+      formatExisting(input.existing),
+      "",
+      "## Session conversation",
+      "",
+      input.snapshot,
+    ].join("\n")
+  }
+
   /**
    * Extract memories from a session's conversation history.
    *
@@ -156,27 +182,21 @@ export namespace MemoryExtractor {
     const contextSnapshot = contextWindow.map((m) => `[${m.role}]: ${m.content}`).join("\n---\n")
 
     try {
-      const tpl = await load("extract", await ConfigPaths.directories(Instance.directory, Instance.worktree))
-      const parts = sections(tpl)
+      const cfg = await prompt()
       const existing = await Memory.list()
 
-      // System prompt: role definition + existing memories + session conversation
-      const sys = [
-        parts.system,
-        "",
-        "## Existing memories",
-        "",
-        formatExisting(existing),
-        "",
-        "## Session conversation",
-        "",
-        contextSnapshot,
-      ].join("\n")
+      const sys = system({
+        system: cfg.parts.system,
+        existing,
+        snapshot: contextSnapshot,
+      })
 
-      // User prompt: analysis task instructions only
-      const task = parts.analysis || buildTaskInstructions()
+      const task = cfg.parts.analysis || buildTaskInstructions()
 
-      log.info("extractFromSession: invoking subagent", { sessionID })
+      log.info("extractFromSession: invoking subagent", {
+        sessionID,
+        prompt: cfg.name,
+      })
 
       const session = await Session.create({
         parentID: sessionID,
@@ -188,6 +208,7 @@ export namespace MemoryExtractor {
         model: await model(),
         agent: "memory-extractor",
         system: sys,
+        variant: cfg.name === "extract-hindsight" ? "hindsight" : undefined,
         parts: [{ type: "text", text: task }],
       })
 

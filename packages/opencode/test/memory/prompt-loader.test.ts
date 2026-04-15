@@ -71,12 +71,34 @@ describe("prompt loader", () => {
   })
 
   test("loads all known prompt names without error", async () => {
-    const names: PromptName[] = ["recall", "extract", "inject", "optimizer", "remember", "forget", "list"]
+    const names: PromptName[] = [
+      "recall",
+      "extract",
+      "extract-hindsight",
+      "inject",
+      "optimizer",
+      "remember",
+      "forget",
+      "list",
+    ]
     for (const name of names) {
       const result = await load(name, [])
       expect(result).toBeTruthy()
       expect(result.length).toBeGreaterThan(0)
     }
+  })
+
+  test("loads custom hindsight extractor prompt", async () => {
+    await using tmp = await tmpdir({
+      init: async (dir) => {
+        const memdir = path.join(dir, "memory")
+        await fs.mkdir(memdir, { recursive: true })
+        await Bun.write(path.join(memdir, "extract-hindsight.md"), "custom hindsight extract prompt")
+      },
+    })
+
+    const result = await load("extract-hindsight", [tmp.path])
+    expect(result).toBe("custom hindsight extract prompt")
   })
 
   test("returns default when user file is empty", async () => {

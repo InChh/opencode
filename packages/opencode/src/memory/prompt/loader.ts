@@ -4,18 +4,21 @@ import { Filesystem } from "@/util/filesystem"
 
 import DEFAULT_RECALL from "./default/recall.txt"
 import DEFAULT_EXTRACT from "./default/extract.txt"
+import DEFAULT_EXTRACT_HINDSIGHT from "./default/extract-hindsight.txt"
 import DEFAULT_INJECT from "./default/inject.txt"
 import DEFAULT_OPTIMIZER from "./default/optimizer.txt"
 import DEFAULT_REMEMBER from "./default/remember.txt"
 import DEFAULT_FORGET from "./default/forget.txt"
 import DEFAULT_LIST from "./default/list.txt"
 
-const NAMES = ["recall", "extract", "inject", "optimizer", "remember", "forget", "list"] as const
+const NAMES = ["recall", "extract", "extract-hindsight", "inject", "optimizer", "remember", "forget", "list"] as const
 export type PromptName = (typeof NAMES)[number]
+type ExtractName = "extract" | "extract-hindsight"
 
 const defaults: Record<PromptName, string> = {
   recall: DEFAULT_RECALL,
   extract: DEFAULT_EXTRACT,
+  "extract-hindsight": DEFAULT_EXTRACT_HINDSIGHT,
   inject: DEFAULT_INJECT,
   optimizer: DEFAULT_OPTIMIZER,
   remember: DEFAULT_REMEMBER,
@@ -52,7 +55,7 @@ export async function load(name: PromptName, dirs: string[]): Promise<string> {
  * Parse extract.md into system and analysis sections by heading.
  * Falls back per-section: missing heading → that section uses default.
  */
-export function sections(content: string): { system: string; analysis: string } {
+export function sections(content: string, name: ExtractName = "extract"): { system: string; analysis: string } {
   const heading = /^#\s+(system|analysis)\s*$/im
   const lines = content.split("\n")
   let current: "system" | "analysis" | undefined
@@ -70,7 +73,7 @@ export function sections(content: string): { system: string; analysis: string } 
   const sys = parts.system.join("\n").trim()
   const analysis = parts.analysis.join("\n").trim()
 
-  const defaults_extract = fallback()
+  const defaults_extract = fallback(name)
 
   return {
     system: sys || defaults_extract.system,
@@ -78,8 +81,8 @@ export function sections(content: string): { system: string; analysis: string } 
   }
 }
 
-function fallback() {
-  return raw(defaults.extract)
+function fallback(name: ExtractName) {
+  return raw(defaults[name])
 }
 
 function raw(content: string): { system: string; analysis: string } {

@@ -1,9 +1,13 @@
-import { describe, test, expect } from "bun:test"
+import { afterEach, describe, test, expect, spyOn } from "bun:test"
+import * as fs from "fs/promises"
+import path from "path"
 import { Instance } from "../../src/project/instance"
 import type { Config } from "../../src/config/config"
 import { Memory } from "../../src/memory/memory"
 import { MemoryStorage } from "../../src/memory/storage"
 import { MemoryExtractor } from "../../src/memory/engine/extractor"
+import { Provider } from "../../src/provider/provider"
+import { SessionPrompt } from "../../src/session/prompt"
 import { tmpdir } from "../fixture/fixture"
 
 async function withMemoryEnv<T>(fn: () => Promise<T>, config?: Partial<Config.Info>): Promise<T> {
@@ -18,6 +22,12 @@ async function withMemoryEnv<T>(fn: () => Promise<T>, config?: Partial<Config.In
 }
 
 describe("MemoryExtractor", () => {
+  const spies: Array<{ mockRestore(): void }> = []
+
+  afterEach(() => {
+    while (spies.length) spies.pop()?.mockRestore()
+  })
+
   describe("rememberWithContext", () => {
     test("creates a memory with context snapshot", async () => {
       await withMemoryEnv(async () => {
@@ -85,23 +95,108 @@ describe("MemoryExtractor", () => {
       })
     })
 
-    test("returns empty on LLM failure (no provider configured)", async () => {
+    test("returns empty on LLM failure", async () => {
       await withMemoryEnv(
         async () => {
-          // If a provider is available (e.g. OAuth), extraction may succeed.
-          // This test verifies no crash occurs — result is either empty or valid memories.
+          spies.push(spyOn(SessionPrompt, "prompt").mockRejectedValue(new Error("llm failed")))
           const result = await MemoryExtractor.extractFromSession("sess_8", [
             { role: "user", content: "We always use Hono framework" },
             { role: "assistant", content: "Noted, using Hono." },
           ])
-          expect(Array.isArray(result)).toBe(true)
+          expect(result).toEqual([])
         },
         {
-          // Fixed: force a fast provider failure instead of depending on ambient auth/config.
           model: "missing/model",
         },
       )
-    }, 15000)
+    })
+
+    test("routes enabled extract flows through the hindsight-aware prompt without changing authoritative writes", async () => {
+      await using tmp = await tmpdir({
+        git: true,
+        config: {
+          memory: {
+            hindsight: {
+              enabled: true,
+              mode: "embedded",
+              extract: true,
+              recall: true,
+              backfill: true,
+              workspace_scope: "worktree",
+              context_max_items: 6,
+              context_max_tokens: 1200,
+            },
+          },
+        },
+        init: async (dir) => {
+          const mem = path.join(dir, ".opencode", "memory")
+          await fs.mkdir(mem, { recursive: true })
+          await Bun.write(
+            path.join(mem, "extract-hindsight.md"),
+            ["# System", "", "Custom hindsight system", "", "# Analysis", "", "Custom hindsight analysis"].join("\n"),
+          )
+        },
+      })
+
+      let sys = ""
+      let task = ""
+      let variant = ""
+      spies.push(
+        spyOn(Provider, "defaultModel").mockResolvedValue({
+          providerID: "test",
+          modelID: "primary",
+        }),
+        spyOn(Provider, "getSmallModel").mockResolvedValue(undefined),
+        spyOn(SessionPrompt, "prompt").mockImplementation((async (opts) => {
+          sys = opts.system ?? ""
+          task = opts.parts
+            .filter((part) => part.type === "text")
+            .map((part) => part.text)
+            .join("")
+          variant = opts.variant ?? ""
+          return {
+            info: {} as never,
+            parts: [
+              {
+                type: "text",
+                text: JSON.stringify({
+                  items: [
+                    {
+                      action: "create",
+                      content: "Use Hono for APIs",
+                      categories: ["tool"],
+                      tags: ["hono"],
+                      citations: [],
+                    },
+                  ],
+                }),
+              },
+            ],
+          }
+        }) as typeof SessionPrompt.prompt),
+      )
+
+      const result = await Instance.provide({
+        directory: tmp.path,
+        fn: () =>
+          MemoryExtractor.extractFromSession("sess_9", [
+            { role: "user", content: "Use Hono for API routes" },
+            { role: "assistant", content: "Okay, I will keep using Hono." },
+          ]),
+      })
+
+      const list = await Instance.provide({
+        directory: tmp.path,
+        fn: () => Memory.list(),
+      })
+
+      expect(variant).toBe("hindsight")
+      expect(sys).toContain("Custom hindsight system")
+      expect(task).toContain("Custom hindsight analysis")
+      expect(result).toHaveLength(1)
+      expect(result[0].content).toBe("Use Hono for APIs")
+      expect(list.map((item) => item.content)).toContain("Use Hono for APIs")
+    })
   })
 
   describe("prompt builders", () => {

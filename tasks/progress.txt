@@ -7,6 +7,7 @@
 - Hindsight recall wrappers should tolerate SDK hit-shape drift (`results` vs `items`, `score` vs relevance-score aliases), preserve source rank on resolved candidates, and record stale or indirect drops separately so downstream recall only sees authoritative local memories.
 - Engine recall should enrich `memory-recall` candidate JSON with optional Hindsight `rank` and `score` hints, but fall back to the original full pool whenever semantic recall yields no authoritative candidates.
 - Authority-boundary regressions should assert local `personal.json`, injector payloads, hit counters, and decay behavior still move only through local memory records even when tests enable Hindsight; in typed fixtures, pass the full nested Hindsight defaults object into `tmpdir({ config })`.
+- Extractor prompt variants should stay in dedicated `memory/extract*.md` files and use `sections(tpl, name)` fallback by prompt name, so Hindsight-specific instructions can diverge without mutating the base extractor contract.
 
 ## 2026-04-14 23:20:31 CST - US-001
 - Added `memory.hindsight` config parsing in `packages/opencode/src/config/config.ts` with the requested feature gates, rollout knobs, and phase-1 defaults.
@@ -84,4 +85,15 @@
   - Authority-boundary tests are most valuable when they assert concrete local artifacts and counters (`personal.json`, `useCount`, `hitCount`, `score`) instead of only checking Hindsight wrapper behavior.
   - The injector contract should stay local-memory-only even when recall ranking comes from Hindsight; tests can prove that by stubbing `MemoryRecall.invoke()` and ensuring only local memory content reaches the prompt.
   - `tmpdir({ config })` test setups with nested `memory.hindsight` config need the full typed Hindsight default object, not a partial nested shape.
+---
+
+## 2026-04-15 15:06:09 CST - US-009
+- Added a dedicated Hindsight-aware extractor variant by introducing `packages/opencode/src/memory/prompt/default/extract-hindsight.txt`, extending `packages/opencode/src/memory/prompt/loader.ts` to load and section-fallback by prompt name, and routing `packages/opencode/src/memory/engine/extractor.ts` to that variant only when `memory.hindsight.extract` is enabled.
+- Kept the existing authoritative extraction contract intact: the Hindsight-aware path still calls the same `memory-extractor` agent and still persists create or update results through `Memory.create()` and `Memory.update()` with clean fallback when the Hindsight-specific prompt is absent or the LLM call fails.
+- Added regression coverage in `packages/opencode/test/memory/extractor.test.ts`, `packages/opencode/test/memory/prompt-loader.test.ts`, and `packages/opencode/test/memory/prompt-integration.test.ts` for variant routing, custom `extract-hindsight.md` loading, and per-section fallback behavior.
+- Files changed: `packages/opencode/src/memory/engine/extractor.ts`, `packages/opencode/src/memory/prompt/loader.ts`, `packages/opencode/src/memory/prompt/default/extract-hindsight.txt`, `packages/opencode/test/memory/extractor.test.ts`, `packages/opencode/test/memory/prompt-loader.test.ts`, `packages/opencode/test/memory/prompt-integration.test.ts`, `tasks/prd.json`, `tasks/progress.txt`
+- **Learnings for future iterations:**
+  - Add new extractor modes as parallel prompt variants instead of appending conditional text into the base prompt; that keeps the default extractor path stable and reviewable.
+  - Keep prompt-loader fallback keyed by prompt name so partial custom `extract-hindsight.md` overrides inherit the matching default sections instead of the plain extractor defaults.
+  - Variant routing can stay at the engine boundary by passing `variant: "hindsight"` into `SessionPrompt.prompt()` while reusing the same `memory-extractor` agent and write path.
 ---

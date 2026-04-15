@@ -137,8 +137,8 @@
         "Typecheck passes"
       ],
       "priority": 9,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Added a dedicated `extract-hindsight` prompt variant plus extractor routing that switches variants only when Hindsight extract is enabled, while preserving the existing `memory-extractor` contract and authoritative local create or update flows with graceful fallback to no extra context."
     },
     {
       "id": "US-010",

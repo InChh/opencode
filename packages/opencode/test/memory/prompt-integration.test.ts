@@ -167,6 +167,25 @@ describe("prompt integration", () => {
       // Analysis should fallback to default
       expect(parts.analysis).toContain("Analyze the session conversation provided in the system prompt")
     })
+
+    test("extract-hindsight.md missing Analysis heading falls back to the hindsight default section", async () => {
+      await using tmp = await tmpdir({
+        init: async (dir) => {
+          const memdir = path.join(dir, "memory")
+          await fs.mkdir(memdir, { recursive: true })
+          await Bun.write(
+            path.join(memdir, "extract-hindsight.md"),
+            ["# System", "", "Custom hindsight system only"].join("\n"),
+          )
+        },
+      })
+
+      const tpl = await load("extract-hindsight", [tmp.path])
+      const parts = sections(tpl, "extract-hindsight")
+
+      expect(parts.system).toBe("Custom hindsight system only")
+      expect(parts.analysis).toContain("If a `Hindsight context` section is present")
+    })
   })
 
   describe("template variable rendering end-to-end", () => {
