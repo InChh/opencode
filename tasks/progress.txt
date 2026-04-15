@@ -1,5 +1,8 @@
 ## Codebase Patterns
 - Nested config defaults can live directly in the Zod schema in `packages/opencode/src/config/config.ts`; cover them with `Config.get()` integration tests in `packages/opencode/test/config/config.test.ts` so parsing and merge behavior are validated together.
+- Workspace-scoped runtime singletons belong on `Instance.state(...)` with a dispose hook so per-worktree resources are reused during a session and automatically shut down on `Instance.dispose()`.
+- Hindsight wrappers should resolve the embedded service once, build both `HindsightClient` and a raw `createClient(createConfig(...))`, then route SDK helpers through one shared timeout or non-fatal result path instead of per-call error handling.
+- Keep Hindsight bank identity and resolve rules in dedicated helpers under `packages/opencode/src/memory/hindsight/`; only `mem:` ids should resolve directly to authoritative memories, while `sess:` and `obs:` remain indirect ranking evidence and cross-worktree hashes must be dropped.
 
 ## 2026-04-14 23:20:31 CST - US-001
 - Added `memory.hindsight` config parsing in `packages/opencode/src/config/config.ts` with the requested feature gates, rollout knobs, and phase-1 defaults.
@@ -8,4 +11,34 @@
   - Config defaults that must survive merge and file parsing are safest when defined on the schema itself instead of in downstream runtime helpers.
   - `packages/opencode/test/config/config.test.ts` is the right place for end-to-end config parsing coverage because it exercises real config-file loading through `Config.get()`.
   - Restricting phase-1 enums like Hindsight `mode` and `workspace_scope` at schema time gives immediate parse failures and keeps rollout guards centralized.
+---
+
+## 2026-04-15 09:40:28 CST - US-002
+- Added `packages/opencode/src/memory/hindsight/service.ts` with a lazy embedded service manager that binds Hindsight to `127.0.0.1`, derives stable per-worktree profile and port values, reuses one handle per worktree, exposes health and shutdown helpers, and degrades cleanly on startup or health failure.
+- Added dependency wiring and exports for the service layer plus focused lifecycle coverage with a mocked `@vectorize-io/hindsight-all` server.
+- Files changed: `packages/opencode/package.json`, `bun.lock`, `packages/opencode/src/hindsight-all.d.ts`, `packages/opencode/src/memory/hindsight/service.ts`, `packages/opencode/src/memory/index.ts`, `packages/opencode/test/memory/hindsight-service.test.ts`, `tasks/prd.json`, `tasks/progress.txt`
+- **Learnings for future iterations:**
+  - `Instance.state(...)` is the right home for worktree-scoped service caches because its dispose hook runs automatically when the project instance is torn down.
+  - `bun:test` `mock.module(...)` must be registered before importing the target module when a new integration layer dynamically imports an external package.
+  - A small local `.d.ts` shim keeps new third-party modules typecheckable before the dependency is installed everywhere.
+---
+
+## 2026-04-15 10:05:14 CST - US-003
+- Added `packages/opencode/src/memory/hindsight/client.ts` as the shared Hindsight wrapper that resolves the embedded service once and exposes retain, batch retain, recall, document lookup, operation lookup, and operation listing through one timeout and non-fatal result path.
+- Exported the wrapper from `packages/opencode/src/memory/index.ts`, added the runtime dependency in `packages/opencode/package.json`, and covered the wrapper behavior with mocked client and embedded-service tests in `packages/opencode/test/memory/hindsight-client.test.ts`.
+- Files changed: `packages/opencode/package.json`, `packages/opencode/src/memory/hindsight/client.ts`, `packages/opencode/src/memory/index.ts`, `packages/opencode/test/memory/hindsight-client.test.ts`, `tasks/prd.json`, `tasks/progress.txt`
+- **Learnings for future iterations:**
+  - The public `HindsightClient` class covers retain and recall, but document and operation inspection helpers live under `sdk.*`, so wrappers should keep one raw generated client around for those endpoints.
+  - Converting Hindsight failures into `{ ok: false, code, error }` results keeps memory flows non-fatal while still preserving timeout vs runtime failure reasons for downstream fallback logic.
+  - Reusing the embedded service mock in wrapper tests is enough to exercise degraded-service behavior without starting the real daemon.
+---
+
+## 2026-04-15 10:32:00 CST - US-004
+- Added `packages/opencode/src/memory/hindsight/bank.ts` and `packages/opencode/src/memory/hindsight/mapper.ts` for deterministic worktree hashing, `opencode:${worktreeHash}` bank ids, stable `mem:`, `sess:`, and `obs:` document ids, normalized memory metadata, and stable tag generation.
+- Exported the new helpers from `packages/opencode/src/memory/index.ts` and added targeted mapping coverage in `packages/opencode/test/memory/hindsight-mapper.test.ts` for reversible id parsing, metadata fallback, and cross-worktree or indirect-hit rejection.
+- Files changed: `packages/opencode/src/memory/hindsight/bank.ts`, `packages/opencode/src/memory/hindsight/mapper.ts`, `packages/opencode/src/memory/index.ts`, `packages/opencode/test/memory/hindsight-mapper.test.ts`, `tasks/prd.json`, `tasks/progress.txt`
+- **Learnings for future iterations:**
+  - Worktree hash should remain the single shared primitive for both bank ids and document ids so retain, recall, and backfill stay aligned.
+  - Resolve logic should prefer reversible `mem:` document ids first, then fall back to `metadata.memory_id`, and treat cross-worktree hashes as hard drops.
+  - `sess:` and `obs:` ids should still parse cleanly for diagnostics, but they must remain indirect evidence instead of direct authority candidates.
 ---

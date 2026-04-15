@@ -32,8 +32,8 @@
         "Typecheck passes"
       ],
       "priority": 2,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Added a workspace-scoped embedded Hindsight service lifecycle with lazy per-worktree reuse, loopback-only startup defaults, degraded fallback handling, explicit health or shutdown APIs, and focused lifecycle tests."
     },
     {
       "id": "US-003",
@@ -47,8 +47,8 @@
         "Typecheck passes"
       ],
       "priority": 3,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Added a shared Hindsight client wrapper that reuses the embedded service base URL for retain, batch retain, recall, and backfill inspection helpers while centralizing timeout and non-fatal error handling with focused wrapper tests."
     },
     {
       "id": "US-004",
@@ -62,8 +62,8 @@
         "Typecheck passes"
       ],
       "priority": 4,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Added dedicated Hindsight bank and mapping helpers for deterministic worktree bank ids, stable mem/sess/obs document ids, normalized memory metadata or tags, and resolve rules that prefer reversible mem document ids while rejecting cross-worktree hits and keeping sess or obs hits indirect."
     },
     {
       "id": "US-005",
